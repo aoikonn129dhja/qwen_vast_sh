@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 # ============================================================
 # Vast.ai / PyTorch (Vast)
 # Qwen Rapid AIO NSFW v19 + ComfyUI one-shot setup
@@ -16,13 +18,15 @@ MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/main/
 
 QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/main/fixed-textencode-node/nodes_qwen.v2.py"
 
-WORKFLOW_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/main/Qwen-Rapid-AIO.json"
-WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-v19-NSFW.json"
+REPO_WORKFLOW="$SCRIPT_DIR/Qwen-Rapid-AIO-SaveImage.json"
+WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-SaveImage.json"
+BATCH_ROOT="$WORKSPACE/qwen_batch"
 
 COMFY_LOG="$WORKSPACE/comfyui.log"
 TUNNEL_LOG="$WORKSPACE/cloudflared.log"
 CLOUDFLARED="$WORKSPACE/bin/cloudflared"
 MODEL_PATH="$COMFY_DIR/models/checkpoints/$MODEL_FILE"
+COMFY_CLI="/venv/main/bin/comfy"
 
 # Vast.ai は毎回Destroyしてモデルを再DLする運用なので、実回線速度を事前測定する。
 # 10 MiB/s ≒ 84 Mbps。これ未満だと28.4GBのモデルだけで約45分以上かかる。
@@ -39,9 +43,11 @@ die() {
     exit 1
 }
 
+command -v git >/dev/null 2>&1 || die "git がありません。"
 command -v wget >/dev/null 2>&1 || die "wget がありません。"
 [ -x "$PYTHON" ] || die "/venv/main/bin/python が見つかりません。PyTorch (Vast) テンプレートか確認してください。"
 [ -x "$PIP" ] || die "/venv/main/bin/pip が見つかりません。"
+[ -f "$REPO_WORKFLOW" ] || die "リポジトリ内の workflow が見つかりません: $REPO_WORKFLOW"
 
 log "GPU確認"
 nvidia-smi || true
@@ -125,8 +131,8 @@ PY
         echo " モデルDL推定: 約 ${EST_MINUTES} 分"
         echo
         echo " 毎回Destroyして再構築する運用では非効率です。"
-        echo " Vast.aiでDownload速度の速い別ホストを借り直すことを推奨します。"
-        echo " 目安: Vast表示 500 Mbps以上、できれば800 Mbps以上。"
+        echo " Vast.aiの表示値ではなく、このHugging Face実測値を基準に判断してください。"
+        echo " 目安: 20 MiB/s以上を推奨、10 MiB/s未満なら別ホストを推奨します。"
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         echo
 
@@ -196,11 +202,20 @@ cd "$COMFY_DIR"
 log "ComfyUI依存パッケージをインストール"
 "$PIP" install -r requirements.txt
 
+log "公式 comfy-cli をインストール"
+"$PIP" install -U 'comfy-cli>=1.16.0,<2'
+[ -x "$COMFY_CLI" ] || die "comfy-cli のインストールに失敗しました。"
+
+log "comfy-cli のデフォルト ComfyUI workspace を設定"
+"$COMFY_CLI" set-default "$COMFY_DIR"
+
 mkdir -p \
     "$COMFY_DIR/models/checkpoints" \
     "$COMFY_DIR/input" \
     "$COMFY_DIR/output" \
     "$COMFY_DIR/user/default/workflows" \
+    "$BATCH_ROOT/input" \
+    "$BATCH_ROOT/tmp" \
     "$WORKSPACE/bin"
 
 # ------------------------------------------------------------
@@ -231,41 +246,14 @@ log "Phr00t nodes_qwen.v2.pyを導入"
 wget -q -O "$QWEN_NODE" "$QWEN_NODE_URL"
 
 # ------------------------------------------------------------
-# Workflow
+# Repository workflow
 # ------------------------------------------------------------
-log "Phr00t公式workflowを取得"
-wget -q -O "$WORKFLOW_FILE" "$WORKFLOW_URL"
+log "リポジトリの workflow を ComfyUI に配置"
+cp -f "$REPO_WORKFLOW" "$WORKFLOW_FILE"
 
-log "workflowをv19向けに自動調整"
-WORKFLOW_FILE="$WORKFLOW_FILE" MODEL_FILE="$MODEL_FILE" "$PYTHON" - <<'PY'
-import json
-import os
-from pathlib import Path
-
-path = Path(os.environ["WORKFLOW_FILE"])
-model_file = os.environ["MODEL_FILE"]
-
-data = json.loads(path.read_text(encoding="utf-8"))
-
-def patch(obj):
-    if isinstance(obj, dict):
-        return {k: patch(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [patch(v) for v in obj]
-    if isinstance(obj, str):
-        # 作者workflow内の旧Rapid-AIO checkpoint名をv19 NSFWへ置換
-        if "Qwen-Rapid-AIO" in obj and obj.endswith(".safetensors"):
-            return model_file
-        # v19の作者推奨samplerへ変更
-        if obj == "sa_solver":
-            return "er_sde"
-        return obj
-    return obj
-
-patched = patch(data)
-path.write_text(json.dumps(patched, ensure_ascii=False, indent=2), encoding="utf-8")
-print(path)
-PY
+if [ -f "$SCRIPT_DIR/run_batch.sh" ]; then
+    chmod +x "$SCRIPT_DIR/run_batch.sh"
+fi
 
 # ------------------------------------------------------------
 # Stop previous ComfyUI / tunnel if this script is re-run
@@ -374,6 +362,16 @@ echo "  $MODEL_PATH"
 echo
 echo "Workflow:"
 echo "  $WORKFLOW_FILE"
+echo
+echo "comfy-cli:"
+"$COMFY_CLI" --version || true
+echo
+echo "Batch input:"
+echo "  $BATCH_ROOT/input"
+echo "Prompts JSON:"
+echo "  $BATCH_ROOT/prompts.json"
+echo "Batch command:"
+echo "  bash $SCRIPT_DIR/run_batch.sh"
 echo
 echo "ComfyUI local:"
 echo "  http://127.0.0.1:8188"
