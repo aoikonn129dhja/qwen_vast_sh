@@ -6,6 +6,7 @@ tmp/
 
 # Local prompt definitions
 prompts.json
+prompts.md
 
 # Python cache
 __pycache__/
