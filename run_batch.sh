@@ -11,6 +11,9 @@ set -Eeuo pipefail
 #   /workspace/qwen_batch/input/
 #   /workspace/qwen_batch/prompts.json
 #
+# Output:
+#   /workspace/qwen_batch/output/<RUN_ID>/
+#
 # Optional positional overrides:
 #   bash run_batch.sh <input_dir> <prompts.json> [workflow.json]
 #
@@ -42,7 +45,6 @@ INPUT_DIR="$(realpath "$INPUT_RAW")"
 PROMPTS_JSON="$(realpath "$PROMPTS_RAW")"
 WORKFLOW="$(realpath "$WORKFLOW_RAW")"
 
-# ComfyUI must already be running; setup_qwen_comfy.sh starts it.
 "$PYTHON" - <<'PY'
 import urllib.request
 try:
@@ -52,13 +54,36 @@ except Exception as e:
 PY
 
 RUN_ID="$(date '+%Y%m%d_%H%M%S')"
+
 STAGE_REL="batch/$RUN_ID"
 STAGE_DIR="$COMFY_DIR/input/$STAGE_REL"
 TMP_DIR="$BATCH_ROOT/tmp/$RUN_ID"
-OUTPUT_DIR="$COMFY_DIR/output/batch/$RUN_ID"
-mkdir -p "$STAGE_DIR" "$TMP_DIR"
 
-# Collect source images.
+# ComfyUIのSaveImageはいったんComfyUI/outputへ保存する。
+# 各ジョブ完了後、/workspace/qwen_batch/output/<RUN_ID>/ へ即時移動する。
+COMFY_OUTPUT_DIR="$COMFY_DIR/output/batch/$RUN_ID"
+OUTPUT_DIR="$BATCH_ROOT/output/$RUN_ID"
+
+mkdir -p \
+    "$STAGE_DIR" \
+    "$TMP_DIR" \
+    "$COMFY_OUTPUT_DIR" \
+    "$OUTPUT_DIR"
+
+flush_outputs() {
+    [ -d "$COMFY_OUTPUT_DIR" ] || return 0
+
+    while IFS= read -r -d '' file; do
+        mv -f -- "$file" "$OUTPUT_DIR/"
+    done < <(find "$COMFY_OUTPUT_DIR" -maxdepth 1 -type f -print0)
+}
+
+cleanup() {
+    flush_outputs || true
+    rmdir "$COMFY_OUTPUT_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 mapfile -d '' IMAGES < <(
     find "$INPUT_DIR" -maxdepth 1 -type f \
       \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
@@ -70,7 +95,6 @@ if [ "${#IMAGES[@]}" -eq 0 ]; then
     exit 1
 fi
 
-# Read prompts safely as UTF-8 strings.
 mapfile -t PROMPTS_B64 < <("$PYTHON" - "$PROMPTS_JSON" <<'PY'
 import base64, json, sys
 with open(sys.argv[1], encoding="utf-8") as f:
@@ -83,6 +107,7 @@ PY
 )
 
 TOTAL=$(( ${#IMAGES[@]} * ${#PROMPTS_B64[@]} ))
+
 echo "============================================================"
 echo " QWEN BATCH"
 echo "============================================================"
@@ -95,7 +120,6 @@ echo "Output   : $OUTPUT_DIR"
 echo "============================================================"
 echo
 
-# LoadImage reads from ComfyUI/input, so stage every source image there once.
 for src in "${IMAGES[@]}"; do
     cp -f -- "$src" "$STAGE_DIR/$(basename "$src")"
 done
@@ -105,27 +129,23 @@ json_string() {
 }
 
 JOB=0
+
 for src in "${IMAGES[@]}"; do
     filename="$(basename "$src")"
     stem="${filename%.*}"
     image_value="$STAGE_REL/$filename"
 
     pidx=0
+
     for prompt_b64 in "${PROMPTS_B64[@]}"; do
         pidx=$((pidx + 1))
         JOB=$((JOB + 1))
+
         prompt="$("$PYTHON" -c 'import base64,sys; print(base64.b64decode(sys.argv[1]).decode("utf-8"))' "$prompt_b64")"
 
         prefix="batch/$RUN_ID/${stem}_p$(printf '%03d' "$pidx")"
         tmp_workflow="$TMP_DIR/job_$(printf '%05d' "$JOB").json"
 
-        # Addresses are fixed by the repository workflow:
-        #   8.image             = LoadImage
-        #   3.prompt            = positive TextEncodeQwenImageEditPlus
-        #   4.prompt            = negative TextEncodeQwenImageEditPlus
-        #   2.*                 = KSampler
-        #   9.width/height      = EmptyLatentImage
-        #   10.filename_prefix  = SaveImage
         overrides=(
             "8.image=$(json_string "$image_value")"
             "3.prompt=$(json_string "$prompt")"
@@ -135,6 +155,7 @@ for src in "${IMAGES[@]}"; do
         if [ -n "${NEGATIVE_PROMPT:-}" ]; then
             overrides+=("4.prompt=$(json_string "$NEGATIVE_PROMPT")")
         fi
+
         [ -n "${SEED:-}" ]      && overrides+=("2.seed=$SEED")
         [ -n "${STEPS:-}" ]     && overrides+=("2.steps=$STEPS")
         [ -n "${CFG:-}" ]       && overrides+=("2.cfg=$CFG")
@@ -146,14 +167,15 @@ for src in "${IMAGES[@]}"; do
 
         echo "[$JOB/$TOTAL] $filename × prompt $pidx"
 
-        # Modify the saved UI workflow through comfy-cli, then execute it.
-        "$COMFY" --where local workflow set-slot \
+        "$COMFY" --no-json --where local workflow set-slot \
             "$WORKFLOW" "${overrides[@]}" --stdout > "$tmp_workflow"
 
         "$COMFY" --where local run \
             --workflow "$tmp_workflow" \
             --wait \
             --timeout 3600
+
+        flush_outputs
     done
 done
 

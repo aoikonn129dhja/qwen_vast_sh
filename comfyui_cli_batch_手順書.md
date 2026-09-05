@@ -42,17 +42,15 @@ SSH Host / IP
 SSH Port
 ```
 
-## 2. VastへSSH接続する
+---
 
-Windows PowerShell:
+## 2. Jupyter Terminal を開く
 
-```powershell
-$HOST_IP = "<VAST_HOST_IP>"
-$SSH_PORT = <VAST_SSH_PORT>
-$REMOTE = "root@$HOST_IP"
+Vast.ai のインスタンスが `Running` になったら **Open** を押し、Jupyter を開く。
 
-ssh -p $SSH_PORT $REMOTE
-```
+Jupyter から Terminal を起動し、以降のセットアップコマンドはこの Terminal で実行する。
+
+---
 
 ## 3. GitHubからcloneしてセットアップする
 
@@ -80,29 +78,78 @@ D:\qwen_batch\
    └─ ...
 ```
 
-`prompts.json` の形式は README.md を参照する。
-
-## 5. 入力画像と prompts.json をまとめてアップロードする
-
-SSHターミナルとは別の Windows PowerShell で実行する。
-
-```powershell
-$HOST_IP = "<VAST_HOST_IP>"
-$SSH_PORT = <VAST_SSH_PORT>
-$REMOTE = "root@$HOST_IP"
-$JOB = "D:\qwen_batch"
-
-ssh -p $SSH_PORT $REMOTE "rm -rf /workspace/qwen_batch/input && mkdir -p /workspace/qwen_batch"
-scp -P $SSH_PORT -r "$JOB\input" "$REMOTE`:/workspace/qwen_batch/"
-scp -P $SSH_PORT "$JOB\prompts.json" "$REMOTE`:/workspace/qwen_batch/prompts.json"
+`prompts.json` の形式は以下.
+```json
+[
+  "prompt1",
+  "prompt2",
+  "prompt3"
+]
 ```
 
-## 6. 1コマンドで画像 × prompt の二重ループを実行する
+## 5. Jupyter から画像とプロンプトをドラッグ＆ドロップする
 
-Windows PowerShellからそのまま実行できる。
+Vast.ai のインスタンス画面で **Open** を押し、Jupyter を開く。
 
-```powershell
-ssh -p $SSH_PORT $REMOTE "bash /workspace/qwen_comfy_sh/run_batch.sh"
+セットアップ済みなら `/workspace/` に次のフォルダが存在する。
+
+```text
+/workspace/
+├─ ComfyUI/
+├─ qwen_batch/
+├─ qwen_comfy_sh/
+└─ bin/
+```
+
+### 5-1. 入力画像をアップロードする
+
+Jupyter のファイルブラウザで次を開く。
+
+```text
+/workspace/qwen_batch/input/
+```
+
+ローカルで生成に使う画像を複数選択して Jupyter の `/workspace/qwen_batch/input/` へドラッグ＆ドロップする。
+
+アップロード後、例えば次の状態になる。
+
+```text
+/workspace/qwen_batch/input/
+├─ 001.png
+├─ 002.png
+├─ 003.jpg
+└─ ...
+```
+
+### 5-2. prompts.json をアップロードする
+
+Jupyter で次へ移動する。
+
+```text
+/workspace/qwen_batch/
+```
+
+ローカルのprompts.jsonをドラッグ＆ドロップする。
+
+最終的に次の状態になればよい。
+
+```text
+/workspace/qwen_batch/
+├─ prompts.json
+├─ input/
+│  ├─ 001.png
+│  ├─ 002.png
+│  ├─ 003.jpg
+│  └─ ...
+└─ tmp/
+```
+
+## 5. 1コマンドで画像 × prompt の二重ループを実行する
+
+Jupyter で Terminal を開き、次を実行する。
+
+```bash
+bash /workspace/qwen_comfy_sh/run_batch.sh
 ```
 
 例えば画像10枚、prompt10個なら100枚生成する。
@@ -113,11 +160,27 @@ ssh -p $SSH_PORT $REMOTE "bash /workspace/qwen_comfy_sh/run_batch.sh"
 /workspace/ComfyUI/output/batch/<RUN_ID>/
 ```
 
-## 7. 生成画像をWindowsへ回収する
+## 6. 生成画像をローカルへ回収する
 
-```powershell
-New-Item -ItemType Directory -Force "$JOB\output" | Out-Null
-scp -P $SSH_PORT -r "$REMOTE`:/workspace/ComfyUI/output/batch" "$JOB\output\"
+Jupyter のファイルブラウザで次のディレクトリを開く。
+
+```text
+/workspace/ComfyUI/output/batch/
+```
+
+今回生成した `<RUN_ID>` フォルダを選び、Jupyter のダウンロード機能でローカルへ保存する。
+
+フォルダ単位でのダウンロードが扱いにくい場合は、Jupyter Terminal で先に圧縮する。
+
+```bash
+cd /workspace/ComfyUI/output/batch
+tar -czf /workspace/qwen_batch_results.tar.gz <RUN_ID>
+```
+
+その後、Jupyter のファイルブラウザで次のファイルを選び、ダウンロードする。
+
+```text
+/workspace/qwen_batch_results.tar.gz
 ```
 
 ## 8. 利用終了
