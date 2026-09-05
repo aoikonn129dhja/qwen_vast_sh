@@ -22,6 +22,13 @@ WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-v19-NSFW.json"
 COMFY_LOG="$WORKSPACE/comfyui.log"
 TUNNEL_LOG="$WORKSPACE/cloudflared.log"
 CLOUDFLARED="$WORKSPACE/bin/cloudflared"
+MODEL_PATH="$COMFY_DIR/models/checkpoints/$MODEL_FILE"
+
+# Vast.ai は毎回Destroyしてモデルを再DLする運用なので、実回線速度を事前測定する。
+# 10 MiB/s ≒ 84 Mbps。これ未満だと28.4GBのモデルだけで約45分以上かかる。
+MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
+SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"   # 8 MiB
+ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
 
 log() {
     printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
@@ -43,14 +50,145 @@ log "Disk確認"
 df -h "$WORKSPACE" || true
 
 # ------------------------------------------------------------
+# Network preflight
+# ------------------------------------------------------------
+log "回線速度を事前確認（Hugging Faceから最大8MiBだけ試験DL）"
+
+SPEED_RESULT="$(
+    MODEL_URL="$MODEL_URL" SPEED_TEST_BYTES="$SPEED_TEST_BYTES" "$PYTHON" - <<'PY'
+import os
+import time
+import urllib.request
+
+url = os.environ["MODEL_URL"]
+target = int(os.environ["SPEED_TEST_BYTES"])
+
+req = urllib.request.Request(
+    url,
+    headers={
+        "Range": f"bytes=0-{target - 1}",
+        "User-Agent": "vast-qwen-setup-speed-test/1.0",
+    },
+)
+
+start = time.monotonic()
+downloaded = 0
+
+try:
+    with urllib.request.urlopen(req, timeout=15) as r:
+        while downloaded < target:
+            chunk = r.read(min(1024 * 1024, target - downloaded))
+            if not chunk:
+                break
+            downloaded += len(chunk)
+            if time.monotonic() - start >= 20:
+                break
+except Exception as e:
+    print(f"ERROR|{type(e).__name__}: {e}")
+    raise SystemExit(0)
+
+elapsed = max(time.monotonic() - start, 0.001)
+mib_s = downloaded / 1024 / 1024 / elapsed
+mbps = mib_s * 8.388608
+print(f"OK|{mib_s:.2f}|{mbps:.1f}|{elapsed:.2f}|{downloaded}")
+PY
+)"
+
+if [[ "$SPEED_RESULT" == OK\|* ]]; then
+    IFS='|' read -r _ DOWNLOAD_MIB_S DOWNLOAD_MBPS TEST_SECONDS TEST_BYTES <<< "$SPEED_RESULT"
+
+    EST_MINUTES="$(
+        "$PYTHON" - "$DOWNLOAD_MIB_S" <<'PY'
+import sys
+speed = max(float(sys.argv[1]), 0.001)
+model_bytes = 28_431_843_583
+minutes = model_bytes / (speed * 1024 * 1024) / 60
+print(f"{minutes:.1f}")
+PY
+    )"
+
+    log "実測: ${DOWNLOAD_MIB_S} MiB/s（約 ${DOWNLOAD_MBPS} Mbps）"
+    echo "28.4GBモデルの推定DL時間: 約 ${EST_MINUTES} 分"
+
+    IS_SLOW="$(
+        "$PYTHON" - "$DOWNLOAD_MIB_S" "$MIN_DOWNLOAD_MIB_S" <<'PY'
+import sys
+print(1 if float(sys.argv[1]) < float(sys.argv[2]) else 0)
+PY
+    )"
+
+    if [ "$IS_SLOW" -eq 1 ]; then
+        echo
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo " WARNING: このホストの実回線速度は遅いです。"
+        echo " 実測: ${DOWNLOAD_MIB_S} MiB/s（約 ${DOWNLOAD_MBPS} Mbps）"
+        echo " モデルDL推定: 約 ${EST_MINUTES} 分"
+        echo
+        echo " 毎回Destroyして再構築する運用では非効率です。"
+        echo " Vast.aiでDownload速度の速い別ホストを借り直すことを推奨します。"
+        echo " 目安: Vast表示 500 Mbps以上、できれば800 Mbps以上。"
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo
+
+        if [ "$ALLOW_SLOW_DOWNLOAD" != "1" ]; then
+            if [ -t 0 ]; then
+                read -r -p "それでもこのホストで続行しますか？ [y/N]: " ANSWER
+                case "$ANSWER" in
+                    y|Y|yes|YES) ;;
+                    *)
+                        echo "セットアップを中止しました。Vast.aiで別ホストを選び、現在のインスタンスはDestroyしてください。"
+                        exit 2
+                        ;;
+                esac
+            else
+                echo "非対話実行のため中止します。強制続行する場合は ALLOW_SLOW_DOWNLOAD=1 を指定してください。"
+                exit 2
+            fi
+        fi
+    fi
+else
+    echo
+    echo "WARNING: 回線速度の事前測定に失敗しました: ${SPEED_RESULT#ERROR|}"
+    echo "速度判定をスキップして続行します。"
+fi
+
+# ------------------------------------------------------------
 # ComfyUI
 # ------------------------------------------------------------
-if [ ! -d "$COMFY_DIR/.git" ]; then
-    log "ComfyUIをclone"
-    cd "$WORKSPACE"
-    git clone https://github.com/Comfy-Org/ComfyUI.git
+COMFY_VALID=0
+
+if [ -d "$COMFY_DIR/.git" ] \
+    && [ -f "$COMFY_DIR/requirements.txt" ] \
+    && [ -f "$COMFY_DIR/main.py" ] \
+    && git -C "$COMFY_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    COMFY_VALID=1
+fi
+
+if [ "$COMFY_VALID" -eq 1 ]; then
+    log "ComfyUIは正常に存在します。cloneをスキップ"
 else
-    log "ComfyUIは既に存在します。cloneをスキップ"
+    RECOVERED_MODEL="$WORKSPACE/.${MODEL_FILE}.recover"
+
+    if [ -e "$COMFY_DIR" ]; then
+        log "不完全なComfyUIを検出しました。削除して再cloneします。"
+
+        # checkpointだけ既に取得済みなら再DLを避けるため一時退避。
+        if [ -s "$MODEL_PATH" ]; then
+            log "既存モデルを一時退避"
+            mv "$MODEL_PATH" "$RECOVERED_MODEL"
+        fi
+
+        rm -rf "$COMFY_DIR"
+    fi
+
+    log "ComfyUIをshallow clone"
+    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
+
+    if [ -s "$RECOVERED_MODEL" ]; then
+        log "退避したモデルを復元"
+        mkdir -p "$COMFY_DIR/models/checkpoints"
+        mv "$RECOVERED_MODEL" "$MODEL_PATH"
+    fi
 fi
 
 cd "$COMFY_DIR"
@@ -68,8 +206,6 @@ mkdir -p \
 # ------------------------------------------------------------
 # Model
 # ------------------------------------------------------------
-MODEL_PATH="$COMFY_DIR/models/checkpoints/$MODEL_FILE"
-
 if [ ! -s "$MODEL_PATH" ]; then
     log "Qwen Rapid AIO NSFW v19をダウンロード（約28.4GB）"
     wget -c -O "$MODEL_PATH" "$MODEL_URL"
