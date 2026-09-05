@@ -38,6 +38,13 @@ set -Eeuo pipefail
 #   PREVIEW_ENABLED=0        Disable browser preview
 #   PREVIEW_PORT=8765        Local preview server port
 #
+# Browser preview security:
+#   user     : qwen (fixed)
+#   password : random 20-character alphanumeric string generated once per Vast workspace
+#              and reused by later batch runs in the same rented instance
+#   auth     : HTTP Basic Authentication over the HTTPS Cloudflare Quick Tunnel
+#   secret   : stored only under /workspace/qwen_preview/ (outside this Git repo)
+#
 # Input images are read only from the top level of input/. Subdirectories such
 # as input/archive/ are ignored.
 
@@ -52,6 +59,11 @@ PREVIEW_ENABLED="${PREVIEW_ENABLED:-1}"
 PREVIEW_PORT="${PREVIEW_PORT:-8765}"
 PREVIEW_ROOT="${PREVIEW_ROOT:-/workspace/qwen_preview}"
 CLOUDFLARED="${CLOUDFLARED_BIN:-/workspace/bin/cloudflared}"
+PREVIEW_USER="qwen"
+PREVIEW_PASSWORD=""
+PREVIEW_PASSWORD_FILE="$PREVIEW_ROOT/password.txt"
+PREVIEW_URL_FILE="$PREVIEW_ROOT/url.txt"
+PREVIEW_SERVER_VERSION="20260906-completion-alert-v1"
 
 INPUT_RAW="${1:-$BATCH_ROOT/input}"
 PROMPTS_RAW="${2:-$BATCH_ROOT/prompts.md}"
@@ -67,14 +79,115 @@ INPUT_DIR="$(realpath "$INPUT_RAW")"
 PROMPTS_MD="$(realpath "$PROMPTS_RAW")"
 WORKFLOW="$(realpath "$WORKFLOW_RAW")"
 
-# ComfyUI must already be running; setup_qwen_comfy.sh starts it.
-"$PYTHON" - <<'PY'
-import urllib.request
-try:
-    urllib.request.urlopen("http://127.0.0.1:8188/", timeout=3).read(1)
-except Exception as e:
-    raise SystemExit(f"ERROR: ComfyUI is not responding at 127.0.0.1:8188: {e}")
+# Create the browser-preview password only once for this Vast workspace.
+# Later run_batch.sh invocations reuse the same password. The secret is stored
+# under /workspace/qwen_preview/, never inside this Git repository.
+if [ "$PREVIEW_ENABLED" = "1" ]; then
+    mkdir -p "$PREVIEW_ROOT"
+
+    if [ -f "$PREVIEW_PASSWORD_FILE" ]; then
+        PREVIEW_PASSWORD="$(tr -d '\r\n' < "$PREVIEW_PASSWORD_FILE")"
+        if [[ ! "$PREVIEW_PASSWORD" =~ ^[A-Za-z0-9]{20}$ ]]; then
+            echo "ERROR: invalid preview password file: $PREVIEW_PASSWORD_FILE" >&2
+            echo "Delete that file to generate a new password." >&2
+            exit 1
+        fi
+    else
+        PREVIEW_PASSWORD="$("$PYTHON" - <<'PY'
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits
+print("".join(secrets.choice(alphabet) for _ in range(20)))
 PY
+)"
+
+        password_tmp="${PREVIEW_PASSWORD_FILE}.tmp.$$"
+        printf '%s\n' "$PREVIEW_PASSWORD" > "$password_tmp"
+        chmod 600 "$password_tmp"
+        mv -f -- "$password_tmp" "$PREVIEW_PASSWORD_FILE"
+    fi
+fi
+
+# ------------------------------------------------------------
+# Ensure ComfyUI is running
+# ------------------------------------------------------------
+COMFY_LOG="${COMFY_LOG:-/workspace/comfyui.log}"
+COMFY_PID_FILE="${COMFY_PID_FILE:-/workspace/comfyui.pid}"
+
+comfyui_ready() {
+    "$PYTHON" - <<'PY' >/dev/null 2>&1
+import urllib.request
+
+with urllib.request.urlopen(
+    "http://127.0.0.1:8188/system_stats",
+    timeout=3,
+) as response:
+    if response.status != 200:
+        raise SystemExit(1)
+PY
+}
+
+start_comfyui() {
+    echo "ComfyUI: starting..."
+
+    (
+        cd "$COMFY_DIR"
+        nohup "$PYTHON" main.py \
+            --listen 127.0.0.1 \
+            --port 8188 \
+            > "$COMFY_LOG" 2>&1 &
+        echo $! > "$COMFY_PID_FILE"
+    )
+}
+
+if comfyui_ready; then
+    echo "ComfyUI: already running"
+else
+    # A process may already exist while ComfyUI is still starting. Give it a
+    # short grace period before treating it as stale.
+    if pgrep -f "main.py.*--port[ =]8188" >/dev/null 2>&1; then
+        echo "ComfyUI: process exists but API is not ready. Waiting..."
+
+        for _ in $(seq 1 10); do
+            sleep 1
+            if comfyui_ready; then
+                break
+            fi
+        done
+    fi
+
+    if ! comfyui_ready; then
+        # If a hung/stale ComfyUI process survived, remove it before restart.
+        if pgrep -f "main.py.*--port[ =]8188" >/dev/null 2>&1; then
+            echo "ComfyUI: stale process detected. Restarting..."
+            pkill -f "main.py.*--port[ =]8188" || true
+            sleep 2
+        fi
+
+        start_comfyui
+
+        echo "ComfyUI: waiting for API..."
+        COMFY_READY=0
+
+        for _ in $(seq 1 90); do
+            if comfyui_ready; then
+                COMFY_READY=1
+                break
+            fi
+            sleep 1
+        done
+
+        if [ "$COMFY_READY" -ne 1 ]; then
+            echo "ERROR: ComfyUI failed to start within 90 seconds." >&2
+            echo "----- $COMFY_LOG -----" >&2
+            tail -n 100 "$COMFY_LOG" >&2 || true
+            exit 1
+        fi
+    fi
+
+    echo "ComfyUI: ready"
+fi
 
 RUN_ID="$(date '+%Y%m%d_%H%M%S')"
 STAGE_REL="batch/$RUN_ID"
@@ -157,6 +270,8 @@ PY
 
 TOTAL=$(( ${#IMAGES[@]} * ${#PROMPTS_B64[@]} ))
 JOB=0
+COMPLETED_JOBS=0
+CUMULATIVE_JOB_NS=0
 LAST_OUTPUT_REL=""
 
 # ------------------------------------------------------------
@@ -186,9 +301,64 @@ stop_pidfile() {
     fi
 }
 
+pidfile_running() {
+    local pidfile="$1"
+    [ -f "$pidfile" ] || return 1
+
+    local pid
+    pid="$(cat "$pidfile" 2>/dev/null || true)"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$pid" 2>/dev/null
+}
+
+preview_http_ready() {
+    QWEN_PREVIEW_USER="$PREVIEW_USER" \
+    QWEN_PREVIEW_PASSWORD="$PREVIEW_PASSWORD" \
+    QWEN_PREVIEW_SERVER_VERSION="$PREVIEW_SERVER_VERSION" \
+    "$PYTHON" - "$PREVIEW_PORT" <<'PY' >/dev/null 2>&1
+import base64
+import os
+import sys
+import urllib.request
+
+user = os.environ["QWEN_PREVIEW_USER"]
+password = os.environ["QWEN_PREVIEW_PASSWORD"]
+server_version = os.environ["QWEN_PREVIEW_SERVER_VERSION"]
+token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
+request = urllib.request.Request(
+    f"http://127.0.0.1:{sys.argv[1]}/",
+    headers={"Authorization": f"Basic {token}"},
+)
+with urllib.request.urlopen(request, timeout=1) as response:
+    if response.headers.get("X-Qwen-Preview-Version") != server_version:
+        raise SystemExit(1)
+    response.read(1)
+PY
+}
+
+load_preview_url() {
+    PREVIEW_PUBLIC_URL=""
+
+    if [ -f "$PREVIEW_URL_FILE" ]; then
+        PREVIEW_PUBLIC_URL="$(tr -d '\r\n' < "$PREVIEW_URL_FILE")"
+    fi
+
+    if [[ ! "$PREVIEW_PUBLIC_URL" =~ ^https://[-a-zA-Z0-9]+\.trycloudflare\.com$ ]]; then
+        PREVIEW_PUBLIC_URL="$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' "$PREVIEW_TUNNEL_LOG" 2>/dev/null | tail -n 1 || true)"
+    fi
+}
+
+save_preview_url() {
+    [ -n "$PREVIEW_PUBLIC_URL" ] || return 0
+    local url_tmp="${PREVIEW_URL_FILE}.tmp.$$"
+    printf '%s\n' "$PREVIEW_PUBLIC_URL" > "$url_tmp"
+    chmod 600 "$url_tmp"
+    mv -f -- "$url_tmp" "$PREVIEW_URL_FILE"
+}
+
 write_preview_state() {
     local latest_rel="${1:-$LAST_OUTPUT_REL}"
-    local completed="${2:-$JOB}"
+    local completed="${2:-$COMPLETED_JOBS}"
 
     [ "$PREVIEW_ENABLED" = "1" ] || return 0
 
@@ -217,18 +387,25 @@ start_preview() {
     [ "$PREVIEW_ENABLED" = "1" ] || return 0
 
     mkdir -p "$PREVIEW_ROOT"
-    stop_pidfile "$PREVIEW_HTTP_PID_FILE"
-    stop_pidfile "$PREVIEW_TUNNEL_PID_FILE"
 
     cat > "$PREVIEW_SERVER" <<'PY'
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote
+import base64
+import hmac
 import json
+import os
 import sys
 
 state_file = Path(sys.argv[1]).resolve()
 port = int(sys.argv[2])
+username = os.environ["QWEN_PREVIEW_USER"]
+password = os.environ["QWEN_PREVIEW_PASSWORD"]
+server_version = os.environ["QWEN_PREVIEW_SERVER_VERSION"]
+expected_auth = "Basic " + base64.b64encode(
+    f"{username}:{password}".encode("utf-8")
+).decode("ascii")
 
 HTML = r'''<!doctype html>
 <html lang="ja">
@@ -263,10 +440,111 @@ let images=[];
 let currentIndex=-1;
 let latestIndex=-1;
 let followLatest=true;
+let audioContext=null;
+let observedRunId=null;
+let previousRunComplete=null;
+let alertedRunId=null;
 
 const preview=document.getElementById('preview');
 const status=document.getElementById('status');
 const followBtn=document.getElementById('follow');
+
+function getAudioContext(){
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)return null;
+  if(!audioContext||audioContext.state==='closed')audioContext=new AudioContextClass();
+  return audioContext;
+}
+
+async function unlockAudio(){
+  try{
+    const ctx=getAudioContext();
+    if(!ctx)return;
+    if(ctx.state==='suspended')await ctx.resume();
+    if(ctx.state!=='running')return;
+
+    // A silent, user-initiated pulse helps browsers remember that this page
+    // may play the later completion alert without adding a setup step.
+    const oscillator=ctx.createOscillator();
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+    oscillator.connect(gain).connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime+0.02);
+  }catch(e){
+    // Browser autoplay policy must never affect preview or batch operation.
+  }
+}
+
+function playCompletionAlert(){
+  try{
+    const ctx=getAudioContext();
+    if(!ctx)return;
+
+    const schedule=()=>{
+      if(ctx.state!=='running')return;
+      const start=ctx.currentTime+0.05;
+
+      // Schedule the full pattern up front so background-tab timer throttling
+      // cannot shorten the roughly five-second alert after it starts.
+      for(let offset=0,index=0;offset<5;offset+=0.4,index+=1){
+        const oscillator=ctx.createOscillator();
+        const gain=ctx.createGain();
+        const onset=start+offset;
+        oscillator.type='square';
+        oscillator.frequency.setValueAtTime(index%2===0?880:660,onset);
+        gain.gain.setValueAtTime(0.0001,onset);
+        gain.gain.exponentialRampToValueAtTime(0.16,onset+0.02);
+        gain.gain.setValueAtTime(0.16,onset+0.20);
+        gain.gain.exponentialRampToValueAtTime(0.0001,onset+0.30);
+        oscillator.connect(gain).connect(ctx.destination);
+        oscillator.start(onset);
+        oscillator.stop(onset+0.31);
+      }
+    };
+
+    if(ctx.state==='suspended'){
+      ctx.resume().then(schedule).catch(()=>{});
+    }else{
+      schedule();
+    }
+  }catch(e){
+    // Unsupported or blocked audio is non-fatal by design.
+  }
+}
+
+function observeCompletion(data){
+  const runId=String(data.run_id||'');
+  const completed=Number(data.completed_jobs)||0;
+  const total=Number(data.total_jobs)||0;
+  const complete=Boolean(runId&&total>0&&completed>=total);
+
+  // Do not alert merely because a page was opened/refreshed after completion.
+  if(observedRunId===null){
+    observedRunId=runId;
+    previousRunComplete=complete;
+    return;
+  }
+
+  if(runId!==observedRunId){
+    observedRunId=runId;
+    previousRunComplete=complete;
+    alertedRunId=null;
+
+    // A throttled background tab may miss the new run's incomplete state.
+    if(complete){
+      alertedRunId=runId;
+      playCompletionAlert();
+    }
+    return;
+  }
+
+  if(previousRunComplete===false&&complete&&alertedRunId!==runId){
+    alertedRunId=runId;
+    playCompletionAlert();
+  }
+  previousRunComplete=complete;
+}
 
 function updateFollowButton(){
   followBtn.textContent='Auto follow: '+(followLatest?'ON':'OFF');
@@ -298,6 +576,7 @@ async function poll(){
     const previousName=(currentIndex>=0&&images[currentIndex])?images[currentIndex].name:null;
     images=data.images||[];
     latestIndex=Number.isInteger(data.latest_index)?data.latest_index:-1;
+    observeCompletion(data);
 
     if(followLatest && latestIndex>=0){
       showIndex(latestIndex,true);
@@ -341,7 +620,10 @@ document.getElementById('prev').onclick=prev;
 document.getElementById('next').onclick=next;
 document.getElementById('latest').onclick=latest;
 followBtn.onclick=()=>{followLatest=!followLatest;if(followLatest&&latestIndex>=0)showIndex(latestIndex,true);updateFollowButton();};
+document.addEventListener('pointerdown',unlockAudio,{once:true,passive:true});
+document.addEventListener('touchstart',unlockAudio,{once:true,passive:true});
 document.addEventListener('keydown',e=>{
+  unlockAudio();
   if(e.key==='ArrowLeft')prev();
   else if(e.key==='ArrowRight')next();
   else if(e.key.toLowerCase()==='l')latest();
@@ -353,12 +635,47 @@ setInterval(poll,1000);
 </body>
 </html>'''
 
-class Handler(SimpleHTTPRequestHandler):
+class Handler(BaseHTTPRequestHandler):
+    def send_auth_required(self):
+        body = b"Authentication required\n"
+        self.send_response(401)
+        self.send_header(
+            "WWW-Authenticate",
+            'Basic realm="Qwen Live Preview", charset="UTF-8"',
+        )
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def authenticated(self):
+        supplied = self.headers.get("Authorization", "")
+        if not hmac.compare_digest(supplied, expected_auth):
+            self.send_auth_required()
+            return False
+        return True
+
+    def do_HEAD(self):
+        # Do not inherit any filesystem-serving behavior. All preview routes
+        # are explicitly handled by do_GET and require authentication.
+        if not self.authenticated():
+            return
+        self.send_response(405)
+        self.send_header("Allow", "GET")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
+        if not self.authenticated():
+            return
+
         if self.path == "/" or self.path.startswith("/?") or self.path == "/index.html":
             body = HTML.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("X-Qwen-Preview-Version", server_version)
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -450,44 +767,80 @@ class Handler(SimpleHTTPRequestHandler):
 ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
 PY
 
+    # Switch an already-open preview page to this run before generation starts.
     write_preview_state "" 0
 
-    nohup "$PYTHON" "$PREVIEW_SERVER" "$PREVIEW_STATE" "$PREVIEW_PORT" \
-        > "$PREVIEW_HTTP_LOG" 2>&1 &
-    echo $! > "$PREVIEW_HTTP_PID_FILE"
+    # Reuse the authenticated preview server when it is already alive.
+    # This keeps the browser session valid across repeated batch runs.
+    if preview_http_ready; then
+        echo "Preview server: reusing existing server"
+    else
+        stop_pidfile "$PREVIEW_HTTP_PID_FILE"
 
-    # Wait until local preview server responds.
-    local ready=0
-    for _ in $(seq 1 30); do
-        if "$PYTHON" - "$PREVIEW_PORT" <<'PY' >/dev/null 2>&1
-import sys, urllib.request
-urllib.request.urlopen(f"http://127.0.0.1:{sys.argv[1]}/", timeout=1).read(1)
-PY
-        then
-            ready=1
-            break
+        QWEN_PREVIEW_USER="$PREVIEW_USER" \
+        QWEN_PREVIEW_PASSWORD="$PREVIEW_PASSWORD" \
+        QWEN_PREVIEW_SERVER_VERSION="$PREVIEW_SERVER_VERSION" \
+        nohup "$PYTHON" "$PREVIEW_SERVER" "$PREVIEW_STATE" "$PREVIEW_PORT" \
+            > "$PREVIEW_HTTP_LOG" 2>&1 &
+        echo $! > "$PREVIEW_HTTP_PID_FILE"
+
+        local ready=0
+        for _ in $(seq 1 30); do
+            if preview_http_ready; then
+                ready=1
+                break
+            fi
+            sleep 0.2
+        done
+
+        if [ "$ready" -ne 1 ]; then
+            echo "WARNING: preview server failed to start. Log: $PREVIEW_HTTP_LOG" >&2
+            return 0
         fi
-        sleep 0.2
-    done
 
-    if [ "$ready" -ne 1 ]; then
-        echo "WARNING: preview server failed to start. Log: $PREVIEW_HTTP_LOG" >&2
-        return 0
+        echo "Preview server: started"
     fi
 
     if [ -x "$CLOUDFLARED" ]; then
-        : > "$PREVIEW_TUNNEL_LOG"
-        nohup "$CLOUDFLARED" tunnel \
-            --no-autoupdate \
-            --url "http://127.0.0.1:$PREVIEW_PORT" \
-            > "$PREVIEW_TUNNEL_LOG" 2>&1 &
-        echo $! > "$PREVIEW_TUNNEL_PID_FILE"
+        # Keep the same Quick Tunnel alive across repeated run_batch.sh calls.
+        # As long as this process stays alive, the browser URL stays unchanged.
+        if pidfile_running "$PREVIEW_TUNNEL_PID_FILE"; then
+            load_preview_url
+            if [ -n "$PREVIEW_PUBLIC_URL" ]; then
+                echo "Preview tunnel: reusing existing tunnel"
+            else
+                for _ in $(seq 1 10); do
+                    load_preview_url
+                    [ -n "$PREVIEW_PUBLIC_URL" ] && break
+                    sleep 0.5
+                done
+            fi
+        fi
 
-        for _ in $(seq 1 30); do
-            PREVIEW_PUBLIC_URL="$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' "$PREVIEW_TUNNEL_LOG" | tail -n 1 || true)"
-            [ -n "$PREVIEW_PUBLIC_URL" ] && break
-            sleep 1
-        done
+        # Start a new tunnel only when there is no usable existing one.
+        if ! pidfile_running "$PREVIEW_TUNNEL_PID_FILE" || [ -z "$PREVIEW_PUBLIC_URL" ]; then
+            stop_pidfile "$PREVIEW_TUNNEL_PID_FILE"
+            rm -f "$PREVIEW_URL_FILE"
+            PREVIEW_PUBLIC_URL=""
+            : > "$PREVIEW_TUNNEL_LOG"
+
+            nohup "$CLOUDFLARED" tunnel \
+                --no-autoupdate \
+                --url "http://127.0.0.1:$PREVIEW_PORT" \
+                > "$PREVIEW_TUNNEL_LOG" 2>&1 &
+            echo $! > "$PREVIEW_TUNNEL_PID_FILE"
+
+            for _ in $(seq 1 30); do
+                load_preview_url
+                [ -n "$PREVIEW_PUBLIC_URL" ] && break
+                sleep 1
+            done
+
+            save_preview_url
+            [ -n "$PREVIEW_PUBLIC_URL" ] && echo "Preview tunnel: started"
+        else
+            save_preview_url
+        fi
     fi
 }
 
@@ -495,6 +848,7 @@ PY
 # Output handling
 # ------------------------------------------------------------
 flush_outputs() {
+    local completed="${1:-$COMPLETED_JOBS}"
     [ -d "$COMFY_OUTPUT_DIR" ] || return 0
 
     while IFS= read -r -d '' file; do
@@ -505,7 +859,7 @@ flush_outputs() {
         LAST_OUTPUT_REL="$base"
     done < <(find "$COMFY_OUTPUT_DIR" -maxdepth 1 -type f -print0 | sort -z)
 
-    write_preview_state "$LAST_OUTPUT_REL" "$JOB"
+    write_preview_state "$LAST_OUTPUT_REL" "$completed"
 }
 
 cleanup() {
@@ -529,12 +883,14 @@ echo "Total    : $TOTAL"
 echo "Workflow : $WORKFLOW"
 echo "Output   : $OUTPUT_DIR"
 if [ "$PREVIEW_ENABLED" = "1" ]; then
-    echo "Preview local : http://127.0.0.1:$PREVIEW_PORT/"
+    echo "Preview local    : http://127.0.0.1:$PREVIEW_PORT/"
     if [ -n "$PREVIEW_PUBLIC_URL" ]; then
-        echo "Preview URL   : $PREVIEW_PUBLIC_URL"
+        echo "Preview URL      : $PREVIEW_PUBLIC_URL"
     else
-        echo "Preview URL   : unavailable (see $PREVIEW_TUNNEL_LOG)"
+        echo "Preview URL      : unavailable (see $PREVIEW_TUNNEL_LOG)"
     fi
+    echo "Preview user     : $PREVIEW_USER"
+    echo "Preview password : $PREVIEW_PASSWORD"
 fi
 echo "============================================================"
 echo
@@ -546,6 +902,28 @@ done
 
 json_string() {
     "$PYTHON" -c 'import json,sys; print(json.dumps(sys.argv[1], ensure_ascii=False))' "$1"
+}
+
+monotonic_ns() {
+    "$PYTHON" -c 'import time; print(time.monotonic_ns())'
+}
+
+print_job_timing() {
+    "$PYTHON" - "$JOB" "$TOTAL" "$1" "$2" "$COMPLETED_JOBS" <<'PY'
+import sys
+
+job = int(sys.argv[1])
+total = int(sys.argv[2])
+elapsed_seconds = int(sys.argv[3]) / 1_000_000_000
+cumulative_seconds = int(sys.argv[4]) / 1_000_000_000
+completed = int(sys.argv[5])
+average_seconds = cumulative_seconds / completed if completed else 0.0
+images_per_second = completed / cumulative_seconds if cumulative_seconds > 0 else 0.0
+print(
+    f"[{job}/{total}] done: {elapsed_seconds:.1f} s/image | "
+    f"avg: {average_seconds:.1f} s/image | {images_per_second:.3f} images/s"
+)
+PY
 }
 
 # ------------------------------------------------------------
@@ -601,6 +979,9 @@ for src in "${IMAGES[@]}"; do
         "$COMFY" --no-json --where local workflow set-slot \
             "$WORKFLOW" "${overrides[@]}" --stdout > "$tmp_workflow"
 
+        # Measure the complete runner-visible generation interval: immediately
+        # before submission through the final output move and preview update.
+        job_started_ns="$(monotonic_ns)"
         "$COMFY" --where local run \
             --workflow "$tmp_workflow" \
             --wait \
@@ -608,7 +989,16 @@ for src in "${IMAGES[@]}"; do
 
         # Move the just-generated image(s) into qwen_batch/output and update
         # the browser preview immediately.
-        flush_outputs
+        next_completed=$((COMPLETED_JOBS + 1))
+        flush_outputs "$next_completed"
+        job_finished_ns="$(monotonic_ns)"
+        job_elapsed_ns=$((job_finished_ns - job_started_ns))
+        if [ "$job_elapsed_ns" -lt 0 ]; then
+            job_elapsed_ns=0
+        fi
+        COMPLETED_JOBS="$next_completed"
+        CUMULATIVE_JOB_NS=$((CUMULATIVE_JOB_NS + job_elapsed_ns))
+        print_job_timing "$job_elapsed_ns" "$CUMULATIVE_JOB_NS"
     done
 done
 
