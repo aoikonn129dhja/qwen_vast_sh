@@ -1,0 +1,26 @@
+# Batch inputs / outputs
+qwen_batch/
+input/
+output/
+tmp/
+
+# Local prompt definitions
+prompts.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary / backup files
+*.bak
+*.tmp
+*~
