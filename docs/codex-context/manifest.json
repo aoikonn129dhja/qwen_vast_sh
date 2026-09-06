@@ -1,0 +1,97 @@
+{
+  "bundle_name": "qwen_comfy_codex_context",
+  "generated_date": "2026-09-06",
+  "purpose": "Compact Codex handoff context for amamisa4/qwen_comfy_sh",
+  "authoritative_snapshot": "snapshot/run_batch.sh",
+  "notes": [
+    "No runtime passwords or secrets are included.",
+    "GitHub main/run_batch.sh was known to lag behind the included snapshot.",
+    "Pending 5-second browser alert and per-output timing are documented but not implemented."
+  ],
+  "files": {
+    "AGENTS.md": {
+      "size_bytes": 2651,
+      "sha256": "01013a70fc0be42278e340ef81bc7b03dcd284500f083830fd484866b1e4c5aa"
+    },
+    "CONTEXT_README.md": {
+      "size_bytes": 749,
+      "sha256": "1abdedd803418ee457935644286ee49b39dd998a771414896712dc68b7127fe6"
+    },
+    "CURRENT_TASK.md": {
+      "size_bytes": 1293,
+      "sha256": "5bb8a59a6b0db3514334e44a326c00054f11d5ca5d4a5948133c98eeb1daafdc"
+    },
+    "memory/00_INDEX.md": {
+      "size_bytes": 1041,
+      "sha256": "e11e71734872d55b6b855fd11b86d0c76bc70e4c27cfd7c42152819a6830f521"
+    },
+    "memory/01_current_status.md": {
+      "size_bytes": 1623,
+      "sha256": "43102841eadbcab2596beb910188d0161cbe9efffd2124b56b6d60de39c24447"
+    },
+    "memory/02_architecture_and_paths.md": {
+      "size_bytes": 2154,
+      "sha256": "3f2d4e9520b1322391838487200b0b91affb9988ef4cba45a9c502ad07479e85"
+    },
+    "memory/03_run_batch_current_spec.md": {
+      "size_bytes": 1747,
+      "sha256": "af0fc3ef49e7afd45b37adfba25e197e46e2e91fc80f961b77d70a068fb9d9f9"
+    },
+    "memory/04_preview_and_auth.md": {
+      "size_bytes": 1958,
+      "sha256": "89cc6b3f44d8f74d20716a04066820a7250a4deda82ae71453601e2bb1ce602b"
+    },
+    "memory/05_inputs_and_prompts.md": {
+      "size_bytes": 1234,
+      "sha256": "b9e98bdf508fc46d6bea226adcaec8ed9d418a3469e6225972ea4d8e26b2d024"
+    },
+    "memory/06_output_and_flatten.md": {
+      "size_bytes": 1343,
+      "sha256": "15d149081ed5b20f0dc89afc42e3701bfa92ccbd40f2ea21c4ec13447736ccdb"
+    },
+    "memory/07_setup_and_vast.md": {
+      "size_bytes": 1844,
+      "sha256": "cb8f8980bc9d892fa67280be8b29cd28155400e5737a05472a33d5c174b74a80"
+    },
+    "memory/08_operational_workflow.md": {
+      "size_bytes": 1211,
+      "sha256": "c57e8e51e333978b549d01dde0ab8c7c634382977bd9b36fea4fb91771e7d980"
+    },
+    "memory/09_known_drift_and_risks.md": {
+      "size_bytes": 1860,
+      "sha256": "95594456e264b99b75c443a42ace0bf2e72f6e22de59ca9245c7d31cf5b22ffb"
+    },
+    "memory/10_pending_requirements.md": {
+      "size_bytes": 2313,
+      "sha256": "29489eab9ef037da815f332fb313a02a77fdc5ef25889f1a86fef171a1307578"
+    },
+    "memory/11_validation_commands.md": {
+      "size_bytes": 1137,
+      "sha256": "2c4411fb91a234d74dd99a093cbb748f02e1a9c8ad6ff07a44060acdb0b4b85c"
+    },
+    "memory/12_decision_history.md": {
+      "size_bytes": 1657,
+      "sha256": "5ec3551042cffd4284c17eb1f4359eac32474f17d5301366cd53d8f931629d28"
+    },
+    "memory/99_sources.md": {
+      "size_bytes": 1788,
+      "sha256": "3783caefad1eb2e360c2e488eb3e30d060b9b4558db58e890b241e32950bd732"
+    },
+    "snapshot/Qwen-Rapid-AIO-SaveImage.json": {
+      "size_bytes": 11278,
+      "sha256": "71a1095e49cfc64ca559471a1b3de4f043f98c6f070e02c1d38e3498bd7337b9"
+    },
+    "snapshot/prompts.example.md": {
+      "size_bytes": 139,
+      "sha256": "a195aaaaa57d746f03d012876ab596b2391a5474a10d889e1f10d976d27ba59d"
+    },
+    "snapshot/run_batch.sh": {
+      "size_bytes": 28424,
+      "sha256": "d85c47e7e88261aca2af4d1a999e2f18d51badaf0ed841dec5fa8765d4ee9d04"
+    },
+    "snapshot/setup_qwen_comfy.sh": {
+      "size_bytes": 12481,
+      "sha256": "5ad304c15fc22f395fe3dbef9550759a37af5309b6e63b544aada81648e9afca"
+    }
+  }
+}
