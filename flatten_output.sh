@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 ROOT="/workspace/qwen_batch/output"
-DEST_NAME="$(date '+%Y_%m%d_%H%M')"
+DEST_NAME="$(TZ=Asia/Tokyo date '+%Y_%m%d_%H%M')"
 DEST="$ROOT/$DEST_NAME"
 FLATTENED_DIR_PATTERN='[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]'
 

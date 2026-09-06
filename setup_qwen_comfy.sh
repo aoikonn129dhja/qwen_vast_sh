@@ -35,7 +35,7 @@ SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"   # 8 MiB
 ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
 
 log() {
-    printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
+    printf '\n[%s] %s\n' "$(TZ=Asia/Tokyo date '+%H:%M:%S')" "$*"
 }
 
 die() {

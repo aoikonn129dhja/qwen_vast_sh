@@ -237,7 +237,7 @@ else
     echo "ComfyUI: ready"
 fi
 
-RUN_ID="$(date '+%Y%m%d_%H%M%S')"
+RUN_ID="$(TZ=Asia/Tokyo date '+%Y%m%d_%H%M%S')"
 STAGE_REL="batch/$RUN_ID"
 STAGE_DIR="$COMFY_DIR/input/$STAGE_REL"
 TMP_DIR="$BATCH_ROOT/tmp/$RUN_ID"
