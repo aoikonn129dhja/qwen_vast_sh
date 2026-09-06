@@ -29,6 +29,7 @@ from pathlib import Path, PurePosixPath
 POLL_SECONDS = 10
 REMOTE_LIST_TIMEOUT_SECONDS = 15
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
 BATCH_ROOT_RE = re.compile(
     r'^\s*BATCH_ROOT="\$\{BATCH_ROOT:-([^"}]+)\}"',
@@ -201,12 +202,57 @@ def discover_remote_files(
 
 
 def local_file_path(relative_path: str) -> Path | None:
-    """Convert a safe POSIX relative path into the local output path."""
+    """Map a remote file to the flat local image directory."""
 
     path = PurePosixPath(relative_path)
-    if path.is_absolute() or ".." in path.parts:
+    if path.is_absolute() or ".." in path.parts or not path.name:
         return None
-    return LOCAL_OUTPUT_DIR.joinpath(*path.parts)
+    if path.suffix.casefold() not in IMAGE_EXTENSIONS:
+        return None
+    return LOCAL_OUTPUT_DIR / path.name
+
+
+def _available_flat_path(path: Path) -> Path:
+    """Return a non-colliding path in the flat output directory."""
+
+    if not path.exists():
+        return path
+    index = 2
+    while True:
+        candidate = path.with_name(f"{path.stem}_{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
+def flatten_existing_output() -> None:
+    """Move existing images from session folders into the output directory."""
+
+    if not LOCAL_OUTPUT_DIR.is_dir():
+        return
+
+    moved = 0
+    for source in sorted(LOCAL_OUTPUT_DIR.rglob("*")):
+        if not source.is_file() or source.parent == LOCAL_OUTPUT_DIR:
+            continue
+        if source.suffix.casefold() not in IMAGE_EXTENSIONS:
+            continue
+        destination = _available_flat_path(LOCAL_OUTPUT_DIR / source.name)
+        source.replace(destination)
+        moved += 1
+
+    for directory in sorted(
+        (path for path in LOCAL_OUTPUT_DIR.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
+
+    if moved:
+        print(f"既存画像を保存先直下へ移動しました: {moved}枚")
 
 
 def read_remote_output_path() -> str:
@@ -339,7 +385,7 @@ def copy_output(
             continue
 
         destination.parent.mkdir(parents=True, exist_ok=True)
-        relative_destination = Path(*PurePosixPath(relative_path).parts)
+        relative_destination = Path(destination.name)
         source = f"{user}@{host}:{remote_root}/{relative_path}"
         command = [
             scp,
@@ -401,6 +447,8 @@ def main() -> int:
         )
         return 1
     environment = copy_environment(scp)
+    LOCAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    flatten_existing_output()
 
     try:
         remote_path = read_remote_output_path()
