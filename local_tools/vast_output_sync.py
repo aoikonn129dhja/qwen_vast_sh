@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+"""Vast.aiの生成画像をWindowsへ定期回収する対話式ツール。
+
+起動時にVast CLIのインスタンス一覧から対象を自動検出し、以後は60秒間隔で
+Vast CLIの差分コピーを実行する。Windows側の保存先は固定し、
+Vast側の取得元はrun_batch.shのBATCH_ROOT設定から組み立てる。
+
+事前準備:
+    vastai set api-key YOUR_API_KEY
+
+実行:
+    python local_tools/vast_output_sync.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import posixpath
+import re
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+
+POLL_SECONDS = 60
+LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
+MSYS2_BIN_DIR = Path(r"C:\msys64\usr\bin")
+RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
+BATCH_ROOT_RE = re.compile(
+    r'^\s*BATCH_ROOT="\$\{BATCH_ROOT:-([^"}]+)\}"',
+    re.MULTILINE,
+)
+SSH_URL_RE = re.compile(
+    r"ssh://(?P<user>[^@/:]+)@(?P<host>[^/:]+):(?P<port>\d+)"
+)
+
+
+def find_vastai() -> str | None:
+    """Return the Vast CLI executable, including the uv tool default path."""
+
+    executable = shutil.which("vastai")
+    if executable:
+        return executable
+
+    candidates = [
+        Path.home() / ".local" / "bin" / "vastai.exe",
+        Path.home() / ".local" / "bin" / "vastai",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def find_rsync() -> str | None:
+    """Return rsync from PATH or the standard MSYS2 installation."""
+
+    executable = shutil.which("rsync")
+    if executable:
+        return executable
+
+    candidate = MSYS2_BIN_DIR / "rsync.exe"
+    if candidate.is_file():
+        return str(candidate)
+    return None
+
+
+def copy_environment(rsync: str) -> dict[str, str]:
+    """Make rsync discoverable by the direct sync process on Windows."""
+
+    environment = os.environ.copy()
+    rsync_dir = str(Path(rsync).parent)
+    path_entries = environment.get("PATH", "").split(os.pathsep)
+    if rsync_dir not in path_entries:
+        environment["PATH"] = os.pathsep.join([rsync_dir, *path_entries])
+    return environment
+
+
+def discover_ssh_endpoint(vastai: str, instance_id: str) -> tuple[str, str, int] | None:
+    """Return the normal SSH endpoint for an instance.
+
+    ``vastai copy`` uses an rsync-daemon style path internally.  That path is
+    currently unreliable on Windows, so use the regular SSH endpoint exposed
+    by ``vastai ssh-url`` and run rsync directly instead.
+    """
+
+    result = subprocess.run(
+        [vastai, "ssh-url", instance_id],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        print(f"SSH接続先を取得できませんでした: {detail}")
+        return None
+
+    match = SSH_URL_RE.search(result.stdout)
+    if match is None:
+        detail = result.stdout.strip() or "出力が空です"
+        print(f"SSH接続先を解釈できませんでした: {detail}")
+        return None
+
+    return match.group("user"), match.group("host"), int(match.group("port"))
+
+
+def read_remote_output_path() -> str:
+    """Read the default BATCH_ROOT from run_batch.sh and append output/."""
+
+    try:
+        source = RUN_BATCH_PATH.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RuntimeError(f"run_batch.shを読み込めません: {RUN_BATCH_PATH}: {error}") from error
+
+    match = BATCH_ROOT_RE.search(source)
+    if match is None:
+        raise RuntimeError(
+            "run_batch.shからBATCH_ROOTの既定値を見つけられません。"
+        )
+
+    batch_root = match.group(1).rstrip("/")
+    return posixpath.join(batch_root, "output") + "/"
+
+
+def _instance_rows(payload: object) -> list[dict[str, object]]:
+    """Extract instance objects from the CLI's raw response."""
+
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+
+    if not isinstance(payload, dict):
+        return []
+
+    for key in ("instances", "data", "results"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def _instance_id(row: dict[str, object]) -> str | None:
+    """Read an instance/contract ID from one raw CLI instance object."""
+
+    for key in ("id", "instance_id", "contract_id"):
+        value = row.get(key)
+        if isinstance(value, int) and value > 0:
+            return str(value)
+        if isinstance(value, str) and value.isdigit() and int(value) > 0:
+            return value
+    return None
+
+
+def discover_instances(vastai: str) -> list[tuple[str, str]]:
+    """Return (instance_id, status) pairs from Vast without requiring an ID."""
+
+    result = subprocess.run(
+        [vastai, "show", "instances", "--raw"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        print(f"インスタンス一覧を取得できませんでした: {detail}")
+        return []
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        print(f"インスタンス一覧のJSONを解釈できませんでした: {error}")
+        return []
+
+    instances: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for row in _instance_rows(payload):
+        instance_id = _instance_id(row)
+        if instance_id is None or instance_id in seen:
+            continue
+        status = str(row.get("actual_status") or row.get("status") or "unknown")
+        instances.append((instance_id, status))
+        seen.add(instance_id)
+    return instances
+
+
+def choose_instance(instances: list[tuple[str, str]]) -> str:
+    """Choose an instance only when the one-instance assumption is not met."""
+
+    if len(instances) == 1:
+        return instances[0][0]
+
+    print("複数のVastインスタンスが見つかりました。")
+    for instance_id, status in instances:
+        print(f"  {instance_id} ({status})")
+
+    while True:
+        value = input("回収対象のInstance IDを入力してください（終了: q）: ").strip()
+        if value.casefold() == "q":
+            raise KeyboardInterrupt
+        if any(instance_id == value for instance_id, _status in instances):
+            return value
+        print("一覧にあるInstance IDを入力してください。")
+
+
+def copy_output(
+    vastai: str,
+    rsync: str,
+    instance_id: str,
+    remote_path: str,
+    environment: dict[str, str],
+) -> int:
+    LOCAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    endpoint = discover_ssh_endpoint(vastai, instance_id)
+    if endpoint is None:
+        return 1
+
+    user, host, port = endpoint
+    source = f"{user}@{host}:{remote_path}"
+    # Run from the fixed destination directory.  The single -e argument is
+    # intentional: rsync passes the complete SSH command to its subprocess.
+    command = [
+        rsync,
+        "-arz",
+        "-v",
+        "--progress",
+        "-e",
+        f"ssh -p {port} -o StrictHostKeyChecking=no",
+        source,
+        ".",
+    ]
+
+    print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] コピーを確認します。")
+    print(f"rsync direct SSH: {user}@{host}:{port}{remote_path}")
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            cwd=LOCAL_OUTPUT_DIR,
+            env=environment,
+        )
+    except OSError as error:
+        print(f"コピーを実行できませんでした: {error}")
+        return 1
+    if result.returncode == 0:
+        print("コピー確認が完了しました。")
+    else:
+        print(
+            f"コピーに失敗しました（終了コード: {result.returncode}）。"
+            "次の確認時に再試行します。"
+        )
+    return result.returncode
+
+
+def main() -> int:
+    vastai = find_vastai()
+    if vastai is None:
+        print(
+            "Vast CLIが見つかりません。先に次を実行してください:\n"
+            "  uv tool install vastai\n"
+            "  vastai set api-key YOUR_API_KEY",
+            file=sys.stderr,
+        )
+        return 1
+
+    rsync = find_rsync()
+    if rsync is None:
+        print(
+            "rsyncが見つかりません。ローカル同期にはrsyncが必要です。\n"
+            "rsyncをインストールしてPATHに追加してから、もう一度実行してください。",
+            file=sys.stderr,
+        )
+        return 1
+    environment = copy_environment(rsync)
+
+    try:
+        remote_path = read_remote_output_path()
+    except RuntimeError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    print("Vast Output Sync")
+    print(f"取得元: {remote_path}")
+    print(f"保存先: {LOCAL_OUTPUT_DIR}")
+    print(f"確認間隔: {POLL_SECONDS}秒（固定）")
+
+    print("インスタンスを自動検出して同期します。終了するにはCtrl+Cを押してください。")
+    selected_instance_id: str | None = None
+
+    try:
+        while True:
+            instances = discover_instances(vastai)
+            if not instances:
+                print("インスタンスが見つかりません。60秒後に再確認します。")
+            else:
+                available_ids = {instance_id for instance_id, _status in instances}
+                if selected_instance_id not in available_ids:
+                    selected_instance_id = choose_instance(instances)
+                    print(f"回収対象を自動選択しました: {selected_instance_id}")
+
+                status = next(
+                    status
+                    for instance_id, status in instances
+                    if instance_id == selected_instance_id
+                )
+                print(f"現在の状態: {status}")
+                copy_output(
+                    vastai,
+                    rsync,
+                    selected_instance_id,
+                    remote_path,
+                    environment,
+                )
+            print(f"次回確認まで{POLL_SECONDS}秒待機します。")
+            time.sleep(POLL_SECONDS)
+    except KeyboardInterrupt:
+        print("同期を終了しました。")
+        return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
