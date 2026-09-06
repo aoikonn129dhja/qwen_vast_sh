@@ -1066,10 +1066,9 @@ elapsed_seconds = int(sys.argv[3]) / 1_000_000_000
 cumulative_seconds = int(sys.argv[4]) / 1_000_000_000
 completed = int(sys.argv[5])
 average_seconds = cumulative_seconds / completed if completed else 0.0
-images_per_second = completed / cumulative_seconds if cumulative_seconds > 0 else 0.0
 print(
-    f"[{job}/{total}] done: {elapsed_seconds:.1f} s/image | "
-    f"avg: {average_seconds:.1f} s/image | {images_per_second:.3f} images/s"
+    f"[{job}/{total}] 完了: 今回 {elapsed_seconds:.1f}秒 | "
+    f"平均 1枚あたり {average_seconds:.1f}秒"
 )
 PY
 }
