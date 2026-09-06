@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -31,6 +32,16 @@ REMOTE_LIST_TIMEOUT_SECONDS = 15
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
+HISTORY_PATH = Path(
+    os.environ.get(
+        "VAST_OUTPUT_SYNC_HISTORY",
+        str(
+            Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local" / "state"))
+            / "qwen_comfy_sh"
+            / "vast_output_sync_history.jsonl"
+        ),
+    )
+)
 BATCH_ROOT_RE = re.compile(
     r'^\s*BATCH_ROOT="\$\{BATCH_ROOT:-([^"}]+)\}"',
     re.MULTILINE,
@@ -130,16 +141,23 @@ def discover_ssh_endpoint(vastai: str, instance_id: str) -> tuple[str, str, int]
     return match.group("user"), match.group("host"), int(match.group("port"))
 
 
-def parse_remote_file_list(output: str) -> list[tuple[str, int]]:
-    """Parse find's relative-file and byte-size output, ignoring login text."""
+def parse_remote_file_list(output: str) -> list[tuple[str, int, str]]:
+    """Parse find's relative path, byte size and mtime, ignoring login text."""
 
-    files: list[tuple[str, int]] = []
+    files: list[tuple[str, int, str]] = []
     for line in output.splitlines():
-        relative_path, separator, size_text = line.rpartition("\t")
-        if not separator or not relative_path or not size_text.isdigit():
+        parts = line.rsplit("\t", 2)
+        if len(parts) != 3:
             continue
-        files.append((relative_path, int(size_text)))
-    return files
+        relative_path, size_text, mtime_text = parts
+        if (
+            not relative_path
+            or not size_text.isdigit()
+            or re.fullmatch(r"\d+(?:\.\d+)?", mtime_text) is None
+        ):
+            continue
+        files.append((relative_path, int(size_text), mtime_text))
+    return sorted(files, key=lambda item: item[0].casefold())
 
 
 def discover_remote_files(
@@ -147,13 +165,13 @@ def discover_remote_files(
     endpoint: tuple[str, str, int],
     remote_path: str,
     environment: dict[str, str],
-) -> list[tuple[str, int]] | None:
+) -> list[tuple[str, int, str]] | None:
     """List remote files and sizes without transferring file contents."""
 
     user, host, port = endpoint
     remote_root = remote_path.rstrip("/")
     remote_command = (
-        f"find '{remote_root}' -type f -printf '%P\\t%s\\n'"
+        f"find '{remote_root}' -type f -printf '%P\\t%s\\t%T@\\n'"
     )
     try:
         result = subprocess.run(
@@ -223,6 +241,88 @@ def _available_flat_path(path: Path) -> Path:
         if not candidate.exists():
             return candidate
         index += 1
+
+
+def download_identity(
+    instance_id: str,
+    remote_path: str,
+    relative_path: str,
+    remote_size: int,
+    remote_mtime: str,
+) -> str:
+    """Return a stable identity for one version of one remote output file."""
+
+    return json.dumps(
+        [instance_id, remote_path.rstrip("/"), relative_path, remote_size, remote_mtime],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def load_download_history(path: Path = HISTORY_PATH) -> tuple[set[str], set[str]] | None:
+    """Load successfully verified remote files from the append-only JSONL ledger."""
+
+    identities: set[str] = set()
+    local_names: set[str] = set()
+    if not path.is_file():
+        return identities, local_names
+
+    invalid_lines = 0
+    try:
+        with path.open("r", encoding="utf-8") as history_file:
+            for line in history_file:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    invalid_lines += 1
+                    continue
+                identity = record.get("identity") if isinstance(record, dict) else None
+                if isinstance(identity, str) and identity:
+                    identities.add(identity)
+                    local_name = record.get("local_name")
+                    if isinstance(local_name, str) and local_name:
+                        local_names.add(local_name.casefold())
+                else:
+                    invalid_lines += 1
+    except OSError as error:
+        print(f"ダウンロード履歴を読み込めませんでした: {error}")
+        return None
+
+    if invalid_lines:
+        print(
+            f"ダウンロード履歴に不正な行があります: {invalid_lines}行。"
+            "重複転送を防ぐため同期を開始しません。"
+        )
+        return None
+    return identities, local_names
+
+
+def append_download_history(
+    identity: str,
+    instance_id: str,
+    relative_path: str,
+    remote_size: int,
+    remote_mtime: str,
+    local_name: str,
+    path: Path = HISTORY_PATH,
+) -> None:
+    """Durably record a file only after its local size has been verified."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "identity": identity,
+        "instance_id": instance_id,
+        "relative_path": relative_path,
+        "size": remote_size,
+        "mtime": remote_mtime,
+        "local_name": local_name,
+        "verified_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    with path.open("a", encoding="utf-8", newline="\n") as history_file:
+        history_file.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+        history_file.write("\n")
+        history_file.flush()
+        os.fsync(history_file.fileno())
 
 
 def flatten_existing_output() -> None:
@@ -359,6 +459,9 @@ def copy_output(
     instance_id: str,
     remote_path: str,
     environment: dict[str, str],
+    download_history: set[str],
+    claimed_local_names: set[str],
+    history_path: Path = HISTORY_PATH,
 ) -> int:
     LOCAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     endpoint = discover_ssh_endpoint(vastai, instance_id)
@@ -373,19 +476,54 @@ def copy_output(
         return 1
 
     copied = 0
-    skipped = 0
+    history_skipped = 0
+    existing_verified = 0
     remote_root = remote_path.rstrip("/")
-    for relative_path, remote_size in remote_files:
-        destination = local_file_path(relative_path)
-        if destination is None:
-            print(f"安全でない相対パスを無視しました: {relative_path}")
-            continue
-        if destination.is_file() and destination.stat().st_size == remote_size:
-            skipped += 1
+    for relative_path, remote_size, remote_mtime in remote_files:
+        identity = download_identity(
+            instance_id,
+            remote_path,
+            relative_path,
+            remote_size,
+            remote_mtime,
+        )
+        if identity in download_history:
+            history_skipped += 1
             continue
 
+        preferred_destination = local_file_path(relative_path)
+        if preferred_destination is None:
+            print(f"安全でない相対パスを無視しました: {relative_path}")
+            continue
+
+        if (
+            preferred_destination.is_file()
+            and preferred_destination.stat().st_size == remote_size
+            and preferred_destination.name.casefold() not in claimed_local_names
+        ):
+            try:
+                append_download_history(
+                    identity,
+                    instance_id,
+                    relative_path,
+                    remote_size,
+                    remote_mtime,
+                    preferred_destination.name,
+                    history_path,
+                )
+            except OSError as error:
+                print(f"ダウンロード履歴を保存できませんでした: {error}")
+                return 1
+            download_history.add(identity)
+            claimed_local_names.add(preferred_destination.name.casefold())
+            existing_verified += 1
+            continue
+
+        destination = _available_flat_path(preferred_destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        relative_destination = Path(destination.name)
+        temporary = destination.with_name(
+            f".vast_output_sync_{uuid.uuid4().hex}{destination.suffix}.part"
+        )
         source = f"{user}@{host}:{remote_root}/{relative_path}"
         command = [
             scp,
@@ -395,7 +533,7 @@ def copy_output(
             "-o",
             "StrictHostKeyChecking=accept-new",
             source,
-            str(relative_destination),
+            temporary.name,
         ]
         print(f"転送: {relative_path}")
         try:
@@ -406,17 +544,58 @@ def copy_output(
                 env=environment,
             )
         except OSError as error:
+            temporary.unlink(missing_ok=True)
             print(f"コピーを実行できませんでした: {error}")
             return 1
         if result.returncode != 0:
+            temporary.unlink(missing_ok=True)
             print(
                 f"コピーに失敗しました（終了コード: {result.returncode}）。"
                 "次の確認時に再試行します。"
             )
             return result.returncode
+        if not temporary.is_file() or temporary.stat().st_size != remote_size:
+            actual_size = temporary.stat().st_size if temporary.is_file() else 0
+            temporary.unlink(missing_ok=True)
+            print(
+                f"転送サイズが一致しません: {relative_path} "
+                f"（リモート: {remote_size}、ローカル: {actual_size}）。"
+                "次の確認時に再試行します。"
+            )
+            return 1
+
+        if destination.exists():
+            destination = _available_flat_path(preferred_destination)
+        try:
+            temporary.rename(destination)
+        except OSError as error:
+            temporary.unlink(missing_ok=True)
+            print(f"転送済みファイルを保存先へ確定できませんでした: {error}")
+            return 1
+        try:
+            append_download_history(
+                identity,
+                instance_id,
+                relative_path,
+                remote_size,
+                remote_mtime,
+                destination.name,
+                history_path,
+            )
+        except OSError as error:
+            download_history.add(identity)
+            claimed_local_names.add(destination.name.casefold())
+            print(f"ダウンロード履歴を保存できませんでした: {error}")
+            return 1
+        download_history.add(identity)
+        claimed_local_names.add(destination.name.casefold())
         copied += 1
 
-    print(f"コピー確認が完了しました（転送: {copied}、既存: {skipped}）。")
+    print(
+        "コピー確認が完了しました"
+        f"（転送: {copied}、履歴済み: {history_skipped}、"
+        f"既存確認: {existing_verified}）。"
+    )
     return 0
 
 
@@ -459,7 +638,14 @@ def main() -> int:
     print("Vast Output Sync")
     print(f"取得元: {remote_path}")
     print(f"保存先: {LOCAL_OUTPUT_DIR}")
+    print(f"ダウンロード履歴: {HISTORY_PATH}")
     print(f"確認間隔: {POLL_SECONDS}秒（固定）")
+
+    history_state = load_download_history()
+    if history_state is None:
+        return 1
+    download_history, claimed_local_names = history_state
+    print(f"履歴登録数: {len(download_history)}")
 
     print("インスタンスを自動検出して同期します。終了するにはCtrl+Cを押してください。")
     selected_instance_id: str | None = None
@@ -488,6 +674,8 @@ def main() -> int:
                     selected_instance_id,
                     remote_path,
                     environment,
+                    download_history,
+                    claimed_local_names,
                 )
             print(f"次回確認まで{POLL_SECONDS}秒待機します。")
             time.sleep(POLL_SECONDS)

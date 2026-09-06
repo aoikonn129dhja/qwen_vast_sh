@@ -16,6 +16,7 @@ Vast.ai 上に **Qwen Rapid AIO NSFW v19 + ComfyUI** を構築し、保存済み
 - 固定ユーザー名 `qwen` + 実行ごとの20文字ランダムパスワード
 - Prev / Next / Latest / Auto follow による生成画像確認
 - `flatten_output.sh` による複数 RUN_ID フォルダの一括平坦化
+- Windows同期済み画像をローカル履歴で記録し、移動後も再ダウンロードを防止
 
 ---
 
@@ -451,6 +452,26 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 平坦化後は、この `yyyy_mmdd_hhmm` フォルダだけを Jupyter からダウンロードすればよい。
 
 既存の `yyyy_mmdd_hhmm` フォルダは次回以降の平坦化対象から除外される。複数回実行すると、実行ごとのまとめフォルダが `/workspace/qwen_batch/output/` 直下に並ぶ。
+
+---
+
+# Windows自動同期のダウンロード履歴
+
+Windows側では次を実行すると、Vast.aiの出力を10秒間隔で確認する。
+
+```powershell
+python local_tools\vast_output_sync.py
+```
+
+正常終了したSCP転送についてローカルのファイルサイズを確認してから、次のJSON Lines形式の履歴へ記録する。
+
+```text
+%LOCALAPPDATA%\qwen_comfy_sh\vast_output_sync_history.jsonl
+```
+
+履歴にはVastインスタンスID、リモート相対パス、サイズ、更新時刻、保存時のローカル名を記録する。履歴登録済みのリモート画像は、保存先から別フォルダへ移動した後も再ダウンロードしない。リモート側で同じパスの画像が更新され、サイズまたは更新時刻が変わった場合は新しい版として転送する。
+
+転送中は一時ファイルへ保存し、SCP成功とサイズ一致を確認できた場合だけ通常の画像名へ変更して履歴へ追加する。履歴ファイルを削除すると既存の記録を失い、画像が再ダウンロードされる可能性があるため削除しない。
 
 ---
 
