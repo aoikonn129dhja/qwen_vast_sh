@@ -28,6 +28,7 @@ set -Eeuo pipefail
 #
 # The text after "##" is ignored. "##", "## 1", "## Prompt 3" etc. are all valid.
 # Each level-2 heading starts one prompt section. Multi-line prompts are supported.
+# If the file has no level-2 headings, each non-empty, non-heading line is one prompt.
 #
 # Optional generation overrides:
 #   DENOISE=0.9 STEPS=6 CFG=1 SAMPLER=er_sde SCHEDULER=beta \
@@ -274,10 +275,11 @@ fi
 # ------------------------------------------------------------
 # prompts.md parser
 # ------------------------------------------------------------
-# Any line beginning with exactly two '#' characters starts a new prompt.
-# The heading text itself is ignored. Lines before the first ## are ignored.
-mapfile -t PROMPTS_B64 < <("$PYTHON" - "$PROMPTS_MD" <<'PY'
+# If any line begins with exactly two '#' characters, use the existing section
+# format. Otherwise, treat each non-empty, non-heading line as one prompt.
+PROMPTS_ENCODED="$("$PYTHON" - "$PROMPTS_MD" <<'PY'
 import base64
+import re
 import sys
 from pathlib import Path
 
@@ -285,37 +287,50 @@ path = Path(sys.argv[1])
 lines = path.read_text(encoding="utf-8-sig").splitlines()
 
 prompts = []
-current = None
+has_sections = any(
+    line.startswith("##") and not line.startswith("###") for line in lines
+)
 
-for line in lines:
-    # Accept: ##, ## , ## 1, ## Prompt 3, ##anything
-    # Do not treat ### headings as a new prompt.
-    if line.startswith("##") and not line.startswith("###"):
+if has_sections:
+    current = None
+
+    for line in lines:
+        # Accept: ##, ## , ## 1, ## Prompt 3, ##anything
+        # Do not treat ### headings as a new prompt.
+        if line.startswith("##") and not line.startswith("###"):
+            if current is not None:
+                text = "\n".join(current).strip()
+                if text:
+                    prompts.append(text)
+            current = []
+            continue
+
         if current is not None:
-            text = "\n".join(current).strip()
-            if text:
-                prompts.append(text)
-        current = []
-        continue
+            current.append(line)
 
     if current is not None:
-        current.append(line)
+        text = "\n".join(current).strip()
+        if text:
+            prompts.append(text)
+else:
+    markdown_heading = re.compile(r"^#{1,6}(?:\s+|$)")
 
-if current is not None:
-    text = "\n".join(current).strip()
-    if text:
-        prompts.append(text)
+    for line in lines:
+        text = line.strip()
+        if text and not markdown_heading.match(text):
+            prompts.append(text)
 
 if not prompts:
     raise SystemExit(
         "ERROR: prompts.md contains no prompts. "
-        "Start each prompt section with a line beginning with ##"
+        "Use ## sections or put one prompt on each non-empty line."
     )
 
 for prompt in prompts:
     print(base64.b64encode(prompt.encode("utf-8")).decode("ascii"))
 PY
-)
+)"
+mapfile -t PROMPTS_B64 <<< "$PROMPTS_ENCODED"
 
 TOTAL=$(( ${#IMAGES[@]} * ${#PROMPTS_B64[@]} ))
 JOB=0
