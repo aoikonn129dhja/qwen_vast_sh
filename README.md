@@ -271,6 +271,20 @@ PREVIEW_ENABLED=0 bash /workspace/qwen_comfy_sh/run_batch.sh
 PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/run_batch.sh
 ```
 
+## Preview URL を再生成する
+
+`Preview URL` が `ERR_NAME_NOT_RESOLVED` などで開けなくなった場合は、バッチ処理を止めずに Cloudflare Quick Tunnel だけを再起動できる。
+
+```bash
+bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
+```
+
+新しい `Preview URL`、ユーザー名、現在のパスワードが Terminal に表示される。古い URL は使用できなくなる。標準以外のプレビューポートで `run_batch.sh` を起動した場合は、同じポートを指定する。
+
+```bash
+PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
+```
+
 ---
 
 # workflow
