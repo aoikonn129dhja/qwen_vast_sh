@@ -3,23 +3,26 @@
 普段の画像生成で必要な操作だけを、実行順にまとめた手順書です。仕組みや詳しい仕様、トラブル対応は [README.md](./README.md) を参照してください。
 
 ## 1. コマンド早見表
+[vast.aiのダッシュボードリンク](https://cloud.vast.ai/)
 
 コマンドはJupyter WebUIのTerminalで実行します。
 
 普段使うコマンドは、リポジトリの更新と画像生成の2つです。
-
 ```sh
-# リポジトリを更新
-cd /workspace/qwen_comfy_sh && git pull --ff-only origin main
+# rent後初期セットアップ
+git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
 
-# 画像生成を開始
-bash /workspace/qwen_comfy_sh/run_batch.sh
+# リポジトリを更新 (ローカルでコード変更した時のみ)
+cd /workspace/qwen_comfy_sh && git pull --ff-only origin main
 
 # 入力画像と同じアスペクト比で生成（約315万画素）
 MATCH_INPUT_ASPECT=1 bash /workspace/qwen_comfy_sh/run_batch.sh
 
 # 幅と高さを固定して生成
 WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_comfy_sh/run_batch.sh
+
+# 1536×2048（3:4、約315万画素）固定で画像生成を開始
+bash /workspace/qwen_comfy_sh/run_batch.sh
 ```
 
 `MATCH_INPUT_ASPECT=1` は入力画像ごとにサイズを計算し、入力とほぼ同じ縦横比で約315万画素になるよう、幅と高さを64px刻みに丸めます。`WIDTH` または `HEIGHT` とは同時に指定できません。
@@ -43,24 +46,7 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 
 # ComfyUIのログを確認
 tail -n 100 /workspace/comfyui.log
-
-# 初期セットアップ（初回のみ）
-git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
 ```
-
-### ComfyUIのノード編集画面を開く
-
-`run_batch.sh` を実行し、Terminalに `ComfyUI: already running` または `ComfyUI: ready` と表示されていることを確認します。
-
-Vast.aiのInstance Portalで **Tunnels** を開き、次の固定アドレスを入力して **Create New Tunnel** を押します。
-
-```text
-http://localhost:8188
-```
-
-作成された `https://～.trycloudflare.com` のURLを開くと、ComfyUIのノード編集画面が表示されます。`localhost:8188` は固定ですが、外部公開用の `trycloudflare.com` URLはトンネルの再作成やインスタンスの再起動で変わる場合があります。
-
-Terminalに表示される `Preview URL` は生成画像の確認専用であり、ノード編集画面ではありません。バッチ生成中にノード画面を開く場合は、実行中の処理を止めないよう **Queue** や **Cancel** を操作しないでください。
 
 ## 2. 画像生成のやり方と注意点
 
