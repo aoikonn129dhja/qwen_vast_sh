@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Vast.aiの生成画像をWindowsへ定期回収する対話式ツール。
 
-起動時にVast CLIのインスタンス一覧から対象を自動検出し、以後は60秒間隔で
+起動時にVast CLIのインスタンス一覧から対象を自動検出し、以後は10秒間隔で
 Vast側の生成画像をWindowsへ回収する。Windows側の保存先は固定し、
 Vast側の取得元はrun_batch.shのBATCH_ROOT設定から組み立てる。
 
@@ -23,10 +23,10 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
-POLL_SECONDS = 60
+POLL_SECONDS = 10
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
 RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
 BATCH_ROOT_RE = re.compile(
@@ -72,6 +72,23 @@ def find_scp() -> str | None:
     return None
 
 
+def find_ssh() -> str | None:
+    """Return ssh from PATH or the standard Windows OpenSSH installation."""
+
+    executable = shutil.which("ssh")
+    if executable:
+        return executable
+
+    candidates = [
+        Path(r"C:\Windows\System32\OpenSSH\ssh.exe"),
+        Path(r"C:\Program Files\OpenSSH\ssh.exe"),
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def copy_environment(scp: str) -> dict[str, str]:
     """Make scp discoverable by the direct sync process on Windows."""
 
@@ -109,6 +126,62 @@ def discover_ssh_endpoint(vastai: str, instance_id: str) -> tuple[str, str, int]
         return None
 
     return match.group("user"), match.group("host"), int(match.group("port"))
+
+
+def parse_remote_file_list(output: str) -> list[tuple[str, int]]:
+    """Parse find's relative-file and byte-size output, ignoring login text."""
+
+    files: list[tuple[str, int]] = []
+    for line in output.splitlines():
+        relative_path, separator, size_text = line.rpartition("\t")
+        if not separator or not relative_path or not size_text.isdigit():
+            continue
+        files.append((relative_path, int(size_text)))
+    return files
+
+
+def discover_remote_files(
+    ssh: str,
+    endpoint: tuple[str, str, int],
+    remote_path: str,
+    environment: dict[str, str],
+) -> list[tuple[str, int]] | None:
+    """List remote files and sizes without transferring file contents."""
+
+    user, host, port = endpoint
+    remote_root = remote_path.rstrip("/")
+    remote_command = (
+        f"find '{remote_root}' -type f -printf '%P\\t%s\\n'"
+    )
+    result = subprocess.run(
+        [
+            ssh,
+            "-p",
+            str(port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            f"{user}@{host}",
+            remote_command,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        print(f"リモート出力一覧を取得できませんでした: {detail}")
+        return None
+    return parse_remote_file_list(result.stdout)
+
+
+def local_file_path(relative_path: str) -> Path | None:
+    """Convert a safe POSIX relative path into the local output path."""
+
+    path = PurePosixPath(relative_path)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return LOCAL_OUTPUT_DIR.joinpath(*path.parts)
 
 
 def read_remote_output_path() -> str:
@@ -210,6 +283,7 @@ def choose_instance(instances: list[tuple[str, str]]) -> str:
 
 def copy_output(
     vastai: str,
+    ssh: str,
     scp: str,
     instance_id: str,
     remote_path: str,
@@ -221,42 +295,58 @@ def copy_output(
         return 1
 
     user, host, port = endpoint
-    source = f"{user}@{host}:{remote_path}"
-    # Copy the contents of output/ into the fixed destination directory.
-    # The wildcard is expanded by the remote scp implementation, so generated
-    # run directories retain their names below LOCAL_OUTPUT_DIR.
-    command = [
-        scp,
-        "-r",
-        "-p",
-        "-P",
-        str(port),
-        "-o",
-        "StrictHostKeyChecking=no",
-        f"{source}*",
-        ".",
-    ]
-
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] コピーを確認します。")
-    print(f"scp direct SSH: {user}@{host}:{port}{remote_path}")
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            cwd=LOCAL_OUTPUT_DIR,
-            env=environment,
-        )
-    except OSError as error:
-        print(f"コピーを実行できませんでした: {error}")
+    print(f"リモート一覧を確認します: {user}@{host}:{port}{remote_path}")
+    remote_files = discover_remote_files(ssh, endpoint, remote_path, environment)
+    if remote_files is None:
         return 1
-    if result.returncode == 0:
-        print("コピー確認が完了しました。")
-    else:
-        print(
-            f"コピーに失敗しました（終了コード: {result.returncode}）。"
-            "次の確認時に再試行します。"
-        )
-    return result.returncode
+
+    copied = 0
+    skipped = 0
+    remote_root = remote_path.rstrip("/")
+    for relative_path, remote_size in remote_files:
+        destination = local_file_path(relative_path)
+        if destination is None:
+            print(f"安全でない相対パスを無視しました: {relative_path}")
+            continue
+        if destination.is_file() and destination.stat().st_size == remote_size:
+            skipped += 1
+            continue
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        relative_destination = Path(*PurePosixPath(relative_path).parts)
+        source = f"{user}@{host}:{remote_root}/{relative_path}"
+        command = [
+            scp,
+            "-p",
+            "-P",
+            str(port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            source,
+            str(relative_destination),
+        ]
+        print(f"転送: {relative_path}")
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                cwd=LOCAL_OUTPUT_DIR,
+                env=environment,
+            )
+        except OSError as error:
+            print(f"コピーを実行できませんでした: {error}")
+            return 1
+        if result.returncode != 0:
+            print(
+                f"コピーに失敗しました（終了コード: {result.returncode}）。"
+                "次の確認時に再試行します。"
+            )
+            return result.returncode
+        copied += 1
+
+    print(f"コピー確認が完了しました（転送: {copied}、既存: {skipped}）。")
+    return 0
 
 
 def main() -> int:
@@ -275,6 +365,13 @@ def main() -> int:
         print(
             "scpが見つかりません。ローカル同期にはWindows OpenSSHのscpが必要です。\n"
             "Windows OpenSSHをインストールしてPATHに追加してから、もう一度実行してください。",
+            file=sys.stderr,
+        )
+        return 1
+    ssh = find_ssh()
+    if ssh is None:
+        print(
+            "sshが見つかりません。Windows OpenSSHをインストールしてPATHに追加してください。",
             file=sys.stderr,
         )
         return 1
@@ -298,7 +395,7 @@ def main() -> int:
         while True:
             instances = discover_instances(vastai)
             if not instances:
-                print("インスタンスが見つかりません。60秒後に再確認します。")
+                print(f"インスタンスが見つかりません。{POLL_SECONDS}秒後に再確認します。")
             else:
                 available_ids = {instance_id for instance_id, _status in instances}
                 if selected_instance_id not in available_ids:
@@ -313,6 +410,7 @@ def main() -> int:
                 print(f"現在の状態: {status}")
                 copy_output(
                     vastai,
+                    ssh,
                     scp,
                     selected_instance_id,
                     remote_path,
