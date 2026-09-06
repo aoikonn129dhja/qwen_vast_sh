@@ -166,11 +166,16 @@ def discover_remote_files(
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=environment,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         print(f"リモート出力一覧を取得できませんでした: {detail}")
+        return None
+    if result.stdout is None:
+        print("リモート出力一覧が空でした。次回確認時に再試行します。")
         return None
     return parse_remote_file_list(result.stdout)
 
