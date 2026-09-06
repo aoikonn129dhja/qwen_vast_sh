@@ -27,6 +27,7 @@ from pathlib import Path, PurePosixPath
 
 
 POLL_SECONDS = 10
+REMOTE_LIST_TIMEOUT_SECONDS = 15
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
 RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
 BATCH_ROOT_RE = re.compile(
@@ -153,23 +154,42 @@ def discover_remote_files(
     remote_command = (
         f"find '{remote_root}' -type f -printf '%P\\t%s\\n'"
     )
-    result = subprocess.run(
-        [
-            ssh,
-            "-p",
-            str(port),
-            "-o",
-            "StrictHostKeyChecking=no",
-            f"{user}@{host}",
-            remote_command,
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=environment,
-    )
+    try:
+        result = subprocess.run(
+            [
+                ssh,
+                "-T",
+                "-p",
+                str(port),
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "ConnectTimeout=10",
+                "-o",
+                "ServerAliveInterval=5",
+                "-o",
+                "ServerAliveCountMax=1",
+                f"{user}@{host}",
+                remote_command,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=environment,
+            timeout=REMOTE_LIST_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"リモート出力一覧の確認が{REMOTE_LIST_TIMEOUT_SECONDS}秒でタイムアウトしました。"
+            "次回確認時に再試行します。"
+        )
+        return None
+    except OSError as error:
+        print(f"リモート出力一覧を確認できませんでした: {error}")
+        return None
+
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
         print(f"リモート出力一覧を取得できませんでした: {detail}")
