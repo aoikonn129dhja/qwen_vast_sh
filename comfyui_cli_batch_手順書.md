@@ -147,6 +147,18 @@ password : Terminalに表示された20文字のパスワード
 
 プレビューではPrev、Next、Latest、Auto followを使用できます。バッチ完了時には、ブラウザ側で許可されていれば約5秒間のアラート音が鳴ります。ブラウザの自動再生制限がある場合は鳴らないことがありますが、画像生成には影響しません。
 
+#### Preview URLが開けない場合
+
+`ERR_NAME_NOT_RESOLVED` などが表示されて `Preview URL` を開けない場合は、Jupyter WebUIのTerminalで次を実行します。
+
+```bash
+cd /workspace/qwen_comfy_sh
+git pull --ff-only origin main
+bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
+```
+
+画像生成とローカルのプレビューサーバーは停止せず、Cloudflare Quick Tunnelだけが再起動されます。新しい `Preview URL`、ユーザー名、現在のパスワードがTerminalに表示されるので、新しいURLをブラウザで開いてください。古いURLは使用できなくなります。
+
 Preview URLとパスワードを同時に外部共有しないでください。Terminalのスクリーンショットにも注意してください。
 
 ### 6. 生成中は出力を動かさない
