@@ -2,7 +2,7 @@
 """Vast.aiの生成画像をWindowsへ定期回収する対話式ツール。
 
 起動時にVast CLIのインスタンス一覧から対象を自動検出し、以後は60秒間隔で
-Vast CLIの差分コピーを実行する。Windows側の保存先は固定し、
+Vast側の生成画像をWindowsへ回収する。Windows側の保存先は固定し、
 Vast側の取得元はrun_batch.shのBATCH_ROOT設定から組み立てる。
 
 事前準備:
