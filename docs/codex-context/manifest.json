@@ -26,8 +26,8 @@
       "sha256": "e11e71734872d55b6b855fd11b86d0c76bc70e4c27cfd7c42152819a6830f521"
     },
     "memory/01_current_status.md": {
-      "size_bytes": 1623,
-      "sha256": "43102841eadbcab2596beb910188d0161cbe9efffd2124b56b6d60de39c24447"
+      "size_bytes": 1524,
+      "sha256": "61ba0a889bd836c325e819e0cf480579f9f5eaf0f554ea7de10a04f305c07a82"
     },
     "memory/02_architecture_and_paths.md": {
       "size_bytes": 2154,
@@ -76,10 +76,6 @@
     "memory/99_sources.md": {
       "size_bytes": 1788,
       "sha256": "3783caefad1eb2e360c2e488eb3e30d060b9b4558db58e890b241e32950bd732"
-    },
-    "snapshot/Qwen-Rapid-AIO-SaveImage.json": {
-      "size_bytes": 11278,
-      "sha256": "71a1095e49cfc64ca559471a1b3de4f043f98c6f070e02c1d38e3498bd7337b9"
     },
     "snapshot/prompts.example.md": {
       "size_bytes": 139,

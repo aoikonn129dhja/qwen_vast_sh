@@ -24,9 +24,8 @@ Therefore:
 ## Additional source snapshots
 The handoff also includes:
 - `snapshot/setup_qwen_comfy.sh` — 407 lines, `bash -n` OK, SHA-256 `5ad304c15fc22f395fe3dbef9550759a37af5309b6e63b544aada81648e9afca`.
-- `snapshot/Qwen-Rapid-AIO-SaveImage.json` — 11,278 bytes, SHA-256 `71a1095e49cfc64ca559471a1b3de4f043f98c6f070e02c1d38e3498bd7337b9`.
 
-These are included so Codex can reason about setup/workflow without relying only on historical prose.
+The workflow JSON is deliberately not duplicated in this handoff. Use the sanitized `Qwen-Rapid-AIO-SaveImage.json` at the repository root.
 
 ## Not yet implemented in this snapshot
 - 5-second browser completion alert.
