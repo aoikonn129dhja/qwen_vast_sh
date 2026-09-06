@@ -38,6 +38,10 @@ set -Eeuo pipefail
 # the default 1536x2048 pixel count (dimensions are rounded to 64 pixels):
 #   MATCH_INPUT_ASPECT=1 bash /workspace/qwen_comfy_sh/run_batch.sh
 #
+# Inputs over 105% of 1536x2048 pixels are automatically downscaled to about
+# that pixel count before being passed to the model. Their aspect ratio is kept.
+#   DOWNSCALE_LARGE_INPUTS=0  Disable this behavior
+#
 # Optional preview settings:
 #   PREVIEW_ENABLED=0        Disable browser preview
 #   PREVIEW_PORT=8765        Local preview server port
@@ -72,6 +76,9 @@ PREVIEW_SERVER_VERSION="20260906-completion-alert-v1"
 MATCH_INPUT_ASPECT="${MATCH_INPUT_ASPECT:-0}"
 ASPECT_TARGET_PIXELS="${ASPECT_TARGET_PIXELS:-3145728}"
 ASPECT_SIZE_STEP="${ASPECT_SIZE_STEP:-64}"
+DOWNSCALE_LARGE_INPUTS="${DOWNSCALE_LARGE_INPUTS:-1}"
+INPUT_RESIZE_TARGET_PIXELS="${INPUT_RESIZE_TARGET_PIXELS:-3145728}"
+INPUT_RESIZE_TOLERANCE_PERCENT="${INPUT_RESIZE_TOLERANCE_PERCENT:-5}"
 
 if [[ ! "$MATCH_INPUT_ASPECT" =~ ^[01]$ ]]; then
     echo "ERROR: MATCH_INPUT_ASPECT must be 0 or 1." >&2
@@ -89,6 +96,22 @@ if [[ ! "$ASPECT_SIZE_STEP" =~ ^[1-9][0-9]*$ ]]; then
     echo "ERROR: ASPECT_SIZE_STEP must be a positive integer." >&2
     exit 1
 fi
+if [[ ! "$DOWNSCALE_LARGE_INPUTS" =~ ^[01]$ ]]; then
+    echo "ERROR: DOWNSCALE_LARGE_INPUTS must be 0 or 1." >&2
+    exit 1
+fi
+if [[ ! "$INPUT_RESIZE_TARGET_PIXELS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: INPUT_RESIZE_TARGET_PIXELS must be a positive integer." >&2
+    exit 1
+fi
+if [[ ! "$INPUT_RESIZE_TOLERANCE_PERCENT" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: INPUT_RESIZE_TOLERANCE_PERCENT must be a non-negative integer." >&2
+    exit 1
+fi
+
+INPUT_RESIZE_MAX_PIXELS=$((
+    INPUT_RESIZE_TARGET_PIXELS * (100 + INPUT_RESIZE_TOLERANCE_PERCENT) / 100
+))
 
 INPUT_RAW="${1:-$BATCH_ROOT/input}"
 PROMPTS_RAW="${2:-$BATCH_ROOT/prompts.md}"
@@ -914,6 +937,11 @@ elif [ -n "${WIDTH:-}" ] || [ -n "${HEIGHT:-}" ]; then
 else
     echo "Size     : workflow default"
 fi
+if [ "$DOWNSCALE_LARGE_INPUTS" = "1" ]; then
+    echo "Input    : downscale over $INPUT_RESIZE_MAX_PIXELS pixels to about $INPUT_RESIZE_TARGET_PIXELS"
+else
+    echo "Input    : automatic downscaling disabled"
+fi
 if [ "$PREVIEW_ENABLED" = "1" ]; then
     echo "Preview local    : http://127.0.0.1:$PREVIEW_PORT/"
     if [ -n "$PREVIEW_PUBLIC_URL" ]; then
@@ -927,11 +955,6 @@ fi
 echo "============================================================"
 echo
 
-# LoadImage reads only from ComfyUI/input, so stage all input images once.
-for src in "${IMAGES[@]}"; do
-    cp -f -- "$src" "$STAGE_DIR/$(basename "$src")"
-done
-
 json_string() {
     "$PYTHON" -c 'import json,sys; print(json.dumps(sys.argv[1], ensure_ascii=False))' "$1"
 }
@@ -941,15 +964,18 @@ calculate_aspect_size() {
 import math
 import sys
 
-from PIL import Image, ImageOps
+from PIL import Image
 
 image_path = sys.argv[1]
 target_pixels = int(sys.argv[2])
 step = int(sys.argv[3])
 
 with Image.open(image_path) as source:
-    oriented = ImageOps.exif_transpose(source)
-    input_width, input_height = oriented.size
+    input_width, input_height = source.size
+    orientation = source.getexif().get(274, 1)
+
+if orientation in {5, 6, 7, 8}:
+    input_width, input_height = input_height, input_width
 
 if input_width <= 0 or input_height <= 0:
     raise SystemExit(f"ERROR: invalid input image dimensions: {image_path}")
@@ -962,6 +988,67 @@ output_width = max(step, round(ideal_width / step) * step)
 output_height = max(step, round(ideal_height / step) * step)
 
 print(output_width, output_height)
+PY
+}
+
+stage_input_image() {
+    "$PYTHON" - \
+        "$1" \
+        "$2" \
+        "$DOWNSCALE_LARGE_INPUTS" \
+        "$INPUT_RESIZE_TARGET_PIXELS" \
+        "$INPUT_RESIZE_MAX_PIXELS" <<'PY'
+import math
+import shutil
+import sys
+from pathlib import Path
+
+from PIL import Image, ImageOps
+
+source_path = Path(sys.argv[1])
+destination_path = Path(sys.argv[2])
+downscale_enabled = sys.argv[3] == "1"
+target_pixels = int(sys.argv[4])
+max_pixels = int(sys.argv[5])
+
+with Image.open(source_path) as source:
+    input_width, input_height = source.size
+    orientation = source.getexif().get(274, 1)
+    if orientation in {5, 6, 7, 8}:
+        input_width, input_height = input_height, input_width
+    input_pixels = input_width * input_height
+
+    if not downscale_enabled or input_pixels <= max_pixels:
+        shutil.copy2(source_path, destination_path)
+        print("kept", input_width, input_height, input_width, input_height)
+        raise SystemExit(0)
+
+    scale = math.sqrt(target_pixels / input_pixels)
+    output_width = max(1, round(input_width * scale))
+    output_height = max(1, round(input_height * scale))
+
+    oriented = ImageOps.exif_transpose(source)
+    resized = oriented.resize(
+        (output_width, output_height),
+        Image.Resampling.LANCZOS,
+    )
+
+    image_format = source.format
+    save_options = {}
+    if image_format == "JPEG":
+        if resized.mode not in {"L", "RGB"}:
+            resized = resized.convert("RGB")
+        save_options.update(quality=95, subsampling=0)
+    elif image_format == "WEBP":
+        save_options.update(quality=95)
+
+    icc_profile = source.info.get("icc_profile")
+    if icc_profile:
+        save_options["icc_profile"] = icc_profile
+
+    resized.save(destination_path, format=image_format, **save_options)
+
+print("resized", input_width, input_height, output_width, output_height)
 PY
 }
 
@@ -994,6 +1081,16 @@ for src in "${IMAGES[@]}"; do
     filename="$(basename "$src")"
     stem="${filename%.*}"
     image_value="$STAGE_REL/$filename"
+    staged_image="$STAGE_DIR/$filename"
+
+    read -r input_action input_width input_height staged_width staged_height < <(
+        stage_input_image "$src" "$staged_image"
+    )
+    if [ "$input_action" = "resized" ]; then
+        echo "Input    : $filename ${input_width}x${input_height} -> ${staged_width}x${staged_height}"
+    else
+        echo "Input    : $filename ${input_width}x${input_height} (kept)"
+    fi
 
     matched_width=""
     matched_height=""

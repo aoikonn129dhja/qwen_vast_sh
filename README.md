@@ -308,6 +308,28 @@ PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/run_batch.sh
 
 何も指定しない値は workflow JSON に保存された値を使用する。
 
+## 大きな入力画像の自動縮小
+
+通常は、入力画像が `1536 × 2048 = 3,145,728` 画素の105% (`3,303,014` 画素) を超える場合だけ、モデルに渡す前に縦横比を保ったまま約315万画素へ縮小する。ちょうど同じ画素数、または5%以内の超過なら縮小しない。固定出力と `MATCH_INPUT_ASPECT=1` のどちらでも有効。
+
+Terminalには入力ごとに次のように表示される。
+
+```text
+Input    : large.jpg 4000x6000 -> 1448x2172
+Input    : normal.png 1536x2048 (kept)
+```
+
+自動縮小を無効にしたい場合:
+
+```bash
+DOWNSCALE_LARGE_INPUTS=0 \
+bash /workspace/qwen_comfy_sh/run_batch.sh
+```
+
+この縮小はステージ用のコピーにだけ行う。`/workspace/qwen_batch/input/` 内の元画像は書き換えない。
+
+## 出力サイズ
+
 入力画像ごとに縦横比を合わせ、通常サイズの `1536 × 2048 = 3,145,728` 画素に近いサイズで生成する場合:
 
 ```bash
