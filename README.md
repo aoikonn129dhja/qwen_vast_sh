@@ -84,16 +84,18 @@ bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
 
 1. GPU / Disk の確認
 2. Hugging Face への実ダウンロード速度の事前測定
-3. ComfyUI の clone / 修復
-4. ComfyUI requirements のインストール
-5. `/venv/main` への公式 `comfy-cli` の導入
+3. 固定コミットから ComfyUI を clone / 修復
+4. `requirements.lock` の固定バージョン・SHA-256に基づく依存導入
+5. 固定バージョンの公式 `comfy-cli` の導入
 6. `comfy set-default /workspace/ComfyUI`
 7. `Qwen-Rapid-AIO-NSFW-v19.safetensors` のダウンロード
 8. Phr00t の `nodes_qwen.v2.py` の導入
 9. workflow の配置
 10. `/workspace/qwen_batch/` 以下の作業ディレクトリ作成
 11. ComfyUI の起動
-12. 必要な Cloudflare Tunnel の起動
+12. 認証付きライブプレビュー用 `cloudflared` 固定版の準備
+
+ComfyUI 自体を外部公開する認証なし Tunnel は起動しない。ComfyUI は `127.0.0.1:8188` のみに bind し、生成画像の確認には `run_batch.sh` が起動する認証付きライブプレビューを使う。
 
 モデルが既に存在する Stop → Start 後のインスタンスでは、通常はセットアップを再実行する必要はない。
 
@@ -498,13 +500,12 @@ prompts.md の全プロンプト
 /workspace/qwen_batch/tmp/<RUN_ID>/
 ```
 
-現行 `run_batch.sh` は生成画像を output へ移動するが、`STAGE_DIR` と `TMP_DIR` は自動削除しない。そのため長期運用では一時ファイルが蓄積する。
+`TMP_DIR` には展開済みプロンプトを含むジョブJSONが置かれるため、権限を所有者限定にし、正常終了・エラー・Ctrl+CのいずれでもそのRUN_IDのディレクトリだけを自動削除する。入力画像を置く `STAGE_DIR` は自動削除しない。
 
-バッチが動いていない状態で過去分を削除する場合:
+バッチが動いていない状態で過去の入力ステージを削除する場合:
 
 ```bash
 rm -rf /workspace/ComfyUI/input/batch/*
-rm -rf /workspace/qwen_batch/tmp/*
 ```
 
 ---
@@ -531,7 +532,7 @@ rm -rf /workspace/qwen_batch/tmp/*
 
 ## ライブプレビュー
 
-ライブプレビューは Cloudflare Quick Tunnel を通るが、現在は HTTP Basic 認証必須。
+ライブプレビューは Cloudflare Quick Tunnel を通るが、HTTP Basic 認証必須。ComfyUI 自体の認証なし Tunnel は起動しない。
 
 ```text
 URLを知っているだけ
@@ -548,7 +549,9 @@ URL + user + password
 - 出力画像の通信は Vast.ai → Cloudflare → ブラウザを通る
 - URL とパスワードは Terminal に表示される
 - Vast.ai のホスト環境および導入した Python / ComfyUI コードへの信頼は必要
-- `setup_qwen_comfy.sh` が ComfyUI GUI 用の別 Tunnel を起動している場合、ライブプレビューの Basic 認証とは別物
+- Basic 認証情報を知る第三者は、Tunnel が稼働している間は出力画像を閲覧できる
+
+セットアップで取得する ComfyUI、Python依存、モデル、カスタムノード、`uv`、`cloudflared` は固定バージョンまたは固定コミットを使い、配布ファイルはロックファイルまたはスクリプト内のSHA-256で検証する。更新時は固定値とハッシュを明示的に更新する。
 
 ---
 

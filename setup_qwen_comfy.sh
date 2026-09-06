@@ -11,20 +11,35 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="/workspace"
 COMFY_DIR="$WORKSPACE/ComfyUI"
 PYTHON="/venv/main/bin/python"
-PIP="/venv/main/bin/pip"
+
+COMFYUI_REPO="https://github.com/Comfy-Org/ComfyUI.git"
+COMFYUI_COMMIT="15eb748b3ec5f8a0a2d470b7fb280e2d7579f916"
+DEPENDENCY_LOCK="$SCRIPT_DIR/requirements.lock"
+COMFY_CLI_VERSION="1.20.0"
+
+UV_VERSION="0.11.28"
+UV_ARCHIVE_URL="https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-unknown-linux-gnu.tar.gz"
+UV_ARCHIVE_SHA256="e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224"
+UV_BIN_SHA256="1cb9cd0a1749debf6049d7d2bb933882cc52d81016326ee6d99a786d6c988b03"
+UV="$WORKSPACE/bin/uv"
 
 MODEL_FILE="Qwen-Rapid-AIO-NSFW-v19.safetensors"
-MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/main/v19/Qwen-Rapid-AIO-NSFW-v19.safetensors"
+MODEL_REPO_COMMIT="691024f438640508f8aa86414863fc15edfb8a84"
+MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/v19/Qwen-Rapid-AIO-NSFW-v19.safetensors"
+MODEL_SHA256="ba71575515709c9912560d1176b2386eaa49294fedc6ce57b9734aa57e91e5ac"
 
-QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/main/fixed-textencode-node/nodes_qwen.v2.py"
+QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/fixed-textencode-node/nodes_qwen.v2.py"
+QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
 
 REPO_WORKFLOW="$SCRIPT_DIR/Qwen-Rapid-AIO-SaveImage.json"
 WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-SaveImage.json"
 BATCH_ROOT="$WORKSPACE/qwen_batch"
 
 COMFY_LOG="$WORKSPACE/comfyui.log"
-TUNNEL_LOG="$WORKSPACE/cloudflared.log"
 CLOUDFLARED="$WORKSPACE/bin/cloudflared"
+CLOUDFLARED_VERSION="2026.8.3"
+CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-linux-amd64"
+CLOUDFLARED_SHA256="f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e"
 MODEL_PATH="$COMFY_DIR/models/checkpoints/$MODEL_FILE"
 COMFY_CLI="/venv/main/bin/comfy"
 
@@ -43,11 +58,86 @@ die() {
     exit 1
 }
 
+verify_sha256() {
+    local file="$1"
+    local expected="$2"
+    local actual
+    actual="$(sha256sum "$file" | awk '{print $1}')"
+    [ "$actual" = "$expected" ]
+}
+
+fetch_verified() {
+    local url="$1"
+    local destination="$2"
+    local expected="$3"
+    local label="$4"
+    local temporary="${destination}.download.$$"
+
+    rm -f -- "$temporary"
+    wget -q -O "$temporary" "$url" || {
+        rm -f -- "$temporary"
+        die "$label のダウンロードに失敗しました。"
+    }
+    if ! verify_sha256 "$temporary" "$expected"; then
+        rm -f -- "$temporary"
+        die "$label のSHA-256が固定値と一致しません。"
+    fi
+    mv -f -- "$temporary" "$destination"
+}
+
+ensure_large_file_verified() {
+    local url="$1"
+    local destination="$2"
+    local expected="$3"
+    local label="$4"
+    local partial="${destination}.part"
+
+    if [ -s "$destination" ]; then
+        log "$label のSHA-256を確認"
+        verify_sha256 "$destination" "$expected" \
+            || die "$label のSHA-256が固定値と一致しません。破損または差し替えの可能性があります。"
+        return 0
+    fi
+
+    wget -c -O "$partial" "$url" || die "$label のダウンロードに失敗しました。"
+    log "$label のSHA-256を確認"
+    if ! verify_sha256 "$partial" "$expected"; then
+        rm -f -- "$partial"
+        die "$label のSHA-256が固定値と一致しません。"
+    fi
+    mv -f -- "$partial" "$destination"
+}
+
+install_verified_uv() {
+    mkdir -p "$WORKSPACE/bin"
+    if [ -x "$UV" ] && verify_sha256 "$UV" "$UV_BIN_SHA256"; then
+        return 0
+    fi
+
+    local archive="$WORKSPACE/bin/uv-$UV_VERSION.tar.gz"
+    local extract_dir="$WORKSPACE/bin/.uv-$UV_VERSION-extract.$$"
+    fetch_verified "$UV_ARCHIVE_URL" "$archive" "$UV_ARCHIVE_SHA256" "uv $UV_VERSION"
+    rm -rf -- "$extract_dir"
+    mkdir -p "$extract_dir"
+    tar -xzf "$archive" -C "$extract_dir"
+    local extracted="$extract_dir/uv-x86_64-unknown-linux-gnu/uv"
+    [ -f "$extracted" ] || die "uvアーカイブ内に実行ファイルがありません。"
+    verify_sha256 "$extracted" "$UV_BIN_SHA256" \
+        || die "展開したuv実行ファイルのSHA-256が一致しません。"
+    install -m 0755 "$extracted" "$UV"
+    rm -rf -- "$extract_dir"
+    rm -f -- "$archive"
+}
+
 command -v git >/dev/null 2>&1 || die "git がありません。"
 command -v wget >/dev/null 2>&1 || die "wget がありません。"
+command -v sha256sum >/dev/null 2>&1 || die "sha256sum がありません。"
+command -v awk >/dev/null 2>&1 || die "awk がありません。"
+command -v tar >/dev/null 2>&1 || die "tar がありません。"
+command -v install >/dev/null 2>&1 || die "install がありません。"
 [ -x "$PYTHON" ] || die "/venv/main/bin/python が見つかりません。PyTorch (Vast) テンプレートか確認してください。"
-[ -x "$PIP" ] || die "/venv/main/bin/pip が見つかりません。"
 [ -f "$REPO_WORKFLOW" ] || die "リポジトリ内の workflow が見つかりません: $REPO_WORKFLOW"
+[ -f "$DEPENDENCY_LOCK" ] || die "依存ロックファイルが見つかりません: $DEPENDENCY_LOCK"
 
 log "GPU確認"
 nvidia-smi || true
@@ -162,21 +252,29 @@ fi
 # ComfyUI
 # ------------------------------------------------------------
 COMFY_VALID=0
+COMFY_CURRENT_COMMIT=""
 
 if [ -d "$COMFY_DIR/.git" ] \
     && [ -f "$COMFY_DIR/requirements.txt" ] \
     && [ -f "$COMFY_DIR/main.py" ] \
     && git -C "$COMFY_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    COMFY_VALID=1
+    COMFY_CURRENT_COMMIT="$(git -C "$COMFY_DIR" rev-parse HEAD 2>/dev/null || true)"
+    if [ "$COMFY_CURRENT_COMMIT" = "$COMFYUI_COMMIT" ]; then
+        COMFY_VALID=1
+    fi
 fi
 
 if [ "$COMFY_VALID" -eq 1 ]; then
-    log "ComfyUIは正常に存在します。cloneをスキップ"
+    log "固定済みComfyUIコミットを確認: $COMFYUI_COMMIT"
 else
     RECOVERED_MODEL="$WORKSPACE/.${MODEL_FILE}.recover"
 
     if [ -e "$COMFY_DIR" ]; then
-        log "不完全なComfyUIを検出しました。削除して再cloneします。"
+        if [ -n "$COMFY_CURRENT_COMMIT" ]; then
+            log "ComfyUIを固定コミットへ置き換え: $COMFY_CURRENT_COMMIT -> $COMFYUI_COMMIT"
+        else
+            log "不完全なComfyUIを検出しました。固定コミットから再構築します。"
+        fi
 
         # checkpointだけ既に取得済みなら再DLを避けるため一時退避。
         if [ -s "$MODEL_PATH" ]; then
@@ -187,8 +285,13 @@ else
         rm -rf "$COMFY_DIR"
     fi
 
-    log "ComfyUIをshallow clone"
-    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
+    log "ComfyUI固定コミットを取得: $COMFYUI_COMMIT"
+    git init -q "$COMFY_DIR"
+    git -C "$COMFY_DIR" remote add origin "$COMFYUI_REPO"
+    git -C "$COMFY_DIR" fetch -q --depth 1 origin "$COMFYUI_COMMIT"
+    git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
+    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFYUI_COMMIT" ] \
+        || die "ComfyUIの取得コミットが固定値と一致しません。"
 
     if [ -s "$RECOVERED_MODEL" ]; then
         log "退避したモデルを復元"
@@ -199,12 +302,20 @@ fi
 
 cd "$COMFY_DIR"
 
-log "ComfyUI依存パッケージをインストール"
-"$PIP" install -r requirements.txt
+log "固定済みuvを準備"
+install_verified_uv
 
-log "公式 comfy-cli をインストール"
-"$PIP" install -U 'comfy-cli>=1.16.0,<2'
+log "SHA-256固定済みPython依存をインストール"
+"$UV" pip install \
+    --python "$PYTHON" \
+    --require-hashes \
+    --torch-backend cu128 \
+    -r "$DEPENDENCY_LOCK"
+
 [ -x "$COMFY_CLI" ] || die "comfy-cli のインストールに失敗しました。"
+installed_comfy_cli="$("$PYTHON" -c 'import importlib.metadata; print(importlib.metadata.version("comfy-cli"))')"
+[ "$installed_comfy_cli" = "$COMFY_CLI_VERSION" ] \
+    || die "comfy-cliのバージョンが固定値と一致しません: $installed_comfy_cli"
 
 log "comfy-cli のデフォルト ComfyUI workspace を設定"
 "$COMFY_CLI" set-default "$COMFY_DIR"
@@ -222,11 +333,9 @@ mkdir -p \
 # Model
 # ------------------------------------------------------------
 if [ ! -s "$MODEL_PATH" ]; then
-    log "Qwen Rapid AIO NSFW v19をダウンロード（約28.4GB）"
-    wget -c -O "$MODEL_PATH" "$MODEL_URL"
-else
-    log "モデルは既に存在します。ダウンロードをスキップ"
+    log "Qwen Rapid AIO NSFW v19固定版をダウンロード（約28.4GB）"
 fi
+ensure_large_file_verified "$MODEL_URL" "$MODEL_PATH" "$MODEL_SHA256" "Qwenモデル"
 
 log "モデルサイズ"
 ls -lh "$MODEL_PATH"
@@ -243,7 +352,7 @@ if [ -f "$QWEN_NODE" ] && [ ! -f "$QWEN_BACKUP" ]; then
 fi
 
 log "Phr00t nodes_qwen.v2.pyを導入"
-wget -q -O "$QWEN_NODE" "$QWEN_NODE_URL"
+fetch_verified "$QWEN_NODE_URL" "$QWEN_NODE" "$QWEN_NODE_SHA256" "nodes_qwen.v2.py"
 
 # ------------------------------------------------------------
 # Repository workflow
@@ -265,10 +374,11 @@ if pgrep -f "python main.py.*8188" >/dev/null 2>&1; then
 fi
 
 if pgrep -f "cloudflared tunnel.*8188" >/dev/null 2>&1; then
-    log "既存Cloudflare Tunnelを停止"
+    log "旧ComfyUI公開Tunnelを停止"
     pkill -f "cloudflared tunnel.*8188" || true
     sleep 1
 fi
+rm -f -- "$WORKSPACE/cloudflared.pid"
 
 # ------------------------------------------------------------
 # Launch ComfyUI
@@ -316,41 +426,15 @@ fi
 log "ComfyUI起動成功: http://127.0.0.1:8188"
 
 # ------------------------------------------------------------
-# cloudflared
+# cloudflared (authenticated batch preview only; do not expose ComfyUI itself)
 # ------------------------------------------------------------
-if [ ! -x "$CLOUDFLARED" ]; then
-    log "cloudflaredをダウンロード"
-    wget -q -O "$CLOUDFLARED" \
-        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-    chmod +x "$CLOUDFLARED"
+if [ ! -x "$CLOUDFLARED" ] || ! verify_sha256 "$CLOUDFLARED" "$CLOUDFLARED_SHA256"; then
+    log "cloudflared $CLOUDFLARED_VERSION 固定版を導入"
+    fetch_verified "$CLOUDFLARED_URL" "$CLOUDFLARED" "$CLOUDFLARED_SHA256" "cloudflared"
+    chmod 0755 "$CLOUDFLARED"
 fi
-
-log "Cloudflare Quick Tunnelを起動"
-: > "$TUNNEL_LOG"
-
-nohup "$CLOUDFLARED" tunnel \
-    --no-autoupdate \
-    --url http://127.0.0.1:8188 \
-    > "$TUNNEL_LOG" 2>&1 &
-
-TUNNEL_PID=$!
-echo "$TUNNEL_PID" > "$WORKSPACE/cloudflared.pid"
-
-PUBLIC_URL=""
-
-for _ in $(seq 1 60); do
-    PUBLIC_URL="$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' "$TUNNEL_LOG" | tail -n 1 || true)"
-
-    if [ -n "$PUBLIC_URL" ]; then
-        break
-    fi
-
-    if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
-        break
-    fi
-
-    sleep 1
-done
+verify_sha256 "$CLOUDFLARED" "$CLOUDFLARED_SHA256" \
+    || die "cloudflaredのSHA-256が固定値と一致しません。"
 
 echo
 echo "============================================================"
@@ -376,24 +460,8 @@ echo
 echo "ComfyUI local:"
 echo "  http://127.0.0.1:8188"
 echo
-
-if [ -n "$PUBLIC_URL" ]; then
-    echo "ComfyUI public URL:"
-    echo
-    echo "  $PUBLIC_URL"
-    echo
-    echo "↑ このURLをPCのブラウザで開く。"
-else
-    echo "Cloudflare Quick TunnelのURL取得に失敗しました。"
-    echo "Vast.ai Instance Portal → Tunnels から"
-    echo
-    echo "  http://localhost:8188"
-    echo
-    echo "を手動で公開してください。"
-    echo
-    echo "Tunnel log:"
-    echo "  $TUNNEL_LOG"
-fi
+echo "ComfyUI public tunnel: disabled"
+echo "生成画像の確認にはrun_batch.shの認証付きPreview URLを使用する。"
 
 echo
 echo "ComfyUI log:"
@@ -401,7 +469,7 @@ echo "  $COMFY_LOG"
 echo
 echo "停止:"
 echo '  pkill -f "python main.py"'
-echo '  pkill -f "cloudflared tunnel"'
+echo '  pkill -f "cloudflared tunnel"  # 認証付きPreviewのみ停止'
 echo
 echo "利用終了後は必要な生成画像を回収してVast.aiインスタンスをDestroyする。"
 echo "============================================================"

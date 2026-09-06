@@ -255,6 +255,7 @@ mkdir -p \
     "$TMP_DIR" \
     "$COMFY_OUTPUT_DIR" \
     "$OUTPUT_DIR"
+chmod 700 "$TMP_DIR"
 
 # ------------------------------------------------------------
 # Input images: top-level only
@@ -913,6 +914,15 @@ flush_outputs() {
 cleanup() {
     flush_outputs || true
     rmdir "$COMFY_OUTPUT_DIR" 2>/dev/null || true
+
+    # Job workflows contain the expanded prompt. Remove only this run's exact
+    # temporary directory, including on errors and Ctrl+C.
+    local expected_tmp="$BATCH_ROOT/tmp/$RUN_ID"
+    if [ "$TMP_DIR" = "$expected_tmp" ] && [ -n "$RUN_ID" ]; then
+        rm -rf -- "$TMP_DIR"
+    else
+        echo "WARNING: refusing to remove unexpected temp path: $TMP_DIR" >&2
+    fi
 }
 trap cleanup EXIT
 

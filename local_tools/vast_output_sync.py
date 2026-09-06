@@ -163,7 +163,7 @@ def discover_remote_files(
                 "-p",
                 str(port),
                 "-o",
-                "StrictHostKeyChecking=no",
+                "StrictHostKeyChecking=accept-new",
                 "-o",
                 "ConnectTimeout=10",
                 "-o",
@@ -393,7 +393,7 @@ def copy_output(
             "-P",
             str(port),
             "-o",
-            "StrictHostKeyChecking=no",
+            "StrictHostKeyChecking=accept-new",
             source,
             str(relative_destination),
         ]
