@@ -28,7 +28,6 @@ from pathlib import Path
 
 POLL_SECONDS = 60
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
-MSYS2_BIN_DIR = Path(r"C:\msys64\usr\bin")
 RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
 BATCH_ROOT_RE = re.compile(
     r'^\s*BATCH_ROOT="\$\{BATCH_ROOT:-([^"}]+)\}"',
@@ -56,27 +55,31 @@ def find_vastai() -> str | None:
     return None
 
 
-def find_rsync() -> str | None:
-    """Return rsync from PATH or the standard MSYS2 installation."""
+def find_scp() -> str | None:
+    """Return scp from PATH or the standard Windows OpenSSH installation."""
 
-    executable = shutil.which("rsync")
+    executable = shutil.which("scp")
     if executable:
         return executable
 
-    candidate = MSYS2_BIN_DIR / "rsync.exe"
-    if candidate.is_file():
-        return str(candidate)
+    candidates = [
+        Path(r"C:\Windows\System32\OpenSSH\scp.exe"),
+        Path(r"C:\Program Files\OpenSSH\scp.exe"),
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
     return None
 
 
-def copy_environment(rsync: str) -> dict[str, str]:
-    """Make rsync discoverable by the direct sync process on Windows."""
+def copy_environment(scp: str) -> dict[str, str]:
+    """Make scp discoverable by the direct sync process on Windows."""
 
     environment = os.environ.copy()
-    rsync_dir = str(Path(rsync).parent)
+    scp_dir = str(Path(scp).parent)
     path_entries = environment.get("PATH", "").split(os.pathsep)
-    if rsync_dir not in path_entries:
-        environment["PATH"] = os.pathsep.join([rsync_dir, *path_entries])
+    if scp_dir not in path_entries:
+        environment["PATH"] = os.pathsep.join([scp_dir, *path_entries])
     return environment
 
 
@@ -85,7 +88,7 @@ def discover_ssh_endpoint(vastai: str, instance_id: str) -> tuple[str, str, int]
 
     ``vastai copy`` uses an rsync-daemon style path internally.  That path is
     currently unreliable on Windows, so use the regular SSH endpoint exposed
-    by ``vastai ssh-url`` and run rsync directly instead.
+    by ``vastai ssh-url`` and run scp directly instead.
     """
 
     result = subprocess.run(
@@ -207,7 +210,7 @@ def choose_instance(instances: list[tuple[str, str]]) -> str:
 
 def copy_output(
     vastai: str,
-    rsync: str,
+    scp: str,
     instance_id: str,
     remote_path: str,
     environment: dict[str, str],
@@ -219,21 +222,23 @@ def copy_output(
 
     user, host, port = endpoint
     source = f"{user}@{host}:{remote_path}"
-    # Run from the fixed destination directory.  The single -e argument is
-    # intentional: rsync passes the complete SSH command to its subprocess.
+    # Copy the contents of output/ into the fixed destination directory.
+    # The wildcard is expanded by the remote scp implementation, so generated
+    # run directories retain their names below LOCAL_OUTPUT_DIR.
     command = [
-        rsync,
-        "-arz",
-        "-v",
-        "--progress",
-        "-e",
-        f"ssh -p {port} -o StrictHostKeyChecking=no",
-        source,
+        scp,
+        "-r",
+        "-p",
+        "-P",
+        str(port),
+        "-o",
+        "StrictHostKeyChecking=no",
+        f"{source}*",
         ".",
     ]
 
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] コピーを確認します。")
-    print(f"rsync direct SSH: {user}@{host}:{port}{remote_path}")
+    print(f"scp direct SSH: {user}@{host}:{port}{remote_path}")
     try:
         result = subprocess.run(
             command,
@@ -265,15 +270,15 @@ def main() -> int:
         )
         return 1
 
-    rsync = find_rsync()
-    if rsync is None:
+    scp = find_scp()
+    if scp is None:
         print(
-            "rsyncが見つかりません。ローカル同期にはrsyncが必要です。\n"
-            "rsyncをインストールしてPATHに追加してから、もう一度実行してください。",
+            "scpが見つかりません。ローカル同期にはWindows OpenSSHのscpが必要です。\n"
+            "Windows OpenSSHをインストールしてPATHに追加してから、もう一度実行してください。",
             file=sys.stderr,
         )
         return 1
-    environment = copy_environment(rsync)
+    environment = copy_environment(scp)
 
     try:
         remote_path = read_remote_output_path()
@@ -308,7 +313,7 @@ def main() -> int:
                 print(f"現在の状態: {status}")
                 copy_output(
                     vastai,
-                    rsync,
+                    scp,
                     selected_instance_id,
                     remote_path,
                     environment,
