@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 ROOT="/workspace/qwen_batch/output"
-DEST_NAME="$(date '+%Y%m%d%H%M')"
+DEST_NAME="$(date '+%Y_%m%d_%H%M')"
 DEST="$ROOT/$DEST_NAME"
 
 if [ ! -d "$ROOT" ]; then

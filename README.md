@@ -378,19 +378,19 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 出力先:
 
 ```text
-/workspace/qwen_batch/output/yyyymmddhhmm/
+/workspace/qwen_batch/output/yyyy_mmdd_hhmm/
 ```
 
 例:
 
 ```text
-/workspace/qwen_batch/output/202609060715/
+/workspace/qwen_batch/output/2026_0906_0715/
 ```
 
 その直下に PNG が並ぶ。
 
 ```text
-202609060715/
+2026_0906_0715/
 ├─ 20260905_200239__001_p001_00001_.png
 ├─ 20260905_202623__001_p001_00001_.png
 ├─ 20260905_211651__002_p002_00001_.png
@@ -399,7 +399,7 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 
 同名衝突を避けるため、基本的に元 RUN_ID をファイル名へ付加する。それでも同名になる場合は追加 suffix を付け、既存ファイルを上書きしない。
 
-平坦化後は、この `yyyymmddhhmm` フォルダだけを Jupyter からダウンロードすればよい。
+平坦化後は、この `yyyy_mmdd_hhmm` フォルダだけを Jupyter からダウンロードすればよい。
 
 ---
 

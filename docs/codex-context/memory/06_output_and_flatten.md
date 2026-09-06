@@ -23,7 +23,7 @@ This is good for run isolation and preview state, but downloading many folders t
 The user introduced/asked for a separate flatten operation with this goal:
 - destroy the per-session folder structure after generation;
 - gather PNG files into one newly created directory;
-- destination name: `/workspace/qwen_batch/output/yyyymmddhhmm/`;
+- destination name: `/workspace/qwen_batch/output/yyyy_mmdd_hhmm/`;
 - final directory contains many PNGs directly;
 - filename collisions must never overwrite data.
 
