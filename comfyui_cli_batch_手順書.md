@@ -38,6 +38,20 @@ tail -n 100 /workspace/comfyui.log
 git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
 ```
 
+### ComfyUIのノード編集画面を開く
+
+`run_batch.sh` を実行し、Terminalに `ComfyUI: already running` または `ComfyUI: ready` と表示されていることを確認します。
+
+Vast.aiのInstance Portalで **Tunnels** を開き、次の固定アドレスを入力して **Create New Tunnel** を押します。
+
+```text
+http://localhost:8188
+```
+
+作成された `https://～.trycloudflare.com` のURLを開くと、ComfyUIのノード編集画面が表示されます。`localhost:8188` は固定ですが、外部公開用の `trycloudflare.com` URLはトンネルの再作成やインスタンスの再起動で変わる場合があります。
+
+Terminalに表示される `Preview URL` は生成画像の確認専用であり、ノード編集画面ではありません。バッチ生成中にノード画面を開く場合は、実行中の処理を止めないよう **Queue** や **Cancel** を操作しないでください。
+
 ## 2. 画像生成のやり方と注意点
 
 ### 1. Vast.aiでインスタンスをRENTする
