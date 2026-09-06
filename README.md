@@ -401,6 +401,8 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 
 平坦化後は、この `yyyy_mmdd_hhmm` フォルダだけを Jupyter からダウンロードすればよい。
 
+既存の `yyyy_mmdd_hhmm` フォルダは次回以降の平坦化対象から除外される。複数回実行すると、実行ごとのまとめフォルダが `/workspace/qwen_batch/output/` 直下に並ぶ。
+
 ---
 
 # 実行中の変更について

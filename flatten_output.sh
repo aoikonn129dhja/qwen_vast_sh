@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT="/workspace/qwen_batch/output"
 DEST_NAME="$(date '+%Y_%m%d_%H%M')"
 DEST="$ROOT/$DEST_NAME"
+FLATTENED_DIR_PATTERN='[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]'
 
 if [ ! -d "$ROOT" ]; then
     echo "ERROR: output directory not found: $ROOT" >&2
@@ -22,13 +23,6 @@ mkdir "$DEST"
 COUNT=0
 
 while IFS= read -r -d '' file; do
-    # DEST自身は対象外
-    case "$file" in
-        "$DEST"/*)
-            continue
-            ;;
-    esac
-
     rel="${file#$ROOT/}"
     session="${rel%%/*}"
     basename="$(basename "$file")"
@@ -52,11 +46,19 @@ while IFS= read -r -d '' file; do
     COUNT=$((COUNT + 1))
 
 done < <(
-    find "$ROOT" \
-        -mindepth 2 \
-        -type f \
-        -iname '*.png' \
-        -print0
+    while IFS= read -r -d '' source_dir; do
+        find "$source_dir" \
+            -type f \
+            -iname '*.png' \
+            -print0
+    done < <(
+        find "$ROOT" \
+            -mindepth 1 \
+            -maxdepth 1 \
+            -type d \
+            ! -name "$FLATTENED_DIR_PATTERN" \
+            -print0
+    )
 )
 
 # 空になった旧セッションフォルダだけ削除
@@ -64,7 +66,7 @@ find "$ROOT" \
     -mindepth 1 \
     -maxdepth 1 \
     -type d \
-    ! -path "$DEST" \
+    ! -name "$FLATTENED_DIR_PATTERN" \
     -empty \
     -delete
 

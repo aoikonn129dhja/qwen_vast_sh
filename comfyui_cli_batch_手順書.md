@@ -6,28 +6,36 @@
 
 コマンドはJupyter WebUIのTerminalで実行します。
 
-| 操作 | コマンド |
-|---|---|
-| リポジトリを更新 | `cd /workspace/qwen_comfy_sh && git pull --ff-only origin main` |
-| 入力画像を確認 | `ls -lah /workspace/qwen_batch/input` |
-| プロンプトを確認 | `sed -n '1,120p' /workspace/qwen_batch/prompts.md` |
-| 画像生成を開始 | `bash /workspace/qwen_comfy_sh/run_batch.sh` |
-| 生成結果を確認 | `find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50` |
-| 複数回の生成結果を1フォルダにまとめる | `bash /workspace/qwen_comfy_sh/flatten_output.sh` |
-| ComfyUIのログを確認 | `tail -n 100 /workspace/comfyui.log` |
-| 初期セットアップ | `git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh` |
+普段使うコマンドは、リポジトリの更新と画像生成の2つです。
 
-普段使うコマンドは基本的に次の2つです。
-
-```bash
+```sh
+# リポジトリを更新
 cd /workspace/qwen_comfy_sh && git pull --ff-only origin main
+
+# 画像生成を開始
 bash /workspace/qwen_comfy_sh/run_batch.sh
 ```
 
-生成結果を1フォルダにまとめて回収するときは、生成完了後に次を実行します。
+そのほかの確認や操作に使うコマンドです。
 
-```bash
+```sh
+# 入力画像を確認
+ls -lah /workspace/qwen_batch/input
+
+# プロンプトを確認
+sed -n '1,120p' /workspace/qwen_batch/prompts.md
+
+# 生成結果を確認
+find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
+
+# 複数回の生成結果を1フォルダにまとめる
 bash /workspace/qwen_comfy_sh/flatten_output.sh
+
+# ComfyUIのログを確認
+tail -n 100 /workspace/comfyui.log
+
+# 初期セットアップ（初回のみ）
+git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
 ```
 
 ## 2. 画像生成のやり方と注意点
@@ -150,6 +158,7 @@ bash /workspace/qwen_comfy_sh/flatten_output.sh
 ```
 
 既存画像は上書きされません。同名の場合はファイル名へ追加の番号が付きます。
+過去に作成された `yyyy_mmdd_hhmm` フォルダは対象外なので、実行するたびに新しいまとめフォルダが並びます。
 
 ### 8. Jupyterから回収する
 

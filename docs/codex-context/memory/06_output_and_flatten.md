@@ -24,6 +24,7 @@ The user introduced/asked for a separate flatten operation with this goal:
 - destroy the per-session folder structure after generation;
 - gather PNG files into one newly created directory;
 - destination name: `/workspace/qwen_batch/output/yyyy_mmdd_hhmm/`;
+- exclude existing `yyyy_mmdd_hhmm` directories from later flatten operations so each execution remains as a separate directory;
 - final directory contains many PNGs directly;
 - filename collisions must never overwrite data.
 
