@@ -308,6 +308,17 @@ PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/run_batch.sh
 
 何も指定しない値は workflow JSON に保存された値を使用する。
 
+入力画像ごとに縦横比を合わせ、通常サイズの `1536 × 2048 = 3,145,728` 画素に近いサイズで生成する場合:
+
+```bash
+MATCH_INPUT_ASPECT=1 \
+bash /workspace/qwen_comfy_sh/run_batch.sh
+```
+
+画像のEXIF回転を考慮した縦横比を使い、モデルで扱いやすいよう幅と高さをそれぞれ64px刻みに丸める。そのため画素数と縦横比は僅かに誤差が出る。`MATCH_INPUT_ASPECT=1` と `WIDTH` / `HEIGHT` は同時に指定できない。
+
+出力幅と高さを固定する場合:
+
 ```bash
 DENOISE=0.8 \
 STEPS=6 \

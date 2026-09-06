@@ -14,7 +14,15 @@ cd /workspace/qwen_comfy_sh && git pull --ff-only origin main
 
 # 画像生成を開始
 bash /workspace/qwen_comfy_sh/run_batch.sh
+
+# 入力画像と同じアスペクト比で生成（約315万画素）
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_comfy_sh/run_batch.sh
+
+# 幅と高さを固定して生成
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_comfy_sh/run_batch.sh
 ```
+
+`MATCH_INPUT_ASPECT=1` は入力画像ごとにサイズを計算し、入力とほぼ同じ縦横比で約315万画素になるよう、幅と高さを64px刻みに丸めます。`WIDTH` または `HEIGHT` とは同時に指定できません。
 
 そのほかの確認や操作に使うコマンドです。
 

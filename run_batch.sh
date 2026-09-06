@@ -34,6 +34,10 @@ set -Eeuo pipefail
 #   WIDTH=1536 HEIGHT=2048 SEED=123 NEGATIVE_PROMPT="..." \
 #   bash /workspace/qwen_comfy_sh/run_batch.sh
 #
+# Match each output to its input image's aspect ratio while keeping roughly
+# the default 1536x2048 pixel count (dimensions are rounded to 64 pixels):
+#   MATCH_INPUT_ASPECT=1 bash /workspace/qwen_comfy_sh/run_batch.sh
+#
 # Optional preview settings:
 #   PREVIEW_ENABLED=0        Disable browser preview
 #   PREVIEW_PORT=8765        Local preview server port
@@ -64,6 +68,27 @@ PREVIEW_PASSWORD=""
 PREVIEW_PASSWORD_FILE="$PREVIEW_ROOT/password.txt"
 PREVIEW_URL_FILE="$PREVIEW_ROOT/url.txt"
 PREVIEW_SERVER_VERSION="20260906-completion-alert-v1"
+
+MATCH_INPUT_ASPECT="${MATCH_INPUT_ASPECT:-0}"
+ASPECT_TARGET_PIXELS="${ASPECT_TARGET_PIXELS:-3145728}"
+ASPECT_SIZE_STEP="${ASPECT_SIZE_STEP:-64}"
+
+if [[ ! "$MATCH_INPUT_ASPECT" =~ ^[01]$ ]]; then
+    echo "ERROR: MATCH_INPUT_ASPECT must be 0 or 1." >&2
+    exit 1
+fi
+if [ "$MATCH_INPUT_ASPECT" = "1" ] && { [ -n "${WIDTH:-}" ] || [ -n "${HEIGHT:-}" ]; }; then
+    echo "ERROR: MATCH_INPUT_ASPECT=1 cannot be combined with WIDTH or HEIGHT." >&2
+    exit 1
+fi
+if [[ ! "$ASPECT_TARGET_PIXELS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: ASPECT_TARGET_PIXELS must be a positive integer." >&2
+    exit 1
+fi
+if [[ ! "$ASPECT_SIZE_STEP" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: ASPECT_SIZE_STEP must be a positive integer." >&2
+    exit 1
+fi
 
 INPUT_RAW="${1:-$BATCH_ROOT/input}"
 PROMPTS_RAW="${2:-$BATCH_ROOT/prompts.md}"
@@ -882,6 +907,13 @@ echo "Prompts  : ${#PROMPTS_B64[@]}"
 echo "Total    : $TOTAL"
 echo "Workflow : $WORKFLOW"
 echo "Output   : $OUTPUT_DIR"
+if [ "$MATCH_INPUT_ASPECT" = "1" ]; then
+    echo "Size     : input aspect, about $ASPECT_TARGET_PIXELS pixels (${ASPECT_SIZE_STEP}px steps)"
+elif [ -n "${WIDTH:-}" ] || [ -n "${HEIGHT:-}" ]; then
+    echo "Size     : WIDTH=${WIDTH:-workflow default}, HEIGHT=${HEIGHT:-workflow default}"
+else
+    echo "Size     : workflow default"
+fi
 if [ "$PREVIEW_ENABLED" = "1" ]; then
     echo "Preview local    : http://127.0.0.1:$PREVIEW_PORT/"
     if [ -n "$PREVIEW_PUBLIC_URL" ]; then
@@ -902,6 +934,35 @@ done
 
 json_string() {
     "$PYTHON" -c 'import json,sys; print(json.dumps(sys.argv[1], ensure_ascii=False))' "$1"
+}
+
+calculate_aspect_size() {
+    "$PYTHON" - "$1" "$ASPECT_TARGET_PIXELS" "$ASPECT_SIZE_STEP" <<'PY'
+import math
+import sys
+
+from PIL import Image, ImageOps
+
+image_path = sys.argv[1]
+target_pixels = int(sys.argv[2])
+step = int(sys.argv[3])
+
+with Image.open(image_path) as source:
+    oriented = ImageOps.exif_transpose(source)
+    input_width, input_height = oriented.size
+
+if input_width <= 0 or input_height <= 0:
+    raise SystemExit(f"ERROR: invalid input image dimensions: {image_path}")
+
+aspect = input_width / input_height
+ideal_width = math.sqrt(target_pixels * aspect)
+ideal_height = math.sqrt(target_pixels / aspect)
+
+output_width = max(step, round(ideal_width / step) * step)
+output_height = max(step, round(ideal_height / step) * step)
+
+print(output_width, output_height)
+PY
 }
 
 monotonic_ns() {
@@ -933,6 +994,12 @@ for src in "${IMAGES[@]}"; do
     filename="$(basename "$src")"
     stem="${filename%.*}"
     image_value="$STAGE_REL/$filename"
+
+    matched_width=""
+    matched_height=""
+    if [ "$MATCH_INPUT_ASPECT" = "1" ]; then
+        read -r matched_width matched_height < <(calculate_aspect_size "$src")
+    fi
 
     pidx=0
 
@@ -971,7 +1038,15 @@ for src in "${IMAGES[@]}"; do
         [ -n "${WIDTH:-}" ]     && overrides+=("9.width=$WIDTH")
         [ -n "${HEIGHT:-}" ]    && overrides+=("9.height=$HEIGHT")
 
-        echo "[$JOB/$TOTAL] $filename × prompt $pidx"
+        if [ "$MATCH_INPUT_ASPECT" = "1" ]; then
+            overrides+=("9.width=$matched_width" "9.height=$matched_height")
+        fi
+
+        if [ "$MATCH_INPUT_ASPECT" = "1" ]; then
+            echo "[$JOB/$TOTAL] $filename × prompt $pidx (${matched_width}x${matched_height})"
+        else
+            echo "[$JOB/$TOTAL] $filename × prompt $pidx"
+        fi
 
         # --no-json is a global comfy-cli option. It is required here because
         # stdout is redirected to a file; without it comfy-cli may emit a JSON
