@@ -48,6 +48,18 @@ bash /workspace/qwen_vast_sh/flatten_output.sh
 tail -n 100 /workspace/comfyui.log
 ```
 
+### ノード画面（ComfyUI）を開く
+
+初期セットアップ完了後、Vast.aiのインスタンス画面から **Tunnels (Open New Ports)** を開きます。
+
+1. **Manage Tunnels** の入力欄へ `http://localhost:8188` と入力する。
+2. **Create New Tunnel** をクリックする。
+3. 一覧へ追加された行の **Tunnel URL** を開く。
+
+ノードが並ぶComfyUI画面はポート `8188` です。`1111`、`8080`、`8384`、`6006` など、最初から表示されている別ポートのURLではありません。
+
+この方法で作成したTunnel URLには認証がありません。URLを他人へ共有せず、作業が終わったら対象行の **Manage** からトンネルを削除してください。通常の画像生成ではComfyUIを外部公開せず、`run_batch.sh` が表示する認証付きの `Preview URL` を使用します。
+
 ## 2. 画像生成のやり方と注意点
 
 ### 1. Vast.aiでインスタンスをRENTする
