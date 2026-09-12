@@ -3,6 +3,7 @@ qwen_batch/
 input/
 output/
 tmp/
+docs/
 
 # Local prompt definitions
 prompts.json
