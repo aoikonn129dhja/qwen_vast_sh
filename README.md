@@ -1,4 +1,4 @@
-# qwen_comfy_sh
+# qwen_vast_sh
 
 Vast.ai 上に **Qwen Rapid AIO NSFW v19 + ComfyUI** を構築し、保存済み ComfyUI workflow を使って **入力画像 × `prompts.md` の全組み合わせ**をバッチ生成するためのリポジトリ。
 
@@ -23,7 +23,7 @@ Vast.ai 上に **Qwen Rapid AIO NSFW v19 + ComfyUI** を構築し、保存済み
 ## リポジトリ構成
 
 ```text
-qwen_comfy_sh/
+qwen_vast_sh/
 ├─ setup_qwen_comfy.sh
 ├─ run_batch.sh
 ├─ flatten_output.sh
@@ -40,7 +40,7 @@ qwen_comfy_sh/
 
 ```text
 /workspace/
-├─ qwen_comfy_sh/
+├─ qwen_vast_sh/
 │  ├─ setup_qwen_comfy.sh
 │  ├─ run_batch.sh
 │  ├─ flatten_output.sh
@@ -77,8 +77,16 @@ PyTorch (Vast) 系テンプレートを前提とする。
 Jupyter の Terminal で以下を実行する。
 
 ```bash
-git clone https://github.com/amamisa4/qwen_comfy_sh.git /workspace/qwen_comfy_sh && \
-bash /workspace/qwen_comfy_sh/setup_qwen_comfy.sh
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && \
+bash /workspace/qwen_vast_sh/setup_qwen_comfy.sh
+```
+
+旧リポジトリを `/workspace/qwen_comfy_sh` に clone 済みの環境では、最初の1回だけ次のコマンドでディレクトリ名と接続先を移行する。
+
+```bash
+mv /workspace/qwen_comfy_sh /workspace/qwen_vast_sh
+git -C /workspace/qwen_vast_sh remote set-url origin https://github.com/aoikonn129dhja/qwen_vast_sh.git
+git -C /workspace/qwen_vast_sh pull --ff-only origin main
 ```
 
 `setup_qwen_comfy.sh` は主に以下を行う。
@@ -189,7 +197,7 @@ input/
 標準構成なら引数なしで実行できる。
 
 ```bash
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 ## ComfyUI 自動起動
@@ -279,13 +287,13 @@ URL が漏れても、認証情報がなければプレビュー画像を取得�
 無効化する場合:
 
 ```bash
-PREVIEW_ENABLED=0 bash /workspace/qwen_comfy_sh/run_batch.sh
+PREVIEW_ENABLED=0 bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 プレビューポートを変更する場合:
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/run_batch.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 ## Preview URL を再生成する
@@ -293,13 +301,13 @@ PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/run_batch.sh
 `Preview URL` が `ERR_NAME_NOT_RESOLVED` などで開けなくなった場合は、バッチ処理を止めずに Cloudflare Quick Tunnel だけを再起動できる。
 
 ```bash
-bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
+bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
 ```
 
 新しい `Preview URL`、ユーザー名、現在のパスワードが Terminal に表示される。古い URL は使用できなくなる。標準以外のプレビューポートで `run_batch.sh` を起動した場合は、同じポートを指定する。
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
 ```
 
 ---
@@ -309,7 +317,7 @@ PREVIEW_PORT=8877 bash /workspace/qwen_comfy_sh/restart_preview_tunnel.sh
 バッチのベース workflow:
 
 ```text
-/workspace/qwen_comfy_sh/Qwen-Rapid-AIO-SaveImage.json
+/workspace/qwen_vast_sh/Qwen-Rapid-AIO-SaveImage.json
 ```
 
 主要 slot address:
@@ -354,7 +362,7 @@ Input    : normal.png 1536x2048 (kept)
 
 ```bash
 DOWNSCALE_LARGE_INPUTS=0 \
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 この縮小はステージ用のコピーにだけ行う。`/workspace/qwen_batch/input/` 内の元画像は書き換えない。
@@ -365,7 +373,7 @@ bash /workspace/qwen_comfy_sh/run_batch.sh
 
 ```bash
 MATCH_INPUT_ASPECT=1 \
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 画像のEXIF回転を考慮した縦横比を使い、モデルで扱いやすいよう幅と高さをそれぞれ64px刻みに丸める。そのため画素数と縦横比は僅かに誤差が出る。`MATCH_INPUT_ASPECT=1` と `WIDTH` / `HEIGHT` は同時に指定できない。
@@ -381,14 +389,14 @@ SCHEDULER=beta \
 WIDTH=1536 \
 HEIGHT=2048 \
 SEED=123456 \
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 ネガティブプロンプトを全ジョブ共通で上書きする場合:
 
 ```bash
 NEGATIVE_PROMPT="negative prompt" \
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/run_batch.sh
 ```
 
 ---
@@ -436,7 +444,7 @@ ComfyUI の `SaveImage` は一度、以下へ生成する。
 **バッチ生成が走っていない状態で実行する。**
 
 ```bash
-bash /workspace/qwen_comfy_sh/flatten_output.sh
+bash /workspace/qwen_vast_sh/flatten_output.sh
 ```
 
 出力先:
@@ -482,6 +490,8 @@ python local_tools\vast_output_sync.py
 ```text
 %LOCALAPPDATA%\qwen_comfy_sh\vast_output_sync_history.jsonl
 ```
+
+この履歴ディレクトリ名は、リポジトリ名変更前のダウンロード履歴を引き続き利用するため、互換性維持目的で旧名の `qwen_comfy_sh` のままとする。
 
 履歴にはVastインスタンスID、リモート相対パス、サイズ、更新時刻、保存時のローカル名を記録する。履歴登録済みのリモート画像は、保存先から別フォルダへ移動した後も再ダウンロードしない。リモート側で同じパスの画像が更新され、サイズまたは更新時刻が変わった場合は新しい版として転送する。
 
@@ -650,7 +660,7 @@ find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
 
 ```bash
 /venv/main/bin/comfy --where local workflow slots \
-  /workspace/qwen_comfy_sh/Qwen-Rapid-AIO-SaveImage.json
+  /workspace/qwen_vast_sh/Qwen-Rapid-AIO-SaveImage.json
 ```
 
 ## Preview ログ

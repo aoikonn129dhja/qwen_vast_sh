@@ -21,9 +21,9 @@
 - プッシュ成功後は、ユーザーがJupyter WebUIのターミナルで更新を取得して動作確認できるよう、少なくとも次のコマンドを提示すること。
 
   ```bash
-  cd /workspace/qwen_comfy_sh
+  cd /workspace/qwen_vast_sh
   git pull --ff-only origin main
-  bash /workspace/qwen_comfy_sh/run_batch.sh
+  bash /workspace/qwen_vast_sh/run_batch.sh
   ```
 
 ## やってはいけないこと
