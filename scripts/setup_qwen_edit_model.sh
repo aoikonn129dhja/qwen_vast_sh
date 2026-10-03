@@ -16,6 +16,7 @@ fi
 # model.conf is trusted repository code and contains assignments only.
 # shellcheck source=/dev/null
 source "$MODEL_CONFIG"
+MODEL_DIR="$(cd -- "$(dirname -- "$MODEL_CONFIG")" && pwd)"
 
 : "${MODEL_ID:?MODEL_ID is required}"
 : "${MODEL_NAME:?MODEL_NAME is required}"
@@ -27,7 +28,7 @@ source "$MODEL_CONFIG"
 : "${LORA_URL:?LORA_URL is required}"
 : "${LORA_SHA256:?LORA_SHA256 is required}"
 : "${WORKFLOW_FILE_NAME:?WORKFLOW_FILE_NAME is required}"
-: "${WORKFLOW_URL:?WORKFLOW_URL is required}"
+: "${WORKFLOW_SOURCE:?WORKFLOW_SOURCE is required}"
 : "${APPROX_TOTAL_BYTES:?APPROX_TOTAL_BYTES is required}"
 
 WORKSPACE="${WORKSPACE:-/workspace}"
@@ -61,6 +62,7 @@ TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
 VAE_PATH="$COMFY_DIR/models/vae/$VAE_FILE"
 LORA_PATH="$COMFY_DIR/models/loras/$LORA_FILE"
 WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/$WORKFLOW_FILE_NAME"
+WORKFLOW_SOURCE_PATH="$MODEL_DIR/$WORKFLOW_SOURCE"
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
 
 log() {
@@ -333,11 +335,11 @@ download_file "$VAE_URL" "$VAE_PATH" "$VAE_SHA256"
 download_file "$LORA_URL" "$LORA_PATH" "$LORA_SHA256"
 
 # ------------------------------------------------------------
-# Official ComfyUI workflow template
+# Bundled official ComfyUI workflow template
 # ------------------------------------------------------------
-log "Comfy-Org公式workflow templateを取得"
-wget -q -O "$WORKFLOW_PATH.tmp" "$WORKFLOW_URL"
-[ -s "$WORKFLOW_PATH.tmp" ] || die "workflow templateの取得に失敗しました。"
+log "同梱のComfy-Org公式workflow templateを配置"
+[ -s "$WORKFLOW_SOURCE_PATH" ] || die "同梱workflowが見つかりません: $WORKFLOW_SOURCE_PATH"
+cp -f "$WORKFLOW_SOURCE_PATH" "$WORKFLOW_PATH.tmp"
 mv -f "$WORKFLOW_PATH.tmp" "$WORKFLOW_PATH"
 
 # The official 2511 template points to BF16 by default. For a 32 GB GPU this

@@ -40,10 +40,12 @@ qwen_vast_sh/
 │  │  └─ workflows/batch-save-image.json
 │  ├─ qwen-image-edit-2509/
 │  │  ├─ model.conf
-│  │  └─ setup.sh
+│  │  ├─ setup.sh
+│  │  └─ workflows/official.json
 │  ├─ qwen-image-edit-2511/
 │  │  ├─ model.conf
-│  │  └─ setup.sh
+│  │  ├─ setup.sh
+│  │  └─ workflows/official.json
 │  └─ qwen-rapid-aio-v1-reference/
 │     └─ workflows/two-input-preview.json
 ├─ scripts/
