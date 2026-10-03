@@ -37,7 +37,19 @@
 ## やってはいけないこと
 - VLMを用いて画像の解析を行わない.リポジトリ内の画像には一切触れない
 - 設定ファイルを無断で上書きしない
+- リポジトリ内の画像ファイルを開く、読み込む、解析する、加工する、移動する、削除するなど、一切の操作を行わないこと。
 - ログやprintに絵文字を使わない。一般的な日本語、英語のみ。
 
 ##　デザインについて
 - HTML/CSS を用いた GUI・レポート・Web UI のデザインでは、登録済みの `taste-skill` を使用すること。
+
+## プッシュ後の案内
+プッシュ後は、リモート環境で更新を取得するため、少なくとも次のコマンドをユーザーへ提示すること。
+```
+cd /workspace/qwen_vast_sh
+git pull --ff-only origin main
+```
+models/qwen-rapid-aio-nsfw-v19/run_batch.sh を変更した場合に限り、続けて次の実行コマンドも提示すること。
+```
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+```
