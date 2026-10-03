@@ -1,102 +1,189 @@
-# Qwen ComfyUI バッチ生成 手順書
+# Vast.ai ComfyUI モデル利用手順書
 
-普段の画像生成で必要な操作だけを、実行順にまとめた手順書です。仕組みや詳しい仕様、トラブル対応は [README.md](./README.md) を参照してください。
+Vast.aiでGPUインスタンスを借り、このリポジトリから使用するモデルを選んでセットアップするための手順書です。
+
+基本方針は「インスタンスをRENTする → リポジトリをcloneする → モデルを1つ選ぶ → そのモデルのsetupを実行する」です。モデルごとのファイルは `models/<モデルID>/` に分離されています。
 
 ## 1. コマンド早見表
-[vast.aiのダッシュボードリンク](https://cloud.vast.ai/)
 
-コマンドはJupyter WebUIのTerminalで実行します。
+[Vast.aiのダッシュボード](https://cloud.vast.ai/)
 
-普段使うコマンドは、リポジトリの更新と画像生成の2つです。
-```sh
-# rent後初期セットアップ
-git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/setup.sh
+以下のコマンドは、Vast.aiのJupyter WebUIでTerminalを開いて実行します。
 
-# リポジトリを更新 (ローカルでコード変更した時のみ)
-cd /workspace/qwen_vast_sh && git pull --ff-only origin main
+### 初回だけ: cloneしてモデル一覧を表示
 
-# 入力画像と同じアスペクト比で生成（約315万画素）
-MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
-
-# 幅と高さを固定して生成
-WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
-
-# 1536×2048（3:4、約315万画素）固定で画像生成を開始
-bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+```bash
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
+cd /workspace/qwen_vast_sh
+bash setup.sh --list
 ```
 
-`MATCH_INPUT_ASPECT=1` は入力画像ごとにサイズを計算し、入力とほぼ同じ縦横比で約315万画素になるよう、幅と高さを64px刻みに丸めます。`WIDTH` または `HEIGHT` とは同時に指定できません。
+### モデルを選んでセットアップ
 
-入力画像が約315万画素の105%を超える場合は、どの実行方法でもモデルへ渡す前に縦横比を保って約315万画素へ自動縮小されます。元画像は変更されません。
+いずれか1つを実行します。
 
-そのほかの確認や操作に使うコマンドです。
+```bash
+cd /workspace/qwen_vast_sh
 
-```sh
-# 入力画像を確認
-ls -lah /workspace/qwen_batch/input
+# Qwen Rapid AIO NSFW v19: 画像編集の一括生成向け
+bash setup.sh qwen-rapid-aio-nsfw-v19
 
-# プロンプトを確認
-sed -n '1,120p' /workspace/qwen_batch/prompts.md
+# Qwen Image Edit 2509: ComfyUI画面から画像編集
+bash setup.sh qwen-image-edit-2509
 
-# 生成結果を確認
-find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
+# Qwen Image Edit 2511: ComfyUI画面から画像編集
+bash setup.sh qwen-image-edit-2511
 
-# 複数回の生成結果を1フォルダにまとめる
-bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
-
-# ComfyUIのログを確認
-tail -n 100 /workspace/comfyui.log
+# LTX-2.3 Uncensored Turbo v1.4 Q4_K_M: 画像から動画を生成
+bash setup.sh ltx-2.3-uncensored-v1.4-q4
 ```
 
-### ノード画面（ComfyUI）を開く
-
-初期セットアップ完了後、Vast.aiのインスタンス画面から **Tunnels (Open New Ports)** を開きます。
-
-1. **Manage Tunnels** の入力欄へ `http://localhost:8188` と入力する。
-2. **Create New Tunnel** をクリックする。
-3. 一覧へ追加された行の **Tunnel URL** を開く。
-
-ノードが並ぶComfyUI画面はポート `8188` です。`1111`、`8080`、`8384`、`6006` など、最初から表示されている別ポートのURLではありません。
-
-この方法で作成したTunnel URLには認証がありません。URLを他人へ共有せず、作業が終わったら対象行の **Manage** からトンネルを削除してください。通常の画像生成ではComfyUIを外部公開せず、`run_batch.sh` が表示する認証付きの `Preview URL` を使用します。
-
-## 2. 画像生成のやり方と注意点
-
-### 1. Vast.aiでインスタンスをRENTする
-
-Vast.aiで使用するインスタンスの **RENT** をクリックします。
-
-インスタンスが `Running` になったら、**Open** からJupyter WebUIを開き、Terminalを起動します。
-
-- 初めて作成したインスタンスは、先に「3. 初期セットアップ」を実行してください。
-- セットアップ済みのインスタンスをStop → Startした場合は、そのまま次へ進めます。
-
-### 2. リポジトリを更新する
+### リポジトリを更新
 
 ```bash
 cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
 
-セットアップ済みのインスタンスでは、通常 `models/qwen-rapid-aio-nsfw-v19/setup.sh` を再実行する必要はありません。
+### Qwen Rapid v19のバッチ生成
 
-### 3. 入力画像とprompts.mdを配置する
+```bash
+# 入力画像とほぼ同じ縦横比、約315万画素で生成
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
-Jupyterのファイルブラウザで、生成に使う画像を次のフォルダへアップロードします。
+# 幅と高さを指定して生成
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+
+# 標準の1536×2048で生成
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+```
+
+### よく使う確認コマンド
+
+```bash
+# ComfyUIのログ
+tail -n 100 /workspace/comfyui.log
+
+# ComfyUIの起動確認
+curl --fail --silent http://127.0.0.1:8188/system_stats >/dev/null && echo "ComfyUI is ready"
+
+# Rapid v19の入力画像
+ls -lah /workspace/qwen_batch/input
+
+# Rapid v19のプロンプト
+sed -n '1,120p' /workspace/qwen_batch/prompts.md
+
+# Rapid v19の生成結果
+find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
+
+# Rapid v19の複数回分の出力を1フォルダへまとめる
+bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
+```
+
+## 2. 共通セットアップ
+
+### 2.1 Vast.aiでインスタンスをRENTする
+
+Vast.aiでGPUインスタンスをRENTします。インスタンスが `Running` になったら、`Open` からJupyter WebUIを開き、Terminalを起動します。
+
+セットアップスクリプトは `/workspace`、`/venv/main/bin/python`、NVIDIA GPUが利用できるVast.aiのPyTorch系環境を前提としています。モデル本体は数十GBになるため、十分なディスク容量があるインスタンスを選んでください。
+
+### 2.2 リポジトリをcloneする
+
+新しくRENTしたインスタンスでは、最初に次を実行します。
+
+```bash
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
+cd /workspace/qwen_vast_sh
+```
+
+すでにclone済みなら、cloneし直さず更新します。
+
+```bash
+cd /workspace/qwen_vast_sh
+git pull --ff-only origin main
+```
+
+### 2.3 利用可能なモデルを確認する
+
+```bash
+cd /workspace/qwen_vast_sh
+bash setup.sh --list
+```
+
+ルートの `setup.sh` は、`models/` 以下に `model.conf` と `setup.sh` があるモデルを自動検出します。新しいモデルが追加されても、通常はこのコマンドで一覧に表示されます。
+
+### 2.4 モデルを1つ選んでセットアップする
+
+```bash
+cd /workspace/qwen_vast_sh
+bash setup.sh <モデルID>
+```
+
+例:
+
+```bash
+bash setup.sh qwen-image-edit-2511
+```
+
+モデルごとの `setup.sh` を直接実行しても結果は同じです。
+
+```bash
+bash /workspace/qwen_vast_sh/models/qwen-image-edit-2511/setup.sh
+```
+
+モデルによってComfyUI本体、カスタムノード、Python依存関係の構成が異なります。同じインスタンスへ複数モデルを順番に導入すると、後から実行したsetupがComfyUIや依存関係を更新することがあります。安定性を優先する場合は、1インスタンスにつき1モデルを使用してください。
+
+### 2.5 ComfyUIを開く
+
+setupが完了したら、Vast.aiのインスタンス画面で `Tunnels (Open New Ports)` を開きます。
+
+1. `Manage Tunnels` の入力欄へ `http://localhost:8188` と入力する。
+2. `Create New Tunnel` をクリックする。
+3. 一覧に追加された行の `Tunnel URL` を開く。
+
+ノードが並ぶComfyUI画面はポート `8188` です。`1111`、`8080`、`8384`、`6006` など、最初から表示される別ポートではありません。
+
+この方法で作成したComfyUIのTunnel URLには認証がありません。URLを他人へ共有せず、作業終了後は対象行の `Manage` からトンネルを削除してください。
+
+## 3. モデル別の概要と使い方
+
+### 3.1 Qwen Rapid AIO NSFW v19
+
+モデルID:
+
+```text
+qwen-rapid-aio-nsfw-v19
+```
+
+入力画像と複数のプロンプトの全組み合わせを、コマンド1つで順番に生成するモデルです。このリポジトリでバッチ生成に対応しているのはこのモデルだけです。
+
+#### セットアップ
+
+```bash
+cd /workspace/qwen_vast_sh
+bash setup.sh qwen-rapid-aio-nsfw-v19
+```
+
+ComfyUI、モデル、固定済み依存関係、バッチ用workflow、認証付きプレビューに必要なファイルが準備されます。
+
+#### 入力画像を配置
+
+Jupyterのファイルブラウザから、画像を次へアップロードします。
 
 ```text
 /workspace/qwen_batch/input/
 ```
 
-対応形式はPNG、JPG、JPEG、WebPです。サブフォルダ内の画像は処理されないため、画像は `input/` 直下へ置いてください。
+対応形式はPNG、JPG、JPEG、WebPです。サブディレクトリ内の画像は処理されないため、`input/` 直下へ置きます。
 
-プロンプトは次へ配置します。
+#### prompts.mdを編集
 
 ```text
 /workspace/qwen_batch/prompts.md
 ```
 
-`##` で始まる見出しごとに1つのプロンプトとして読み込まれます。
+複数行プロンプトは、`##` で始まる見出しごとに分けます。
 
 ```markdown
 # Qwen prompts
@@ -108,137 +195,196 @@ first prompt
 second prompt
 ```
 
-`##` 見出しを使わない場合は、空行を除く各行を1つのプロンプトとして読み込むこともできます。`# プロンプト` のようなMarkdown見出しは無視されます。
+有効な `##` 見出しが1つもなければ、Markdown見出しと空行を除く各行が1プロンプトとして扱われます。
 
-```markdown
-# プロンプト
-
-笑顔にして
-
-ぴーすして
-
-メガネを掛けさせて
-```
-
-この例は3プロンプトになります。ファイル内に有効な `##` 見出しが1つでもある場合は、`##` 区切り形式が優先されます。
-
-### 4. 画像生成を開始する
+#### バッチ生成を開始
 
 ```bash
 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
-ComfyUIが停止している場合は、`run_batch.sh` が自動で起動して準備完了を待ちます。
+開始時に表示される `Images`、`Prompts`、`Total` を確認してください。`Total` は `Images × Prompts` です。
 
-開始時に次の数字を確認してください。
+`MATCH_INPUT_ASPECT=1` を指定すると、入力画像ごとに縦横比を計算し、約315万画素になるよう幅と高さを64px刻みに丸めます。
 
-```text
-Images   : 入力画像数
-Prompts  : プロンプト数
-Total    : Images × Prompts
+```bash
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
-意図しない大量生成を避けるため、特に `Total` を確認します。
+`WIDTH` と `HEIGHT` で出力サイズを固定することもできます。
 
-生成が1枚完了するごとに、今回の生成時間と、完了済み画像の1枚あたりの平均時間が表示されます。
-
-```text
-[12/100] 完了: 今回 8.4秒 | 平均 1枚あたり 8.9秒
+```bash
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
-### 5. ライブプレビューを見る
+`MATCH_INPUT_ASPECT=1` と `WIDTH` または `HEIGHT` は同時に指定できません。入力画像が基準画素数の105%を超える場合は、元画像を変更せず、モデルへ渡す直前に縦横比を保って縮小されます。
 
-Terminalに表示された `Preview URL` をブラウザで開きます。
+#### ライブプレビュー
+
+Terminalに表示される `Preview URL` をブラウザで開きます。
 
 ```text
 user     : qwen
 password : Terminalに表示された20文字のパスワード
 ```
 
-同じ `/workspace` を使っている間は、基本的に同じパスワードが再利用されます。
-
-プレビューではPrev、Next、Latest、Auto followを使用できます。バッチ完了時には、ブラウザ側で許可されていれば約5秒間のアラート音が鳴ります。ブラウザの自動再生制限がある場合は鳴らないことがありますが、画像生成には影響しません。
-
-#### Preview URLが開けない場合
-
-`ERR_NAME_NOT_RESOLVED` などが表示されて `Preview URL` を開けない場合は、Jupyter WebUIのTerminalで次を実行します。
+このプレビューは認証付きで、ComfyUI本体のポート8188とは別です。Preview URLが開けなくなった場合は、生成処理を止めずにQuick Tunnelだけを再起動できます。
 
 ```bash
-cd /workspace/qwen_vast_sh
-git pull --ff-only origin main
 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
-画像生成とローカルのプレビューサーバーは停止せず、Cloudflare Quick Tunnelだけが再起動されます。新しい `Preview URL`、ユーザー名、現在のパスワードがTerminalに表示されるので、新しいURLをブラウザで開いてください。古いURLは使用できなくなります。
+#### 生成中の注意
 
-Preview URLとパスワードを同時に外部共有しないでください。Terminalのスクリーンショットにも注意してください。
+- `run_batch.sh` は同時に複数起動しない。
+- 現在生成中の `/workspace/qwen_batch/output/<RUN_ID>/` を移動または削除しない。
+- 生成中に `flatten_output.sh` を実行しない。
+- 入力画像一覧と `prompts.md` は開始時に固定される。開始後の変更は次回のバッチから反映される。
 
-### 6. 生成中は出力を動かさない
+#### 結果をまとめて回収
 
-`run_batch.sh` は1本ずつ実行してください。
-
-入力画像一覧と `prompts.md` は開始時に読み込まれます。生成開始後に追加・編集した内容は、次回のバッチから反映されます。
-
-生成中は次の操作をしないでください。
-
-- 現在の `output/<RUN_ID>/` を移動または削除する
-- `flatten_output.sh` を実行する
-- 別の `run_batch.sh` を同時に起動する
-
-### 7. 完了後に出力を1フォルダへまとめる
-
-生成結果はrunごとに次へ保存されます。
-
-```text
-/workspace/qwen_batch/output/<RUN_ID>/
-```
-
-Terminalに `COMPLETE` が表示され、バッチが完全に終了してから実行します。
+Terminalに `COMPLETE` が表示されてから実行します。
 
 ```bash
 bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 ```
 
-複数のRUN_IDフォルダにあるPNGが、次のような1フォルダへまとめられます。
+複数のRUN_IDに分かれた画像が、次へまとめられます。
 
 ```text
 /workspace/qwen_batch/output/yyyy_mmdd_hhmm/
 ```
 
-既存画像は上書きされません。同名の場合はファイル名へ追加の番号が付きます。
-過去に作成された `yyyy_mmdd_hhmm` フォルダは対象外なので、実行するたびに新しいまとめフォルダが並びます。
+既存画像は上書きされません。Jupyterのファイルブラウザから、このフォルダをダウンロードします。
 
-### 8. Jupyterから回収する
+### 3.2 Qwen Image Edit 2509
 
-Jupyterのファイルブラウザで次を開きます。
+モデルID:
 
 ```text
-/workspace/qwen_batch/output/
+qwen-image-edit-2509
 ```
 
-`flatten_output.sh` が作成した `yyyy_mmdd_hhmm` フォルダをダウンロードします。平坦化済みなので、複数runの結果も1回で回収できます。
+ComfyUIの画面上で操作するQwen Image Edit 2509です。DWPoseとAnimePoseも準備されます。リポジトリ管理のバッチ実行には対応していません。
 
-回収後の扱いは次のとおりです。
-
-- 後で同じ環境を使う: Vast.ai画面で **Stop**
-- 環境を完全に破棄する: 必要なファイルをすべて回収してから **Destroy**
-
-**Destroyすると `/workspace` の内容も失われます。**
-
-## 3. 初期セットアップ
-
-新しくRENTした未セットアップのインスタンスで、Jupyter WebUIのTerminalから一度だけ実行します。
+#### セットアップ
 
 ```bash
-git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && \
-bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/setup.sh
+cd /workspace/qwen_vast_sh
+bash setup.sh qwen-image-edit-2509
 ```
 
-セットアップではComfyUI、comfy-cli、Qwenモデル、workflow、作業ディレクトリなどが準備されます。モデルをダウンロードするため時間がかかります。
+同梱している公式系workflowが、次の名前でComfyUIへ配置されます。
 
-セットアップが完了したら、「2. 画像生成のやり方と注意点」の「3. 入力画像とprompts.mdを配置する」から進めてください。
+```text
+Qwen-Image-Edit-2509-official.json
+```
 
-旧リポジトリを `/workspace/qwen_comfy_sh` に clone 済みの場合は、最初の1回だけ次のコマンドでディレクトリ名と接続先を移行します。
+セットアップ後にComfyUIを開き、このworkflowを読み込みます。人物画像を `image1`、DWPoseまたはAnimePoseで作成した骨格画像を `image2` へ接続して使用します。
+
+### 3.3 Qwen Image Edit 2511
+
+モデルID:
+
+```text
+qwen-image-edit-2511
+```
+
+ComfyUIの画面上で操作するQwen Image Edit 2511 FP8 mixedです。DWPoseとAnimePoseも準備されます。リポジトリ管理のバッチ実行には対応していません。
+
+#### セットアップ
+
+```bash
+cd /workspace/qwen_vast_sh
+bash setup.sh qwen-image-edit-2511
+```
+
+同梱している公式系workflowが、次の名前でComfyUIへ配置されます。
+
+```text
+Qwen-Image-Edit-2511-official.json
+```
+
+セットアップ時に、公式workflow内のBF16モデル名が、実際に導入するFP8 mixedモデル名へ置換されます。セットアップ後にComfyUIを開き、このworkflowを読み込みます。
+
+### 3.4 LTX-2.3 Uncensored Turbo v1.4 Q4_K_M
+
+モデルID:
+
+```text
+ltx-2.3-uncensored-v1.4-q4
+```
+
+ChrisColeTech配布のLTX-2.3 Uncensored Turbo v1.4を、Q4_K_MのGGUF構成で動かす画像・動画生成モデルです。このリポジトリでは、主に入力画像から動画を生成するI2V用途を想定しています。
+
+#### セットアップ
+
+```bash
+cd /workspace/qwen_vast_sh
+bash setup.sh ltx-2.3-uncensored-v1.4-q4
+```
+
+次のモデルファイルと `ComfyUI-GGUF-Loader` が導入されます。
+
+- `ltxv23_uncensored_v1.4_Q4_K_M.gguf`
+- `gemma-3-12b-it-ablit-norms-biproj-Q4_K_M.gguf`
+- `ltxv23_uncensored_v1.4_projections.safetensors`
+- `ltxv23_uncensored_v1.4_video_vae.safetensors`
+- `ltxv23_uncensored_v1.4_audio_vae.safetensors`
+- `ChrisColeTech/ComfyUI-GGUF-Loader`
+
+x2 spatial upscaler、追加LoRA、音声参照用素材は初期セットアップに含まれません。
+
+#### I2V workflowを読み込む
+
+このモデル用の最小I2V workflowは次です。
+
+```text
+/workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_Uncensored_v1.4_Q4_I2V.json
+```
+
+LTXのsetupは、このJSONをComfyUIの保存済みworkflow一覧へ自動コピーしません。JupyterのファイルブラウザからJSONを手元へダウンロードし、ComfyUI画面へドラッグ＆ドロップするか、ComfyUIの `Load` から読み込んでください。
+
+読み込み後は、`LoadImage` で入力画像を選択してプロンプトを編集します。`LTXV23ModelsLoader` の各欄では、setupで導入された上記5つのモデルファイルを選択します。
+
+最初に試す値の目安:
+
+```text
+LTXV23ImgToVideo
+  image_strength = 0.7
+  length         = 121
+  frame_rate     = 24
+
+LTXV23KSampler
+  schedule       = dmd (8 steps)
+  steps          = 8
+  cfg            = 1.0
+  sampler_name   = euler
+```
+
+フレーム数は `8k+1` の形にします。例は49、97、121です。
+
+次のJSONはLightricks公式のtwo-stage workflowを保存した参照用ファイルです。ChrisColeTechのsplit GGUF構成でそのまま動作することを保証するものではありません。
+
+```text
+/workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json
+```
+
+モデル配布元ではライセンスが `unknown` と表示されています。商用利用や再配布を行う場合は、利用者自身で最新のライセンス条件を確認してください。
+
+### 3.5 Qwen Rapid AIO v1 reference
+
+```text
+models/qwen-rapid-aio-v1-reference/
+```
+
+これは2入力参照workflowの保管場所で、セットアップ可能なモデルではありません。`setup.sh --list` にも表示されません。モデル配布元とSHA-256が未定義で、workflowにSaveImageノードもないため、実行用workflowと混同しないでください。
+
+## 4. 余談
+
+### 旧リポジトリ名からの移行
+
+旧リポジトリを `/workspace/qwen_comfy_sh` にclone済みの場合は、最初の1回だけ次を実行します。
 
 ```bash
 mv /workspace/qwen_comfy_sh /workspace/qwen_vast_sh
@@ -246,11 +392,24 @@ git -C /workspace/qwen_vast_sh remote set-url origin https://github.com/aoikonn1
 git -C /workspace/qwen_vast_sh pull --ff-only origin main
 ```
 
-移行後は通常の更新コマンドを使用します。
+### StopとDestroy
 
-```bash
-cd /workspace/qwen_vast_sh
-git pull --ff-only origin main
-```
+- 後で同じ環境を使う場合は、Vast.ai画面で `Stop` を選ぶ。
+- 環境を完全に破棄する場合は、必要な生成物を回収してから `Destroy` を選ぶ。
+- `Destroy` すると `/workspace` の内容も失われる。
 
-セットアップの詳細、ディレクトリ構成、環境変数、出力仕様、ログの確認方法は [README.md](./README.md) にまとめています。
+### セキュリティ
+
+- ComfyUIのポート8188をVast.ai Tunnelで公開した場合、そのURLには認証がない。
+- Rapid v19の `Preview URL` は認証付きだが、URLとパスワードを同時に共有しない。
+- Terminalのスクリーンショットには、URLやパスワードが写り込む可能性がある。
+- 作業終了後は、不要になったTunnelを削除する。
+
+### 詳細資料
+
+- リポジトリ全体とRapid v19の詳細: [README.md](./README.md)
+- モデルディレクトリの規約: [models/README.md](./models/README.md)
+- Rapid v19: [models/qwen-rapid-aio-nsfw-v19/README.md](./models/qwen-rapid-aio-nsfw-v19/README.md)
+- Qwen Image Edit 2509: [models/qwen-image-edit-2509/README.md](./models/qwen-image-edit-2509/README.md)
+- Qwen Image Edit 2511: [models/qwen-image-edit-2511/README.md](./models/qwen-image-edit-2511/README.md)
+- LTX-2.3 v1.4 Q4: [models/ltx-2.3-uncensored-v1.4-q4/README.md](./models/ltx-2.3-uncensored-v1.4-q4/README.md)
