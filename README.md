@@ -1,23 +1,24 @@
 # qwen_vast_sh
 
-Vast.ai上へ複数のQwen画像モデルをセットアップするリポジトリ。モデルごとにsetup、workflow、依存情報を分離している。
+Vast.ai上へ画像・動画モデルをセットアップするリポジトリ。モデルごとにsetup、workflow、依存情報を分離している。
 
 ## モデルを選ぶ
 
-新規インスタンスでは、clone後にモデル一覧を確認して1つ選ぶ。
+新規インスタンスでは、clone後に使うモデルのディレクトリへ移動し、セットアップを実行する。
 
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
 cd /workspace/qwen_vast_sh
-bash setup.sh --list
-bash setup.sh qwen-rapid-aio-nsfw-v19
+cd models/qwen-rapid-aio-nsfw-v19
+bash setup.sh
 ```
 
-| モデルID | 用途 | バッチ |
+| ディレクトリ | 用途 | バッチ |
 |---|---|---|
 | `qwen-rapid-aio-nsfw-v19` | 入力画像とプロンプトのバッチ生成 | 対応 |
 | `qwen-image-edit-2509` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
 | `qwen-image-edit-2511` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
+| `ltx-2.3-uncensored-v1.4-q4` | ComfyUIでの画像から動画の生成 | 非対応 |
 
 Rapid v19のバッチ実行:
 
@@ -29,7 +30,6 @@ bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 ```text
 qwen_vast_sh/
-├─ setup.sh
 ├─ models/
 │  ├─ qwen-rapid-aio-nsfw-v19/
 │  │  ├─ setup.sh
