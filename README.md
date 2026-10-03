@@ -1,112 +1,77 @@
 # qwen_vast_sh
 
-Vast.ai 上に **Qwen Rapid AIO NSFW v19 + ComfyUI** を構築し、保存済み ComfyUI workflow を使って **入力画像 × `prompts.md` の全組み合わせ**をバッチ生成するためのリポジトリ。
+Vast.ai上へ複数のQwen画像モデルをセットアップするリポジトリ。モデルごとにsetup、workflow、依存情報を分離している。
 
-現在の運用は Jupyter を中心にしている。Windows 側に `comfy-cli` を導入する必要はなく、画像生成・workflow 書き換え・ComfyUI 実行は Vast.ai 側で行う。
+## モデルを選ぶ
 
-## 現在の主な機能
+新規インスタンスでは、clone後にモデル一覧を確認して1つ選ぶ。
 
-- `setup_qwen_comfy.sh` による ComfyUI / comfy-cli / Qwen モデルのセットアップ
-- `prompts.md` による複数プロンプト管理
-- 入力画像 × プロンプトの直積バッチ生成
-- `run_batch.sh` 実行時の ComfyUI 生存確認と自動起動・復旧
-- 生成画像を `/workspace/qwen_batch/output/<RUN_ID>/` に集約
-- 生成中のブラウザライブプレビュー
-- Cloudflare Quick Tunnel 経由のプレビューに HTTP Basic 認証を要求
-- 固定ユーザー名 `qwen` + 実行ごとの20文字ランダムパスワード
-- Prev / Next / Latest / Auto follow による生成画像確認
-- `flatten_output.sh` による複数 RUN_ID フォルダの一括平坦化
-- Windows同期済み画像をローカル履歴で記録し、移動後も再ダウンロードを防止
+```bash
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
+cd /workspace/qwen_vast_sh
+bash setup.sh --list
+bash setup.sh qwen-rapid-aio-nsfw-v19
+```
 
----
+| モデルID | 用途 | バッチ |
+|---|---|---|
+| `qwen-rapid-aio-nsfw-v19` | 入力画像とプロンプトのバッチ生成 | 対応 |
+| `qwen-image-edit-2509` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
+| `qwen-image-edit-2511` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
+
+Rapid v19のバッチ実行:
+
+```bash
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+```
 
 ## リポジトリ構成
 
 ```text
 qwen_vast_sh/
-├─ setup_qwen_comfy.sh
-├─ run_batch.sh
-├─ flatten_output.sh
-├─ Qwen-Rapid-AIO-SaveImage.json
+├─ setup.sh
+├─ models/
+│  ├─ qwen-rapid-aio-nsfw-v19/
+│  │  ├─ setup.sh
+│  │  ├─ run_batch.sh
+│  │  ├─ restart_preview_tunnel.sh
+│  │  ├─ requirements.in
+│  │  ├─ requirements.lock
+│  │  └─ workflows/batch-save-image.json
+│  ├─ qwen-image-edit-2509/
+│  │  ├─ model.conf
+│  │  └─ setup.sh
+│  ├─ qwen-image-edit-2511/
+│  │  ├─ model.conf
+│  │  └─ setup.sh
+│  └─ qwen-rapid-aio-v1-reference/
+│     └─ workflows/two-input-preview.json
+├─ scripts/
+│  ├─ setup_qwen_edit_model.sh
+│  └─ flatten_output.sh
+├─ local_tools/
 ├─ comfyui_cli_batch_手順書.md
 └─ README.md
 ```
 
-`prompts.md` は生成内容を含むため、通常は Git 管理せず `/workspace/qwen_batch/prompts.md` に配置する。
+`qwen-rapid-aio-v1-reference` は、Qwen Rapid AIO v1向けの2入力参照workflowの保管場所であり、セットアップ対象ではない。モデル配布元とSHA-256が未定義で、SaveImageノードもないため、実行用workflowと混同しないこと。
 
----
+## Rapid v19 setupの処理
 
-## 基本ディレクトリ
+`models/qwen-rapid-aio-nsfw-v19/setup.sh` は次を行う。
 
-```text
-/workspace/
-├─ qwen_vast_sh/
-│  ├─ setup_qwen_comfy.sh
-│  ├─ run_batch.sh
-│  ├─ flatten_output.sh
-│  └─ Qwen-Rapid-AIO-SaveImage.json
-│
-├─ qwen_batch/
-│  ├─ prompts.md
-│  ├─ input/
-│  ├─ output/
-│  │  ├─ <RUN_ID>/
-│  │  └─ ...
-│  └─ tmp/
-│
-├─ ComfyUI/
-│  ├─ models/checkpoints/
-│  ├─ input/batch/<RUN_ID>/
-│  ├─ output/batch/<RUN_ID>/
-│  └─ user/default/workflows/
-│
-└─ qwen_preview/
-   ├─ state.json
-   ├─ server.py
-   └─ preview / tunnel logs
-```
+1. GPUとDiskの確認
+2. Hugging Faceへの実ダウンロード速度の事前測定
+3. 固定コミットからComfyUIをcloneまたは修復
+4. モデルディレクトリ内の固定依存をuvで導入
+5. 固定バージョンのcomfy-cliを導入
+6. Qwen Rapid AIO NSFW v19をダウンロード
+7. Phr00tのnodes_qwen.v2.pyを導入
+8. バッチ用workflowを配置
+9. ComfyUIをlocalhostで起動
+10. 認証付きプレビュー用cloudflaredを準備
 
----
-
-# セットアップ
-
-## 新規 Vast.ai インスタンス
-
-PyTorch (Vast) 系テンプレートを前提とする。
-
-Jupyter の Terminal で以下を実行する。
-
-```bash
-git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && \
-bash /workspace/qwen_vast_sh/setup_qwen_comfy.sh
-```
-
-旧リポジトリを `/workspace/qwen_comfy_sh` に clone 済みの環境では、最初の1回だけ次のコマンドでディレクトリ名と接続先を移行する。
-
-```bash
-mv /workspace/qwen_comfy_sh /workspace/qwen_vast_sh
-git -C /workspace/qwen_vast_sh remote set-url origin https://github.com/aoikonn129dhja/qwen_vast_sh.git
-git -C /workspace/qwen_vast_sh pull --ff-only origin main
-```
-
-`setup_qwen_comfy.sh` は主に以下を行う。
-
-1. GPU / Disk の確認
-2. Hugging Face への実ダウンロード速度の事前測定
-3. 固定コミットから ComfyUI を clone / 修復
-4. `requirements.lock` の固定バージョン・SHA-256に基づく依存導入
-5. 固定バージョンの公式 `comfy-cli` の導入
-6. `comfy set-default /workspace/ComfyUI`
-7. `Qwen-Rapid-AIO-NSFW-v19.safetensors` のダウンロード
-8. Phr00t の `nodes_qwen.v2.py` の導入
-9. workflow の配置
-10. `/workspace/qwen_batch/` 以下の作業ディレクトリ作成
-11. ComfyUI の起動
-12. 認証付きライブプレビュー用 `cloudflared` 固定版の準備
-
-ComfyUI 自体を外部公開する認証なし Tunnel は起動しない。ComfyUI は `127.0.0.1:8188` のみに bind し、生成画像の確認には `run_batch.sh` が起動する認証付きライブプレビューを使う。
-
-モデルが既に存在する Stop → Start 後のインスタンスでは、通常はセットアップを再実行する必要はない。
+ComfyUI自体は外部公開せず、生成画像はモデル専用の `run_batch.sh` が提供する認証付きプレビューで確認する。
 
 ---
 
@@ -197,7 +162,7 @@ input/
 標準構成なら引数なしで実行できる。
 
 ```bash
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ## ComfyUI 自動起動
@@ -287,13 +252,13 @@ URL が漏れても、認証情報がなければプレビュー画像を取得�
 無効化する場合:
 
 ```bash
-PREVIEW_ENABLED=0 bash /workspace/qwen_vast_sh/run_batch.sh
+PREVIEW_ENABLED=0 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 プレビューポートを変更する場合:
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/run_batch.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ## Preview URL を再生成する
@@ -301,13 +266,13 @@ PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/run_batch.sh
 `Preview URL` が `ERR_NAME_NOT_RESOLVED` などで開けなくなった場合は、バッチ処理を止めずに Cloudflare Quick Tunnel だけを再起動できる。
 
 ```bash
-bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 新しい `Preview URL`、ユーザー名、現在のパスワードが Terminal に表示される。古い URL は使用できなくなる。標準以外のプレビューポートで `run_batch.sh` を起動した場合は、同じポートを指定する。
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 ---
@@ -317,7 +282,7 @@ PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
 バッチのベース workflow:
 
 ```text
-/workspace/qwen_vast_sh/Qwen-Rapid-AIO-SaveImage.json
+/workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
 ```
 
 主要 slot address:
@@ -362,7 +327,7 @@ Input    : normal.png 1536x2048 (kept)
 
 ```bash
 DOWNSCALE_LARGE_INPUTS=0 \
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 この縮小はステージ用のコピーにだけ行う。`/workspace/qwen_batch/input/` 内の元画像は書き換えない。
@@ -373,7 +338,7 @@ bash /workspace/qwen_vast_sh/run_batch.sh
 
 ```bash
 MATCH_INPUT_ASPECT=1 \
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 画像のEXIF回転を考慮した縦横比を使い、モデルで扱いやすいよう幅と高さをそれぞれ64px刻みに丸める。そのため画素数と縦横比は僅かに誤差が出る。`MATCH_INPUT_ASPECT=1` と `WIDTH` / `HEIGHT` は同時に指定できない。
@@ -389,14 +354,14 @@ SCHEDULER=beta \
 WIDTH=1536 \
 HEIGHT=2048 \
 SEED=123456 \
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ネガティブプロンプトを全ジョブ共通で上書きする場合:
 
 ```bash
 NEGATIVE_PROMPT="negative prompt" \
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ---
@@ -444,7 +409,7 @@ ComfyUI の `SaveImage` は一度、以下へ生成する。
 **バッチ生成が走っていない状態で実行する。**
 
 ```bash
-bash /workspace/qwen_vast_sh/flatten_output.sh
+bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 ```
 
 出力先:
@@ -660,7 +625,7 @@ find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
 
 ```bash
 /venv/main/bin/comfy --where local workflow slots \
-  /workspace/qwen_vast_sh/Qwen-Rapid-AIO-SaveImage.json
+  /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
 ```
 
 ## Preview ログ

@@ -1,40 +1,52 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ============================================================
-# Vast.ai / PyTorch (Vast)
-# Qwen-Image-Edit official-base + native keypoint workflow setup
-#
-# Default:
-#   Qwen-Image-Edit-2509, Comfy-Org FP8 repack for native ComfyUI
-#
-# Optional:
-#   QWEN_EDIT_VERSION=2511 bash setup_qwen_edit_keypoint.sh
-#
-# Notes:
-# - 2509 is the default because Qwen explicitly documents native keypoint-map
-#   control for Qwen-Image-Edit-2509.
-# - This does NOT install Qwen-Rapid-AIO and does NOT patch nodes_qwen.py with
-#   Phr00t's replacement. It uses current ComfyUI core Qwen nodes.
-# - The diffusion files below are Comfy-Org single-file repacks/quantizations
-#   derived from the official Qwen-Image-Edit base models.
-# - DWPose and AnimePose are installed so a pose/keypoint IMAGE can be produced
-#   inside ComfyUI and passed as image2 to TextEncodeQwenImageEditPlus.
-# ============================================================
+# Shared setup engine for official-base Qwen Image Edit profiles.
+# Run a model directory's setup.sh instead of calling this file directly.
+
+ENGINE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$ENGINE_DIR/.." && pwd)"
+MODEL_CONFIG="${MODEL_CONFIG:-}"
+
+if [ -z "$MODEL_CONFIG" ] || [ ! -f "$MODEL_CONFIG" ]; then
+    echo "ERROR: MODEL_CONFIG must point to a model.conf file." >&2
+    exit 2
+fi
+
+# model.conf is trusted repository code and contains assignments only.
+# shellcheck source=/dev/null
+source "$MODEL_CONFIG"
+
+: "${MODEL_ID:?MODEL_ID is required}"
+: "${MODEL_NAME:?MODEL_NAME is required}"
+: "${QWEN_EDIT_VERSION:?QWEN_EDIT_VERSION is required}"
+: "${DIFFUSION_FILE:?DIFFUSION_FILE is required}"
+: "${DIFFUSION_URL:?DIFFUSION_URL is required}"
+: "${DIFFUSION_SHA256:?DIFFUSION_SHA256 is required}"
+: "${LORA_FILE:?LORA_FILE is required}"
+: "${LORA_URL:?LORA_URL is required}"
+: "${LORA_SHA256:?LORA_SHA256 is required}"
+: "${WORKFLOW_FILE_NAME:?WORKFLOW_FILE_NAME is required}"
+: "${WORKFLOW_URL:?WORKFLOW_URL is required}"
+: "${APPROX_TOTAL_BYTES:?APPROX_TOTAL_BYTES is required}"
 
 WORKSPACE="${WORKSPACE:-/workspace}"
 COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
 PYTHON="${PYTHON:-/venv/main/bin/python}"
-PIP="${PIP:-/venv/main/bin/pip}"
 COMFY_PORT="${COMFY_PORT:-8188}"
 COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
-QWEN_EDIT_VERSION="${QWEN_EDIT_VERSION:-2509}"
 VERIFY_SHA256="${VERIFY_SHA256:-1}"
 INSTALL_DWPOSE="${INSTALL_DWPOSE:-1}"
 INSTALL_ANIMEPOSE="${INSTALL_ANIMEPOSE:-1}"
 MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
 SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"
 ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
+
+UV_VERSION="0.11.28"
+UV_ARCHIVE_URL="https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-unknown-linux-gnu.tar.gz"
+UV_ARCHIVE_SHA256="e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224"
+UV_BIN_SHA256="1cb9cd0a1749debf6049d7d2bb933882cc52d81016326ee6d99a786d6c988b03"
+UV="${UV:-$WORKSPACE/bin/uv}"
 
 TEXT_ENCODER_FILE="qwen_2.5_vl_7b_fp8_scaled.safetensors"
 TEXT_ENCODER_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/$TEXT_ENCODER_FILE"
@@ -43,37 +55,6 @@ TEXT_ENCODER_SHA256="cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c
 VAE_FILE="qwen_image_vae.safetensors"
 VAE_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/$VAE_FILE"
 VAE_SHA256="a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
-
-case "$QWEN_EDIT_VERSION" in
-    2509)
-        DIFFUSION_FILE="qwen_image_edit_2509_fp8_e4m3fn.safetensors"
-        DIFFUSION_URL="https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/$DIFFUSION_FILE"
-        DIFFUSION_SHA256="318568f61951ab9da21100c7b896e3c1da67f0d2efad6421545e022cfaa2b2b4"
-        LORA_FILE="Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors"
-        LORA_URL="https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Edit-2509/$LORA_FILE"
-        LORA_SHA256="2a32ce938ec71db2b49a817b4844ae86995569518dea56ee0ddc209cbe8e1377"
-        WORKFLOW_FILE_NAME="Qwen-Image-Edit-2509-official.json"
-        WORKFLOW_URL="https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_qwen_image_edit_2509.json"
-        APPROX_TOTAL_BYTES=31000000000
-        ;;
-    2511)
-        # BF16 is ~40.9 GB for the diffusion model alone. On a 32 GB GPU,
-        # use Comfy-Org's fp8mixed repack instead.
-        DIFFUSION_FILE="qwen_image_edit_2511_fp8mixed.safetensors"
-        DIFFUSION_URL="https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/$DIFFUSION_FILE"
-        DIFFUSION_SHA256="c9fdc158e46d3b61ef75f21ae866ca2fe808bf4a53643120d1c1e87c19280a4e"
-        LORA_FILE="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
-        LORA_URL="https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/$LORA_FILE"
-        LORA_SHA256="22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f"
-        WORKFLOW_FILE_NAME="Qwen-Image-Edit-2511-official.json"
-        WORKFLOW_URL="https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_qwen_image_edit_2511.json"
-        APPROX_TOTAL_BYTES=31100000000
-        ;;
-    *)
-        echo "ERROR: QWEN_EDIT_VERSION must be 2509 or 2511: $QWEN_EDIT_VERSION" >&2
-        exit 2
-        ;;
-esac
 
 DIFFUSION_PATH="$COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
 TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
@@ -112,6 +93,31 @@ sha256_verify() {
     [ "$VERIFY_SHA256" = "1" ] || return 0
     log "SHA-256確認: $(basename "$path")"
     sha256_matches "$path" "$expected" || die "SHA-256が一致しません: $path"
+}
+
+install_verified_uv() {
+    mkdir -p "$WORKSPACE/bin"
+    if [ -x "$UV" ] && sha256_matches "$UV" "$UV_BIN_SHA256"; then
+        return 0
+    fi
+
+    local archive="$WORKSPACE/bin/uv-$UV_VERSION.tar.gz"
+    local extract_dir="$WORKSPACE/bin/.uv-$UV_VERSION-extract.$$"
+    rm -f -- "$archive"
+    wget -q -O "$archive" "$UV_ARCHIVE_URL" \
+        || die "uv $UV_VERSION のダウンロードに失敗しました。"
+    sha256_matches "$archive" "$UV_ARCHIVE_SHA256" \
+        || die "uvアーカイブのSHA-256が一致しません。"
+    rm -rf -- "$extract_dir"
+    mkdir -p "$extract_dir"
+    tar -xzf "$archive" -C "$extract_dir"
+    local extracted="$extract_dir/uv-x86_64-unknown-linux-gnu/uv"
+    [ -f "$extracted" ] || die "uvアーカイブ内に実行ファイルがありません。"
+    sha256_matches "$extracted" "$UV_BIN_SHA256" \
+        || die "展開したuvのSHA-256が一致しません。"
+    install -m 0755 "$extracted" "$UV"
+    rm -rf -- "$extract_dir"
+    rm -f -- "$archive"
 }
 
 download_file() {
@@ -166,8 +172,10 @@ git_clone_or_update() {
 
 need_cmd git
 need_cmd wget
+need_cmd tar
+need_cmd install
 [ -x "$PYTHON" ] || die "$PYTHON が見つかりません。PyTorch (Vast) テンプレートか確認してください。"
-[ -x "$PIP" ] || die "$PIP が見つかりません。"
+install_verified_uv
 
 log "設定"
 echo "Qwen version : $QWEN_EDIT_VERSION"
@@ -303,7 +311,7 @@ fi
 cd "$COMFY_DIR"
 
 log "ComfyUI依存パッケージをインストール"
-"$PIP" install -r requirements.txt
+"$UV" pip install --python "$PYTHON" -r requirements.txt
 
 mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
@@ -334,14 +342,17 @@ mv -f "$WORKFLOW_PATH.tmp" "$WORKFLOW_PATH"
 
 # The official 2511 template points to BF16 by default. For a 32 GB GPU this
 # setup downloads fp8mixed instead, so rewrite only that model filename.
-if [ "$QWEN_EDIT_VERSION" = "2511" ]; then
+if [ -n "${WORKFLOW_REPLACE_FROM:-}" ]; then
+    WORKFLOW_REPLACE_FROM="$WORKFLOW_REPLACE_FROM" \
+    WORKFLOW_REPLACE_TO="${WORKFLOW_REPLACE_TO:-}" \
     "$PYTHON" - "$WORKFLOW_PATH" <<'PYWF'
 from pathlib import Path
+import os
 import sys
 p = Path(sys.argv[1])
 s = p.read_text(encoding="utf-8")
-old = "qwen_image_edit_2511_bf16.safetensors"
-new = "qwen_image_edit_2511_fp8mixed.safetensors"
+old = os.environ["WORKFLOW_REPLACE_FROM"]
+new = os.environ["WORKFLOW_REPLACE_TO"]
 if old not in s:
     raise SystemExit(f"expected model name not found in workflow: {old}")
 p.write_text(s.replace(old, new), encoding="utf-8")
@@ -356,7 +367,7 @@ if [ "$INSTALL_DWPOSE" = "1" ]; then
     git_clone_or_update "https://github.com/Fannovel16/comfyui_controlnet_aux.git" "$DWPOSE_DIR"
     if [ -f "$DWPOSE_DIR/requirements.txt" ]; then
         log "comfyui_controlnet_aux依存をインストール"
-        "$PIP" install -r "$DWPOSE_DIR/requirements.txt"
+        "$UV" pip install --python "$PYTHON" -r "$DWPOSE_DIR/requirements.txt"
     fi
 fi
 
@@ -365,7 +376,7 @@ if [ "$INSTALL_ANIMEPOSE" = "1" ]; then
     git_clone_or_update "https://github.com/dalai2/ComfyUI-AnimePose.git" "$ANIMEPOSE_DIR"
     if [ -f "$ANIMEPOSE_DIR/requirements.txt" ]; then
         log "ComfyUI-AnimePose依存をインストール"
-        "$PIP" install -r "$ANIMEPOSE_DIR/requirements.txt"
+        "$UV" pip install --python "$PYTHON" -r "$ANIMEPOSE_DIR/requirements.txt"
     fi
 fi
 

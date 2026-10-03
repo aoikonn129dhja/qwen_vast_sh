@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
 
 # ============================================================
 # Vast.ai / PyTorch (Vast)
@@ -14,7 +15,7 @@ PYTHON="/venv/main/bin/python"
 
 COMFYUI_REPO="https://github.com/Comfy-Org/ComfyUI.git"
 COMFYUI_COMMIT="15eb748b3ec5f8a0a2d470b7fb280e2d7579f916"
-DEPENDENCY_LOCK="$SCRIPT_DIR/requirements.lock"
+DEPENDENCY_LOCK="$MODEL_DIR/requirements.lock"
 COMFY_CLI_VERSION="1.20.0"
 
 UV_VERSION="0.11.28"
@@ -31,8 +32,8 @@ MODEL_SHA256="ba71575515709c9912560d1176b2386eaa49294fedc6ce57b9734aa57e91e5ac"
 QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/fixed-textencode-node/nodes_qwen.v2.py"
 QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
 
-REPO_WORKFLOW="$SCRIPT_DIR/Qwen-Rapid-AIO-SaveImage.json"
-WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-SaveImage.json"
+REPO_WORKFLOW="$MODEL_DIR/workflows/batch-save-image.json"
+WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v19-Batch.json"
 BATCH_ROOT="$WORKSPACE/qwen_batch"
 
 COMFY_LOG="$WORKSPACE/comfyui.log"
@@ -360,8 +361,8 @@ fetch_verified "$QWEN_NODE_URL" "$QWEN_NODE" "$QWEN_NODE_SHA256" "nodes_qwen.v2.
 log "リポジトリの workflow を ComfyUI に配置"
 cp -f "$REPO_WORKFLOW" "$WORKFLOW_FILE"
 
-if [ -f "$SCRIPT_DIR/run_batch.sh" ]; then
-    chmod +x "$SCRIPT_DIR/run_batch.sh"
+if [ -f "$MODEL_DIR/run_batch.sh" ]; then
+    chmod +x "$MODEL_DIR/run_batch.sh"
 fi
 
 # ------------------------------------------------------------
@@ -452,10 +453,10 @@ echo "comfy-cli:"
 echo
 echo "Batch input:"
 echo "  $BATCH_ROOT/input"
-echo "Prompts JSON:"
-echo "  $BATCH_ROOT/prompts.json"
+echo "Prompts Markdown:"
+echo "  $BATCH_ROOT/prompts.md"
 echo "Batch command:"
-echo "  bash $SCRIPT_DIR/run_batch.sh"
+echo "  bash $MODEL_DIR/run_batch.sh"
 echo
 echo "ComfyUI local:"
 echo "  http://127.0.0.1:8188"

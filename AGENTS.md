@@ -24,7 +24,7 @@
   ```bash
   cd /workspace/qwen_vast_sh
   git pull --ff-only origin main
-  bash /workspace/qwen_vast_sh/run_batch.sh
+  bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
   ```
 
 ## やってはいけないこと

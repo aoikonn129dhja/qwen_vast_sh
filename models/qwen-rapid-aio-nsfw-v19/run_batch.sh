@@ -6,12 +6,12 @@ set -Eeuo pipefail
 # ============================================================
 #
 # Zero-argument usage:
-#   bash /workspace/qwen_vast_sh/run_batch.sh
+#   bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 #
 # Defaults:
 #   input    : /workspace/qwen_batch/input/
 #   prompts  : /workspace/qwen_batch/prompts.md
-#   workflow : /workspace/qwen_vast_sh/Qwen-Rapid-AIO-SaveImage.json
+#   workflow : /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
 #   output   : /workspace/qwen_batch/output/<RUN_ID>/
 #
 # Optional positional overrides:
@@ -33,11 +33,11 @@ set -Eeuo pipefail
 # Optional generation overrides:
 #   DENOISE=0.9 STEPS=6 CFG=1 SAMPLER=er_sde SCHEDULER=beta \
 #   WIDTH=1536 HEIGHT=2048 SEED=123 NEGATIVE_PROMPT="..." \
-#   bash /workspace/qwen_vast_sh/run_batch.sh
+#   bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 #
 # Match each output to its input image's aspect ratio while keeping roughly
 # the default 1536x2048 pixel count (dimensions are rounded to 64 pixels):
-#   MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/run_batch.sh
+#   MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 #
 # Inputs over 105% of 1536x2048 pixels are automatically downscaled to about
 # that pixel count before being passed to the model. Their aspect ratio is kept.
@@ -57,12 +57,12 @@ set -Eeuo pipefail
 # Input images are read only from the top level of input/. Subdirectories such
 # as input/archive/ are ignored.
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 COMFY_DIR="${COMFY_DIR:-/workspace/ComfyUI}"
 BATCH_ROOT="${BATCH_ROOT:-/workspace/qwen_batch}"
 PYTHON="${PYTHON:-/venv/main/bin/python}"
 COMFY="${COMFY_CLI:-/venv/main/bin/comfy}"
-DEFAULT_WORKFLOW="$SCRIPT_DIR/Qwen-Rapid-AIO-SaveImage.json"
+DEFAULT_WORKFLOW="$MODEL_DIR/workflows/batch-save-image.json"
 
 PREVIEW_ENABLED="${PREVIEW_ENABLED:-1}"
 PREVIEW_PORT="${PREVIEW_PORT:-8765}"

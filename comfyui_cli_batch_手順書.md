@@ -10,19 +10,19 @@
 普段使うコマンドは、リポジトリの更新と画像生成の2つです。
 ```sh
 # rent後初期セットアップ
-git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && bash /workspace/qwen_vast_sh/setup_qwen_comfy.sh
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/setup.sh
 
 # リポジトリを更新 (ローカルでコード変更した時のみ)
 cd /workspace/qwen_vast_sh && git pull --ff-only origin main
 
 # 入力画像と同じアスペクト比で生成（約315万画素）
-MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/run_batch.sh
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 # 幅と高さを固定して生成
-WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/run_batch.sh
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 # 1536×2048（3:4、約315万画素）固定で画像生成を開始
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 `MATCH_INPUT_ASPECT=1` は入力画像ごとにサイズを計算し、入力とほぼ同じ縦横比で約315万画素になるよう、幅と高さを64px刻みに丸めます。`WIDTH` または `HEIGHT` とは同時に指定できません。
@@ -42,7 +42,7 @@ sed -n '1,120p' /workspace/qwen_batch/prompts.md
 find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
 
 # 複数回の生成結果を1フォルダにまとめる
-bash /workspace/qwen_vast_sh/flatten_output.sh
+bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 
 # ComfyUIのログを確認
 tail -n 100 /workspace/comfyui.log
@@ -78,7 +78,7 @@ cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
 
-セットアップ済みのインスタンスでは、通常 `setup_qwen_comfy.sh` を再実行する必要はありません。
+セットアップ済みのインスタンスでは、通常 `models/qwen-rapid-aio-nsfw-v19/setup.sh` を再実行する必要はありません。
 
 ### 3. 入力画像とprompts.mdを配置する
 
@@ -125,7 +125,7 @@ second prompt
 ### 4. 画像生成を開始する
 
 ```bash
-bash /workspace/qwen_vast_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ComfyUIが停止している場合は、`run_batch.sh` が自動で起動して準備完了を待ちます。
@@ -166,7 +166,7 @@ password : Terminalに表示された20文字のパスワード
 ```bash
 cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
-bash /workspace/qwen_vast_sh/restart_preview_tunnel.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 画像生成とローカルのプレビューサーバーは停止せず、Cloudflare Quick Tunnelだけが再起動されます。新しい `Preview URL`、ユーザー名、現在のパスワードがTerminalに表示されるので、新しいURLをブラウザで開いてください。古いURLは使用できなくなります。
@@ -196,7 +196,7 @@ Preview URLとパスワードを同時に外部共有しないでください。
 Terminalに `COMPLETE` が表示され、バッチが完全に終了してから実行します。
 
 ```bash
-bash /workspace/qwen_vast_sh/flatten_output.sh
+bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 ```
 
 複数のRUN_IDフォルダにあるPNGが、次のような1フォルダへまとめられます。
@@ -231,7 +231,7 @@ Jupyterのファイルブラウザで次を開きます。
 
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh && \
-bash /workspace/qwen_vast_sh/setup_qwen_comfy.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/setup.sh
 ```
 
 セットアップではComfyUI、comfy-cli、Qwenモデル、workflow、作業ディレクトリなどが準備されます。モデルをダウンロードするため時間がかかります。

@@ -3,7 +3,7 @@
 
 起動時にVast CLIのインスタンス一覧から対象を自動検出し、以後は10秒間隔で
 Vast側の生成画像をWindowsへ回収する。Windows側の保存先は固定し、
-Vast側の取得元はrun_batch.shのBATCH_ROOT設定から組み立てる。
+Vast側の取得元はRapid v19バッチの固定出力先を使用する。
 
 事前準備:
     vastai set api-key YOUR_API_KEY
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import os
-import posixpath
 import re
 import shutil
 import subprocess
@@ -31,7 +30,7 @@ POLL_SECONDS = 10
 REMOTE_LIST_TIMEOUT_SECONDS = 15
 LOCAL_OUTPUT_DIR = Path(r"D:\po\NSFW_cos\temp_Auto_DL_vast")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
-RUN_BATCH_PATH = Path(__file__).resolve().parents[1] / "run_batch.sh"
+REMOTE_OUTPUT_DIR = "/workspace/qwen_batch/output/"
 HISTORY_PATH = Path(
     os.environ.get(
         "VAST_OUTPUT_SYNC_HISTORY",
@@ -41,10 +40,6 @@ HISTORY_PATH = Path(
             / "vast_output_sync_history.jsonl"
         ),
     )
-)
-BATCH_ROOT_RE = re.compile(
-    r'^\s*BATCH_ROOT="\$\{BATCH_ROOT:-([^"}]+)\}"',
-    re.MULTILINE,
 )
 SSH_URL_RE = re.compile(
     r"ssh://(?P<user>[^@/:]+)@(?P<host>[^/:]+):(?P<port>\d+)"
@@ -356,21 +351,9 @@ def flatten_existing_output() -> None:
 
 
 def read_remote_output_path() -> str:
-    """Read the default BATCH_ROOT from run_batch.sh and append output/."""
+    """Return the Rapid v19 batch output directory on Vast.ai."""
 
-    try:
-        source = RUN_BATCH_PATH.read_text(encoding="utf-8")
-    except OSError as error:
-        raise RuntimeError(f"run_batch.shを読み込めません: {RUN_BATCH_PATH}: {error}") from error
-
-    match = BATCH_ROOT_RE.search(source)
-    if match is None:
-        raise RuntimeError(
-            "run_batch.shからBATCH_ROOTの既定値を見つけられません。"
-        )
-
-    batch_root = match.group(1).rstrip("/")
-    return posixpath.join(batch_root, "output") + "/"
+    return REMOTE_OUTPUT_DIR
 
 
 def _instance_rows(payload: object) -> list[dict[str, object]]:
