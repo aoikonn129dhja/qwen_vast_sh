@@ -1,0 +1,439 @@
+{
+  "id": "a133582e-d0f2-4ca4-bf09-dc400b03f06e",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 12,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LTXV23ModelsLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        380,
+        220
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            2,
+            10
+          ]
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "links": [
+            3,
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LTXV23ModelsLoader"
+      },
+      "widgets_values": [
+        "ltxv23_uncensored_v1.4_Q4_K_M.gguf",
+        "gemma-3-12b-it-ablit-norms-biproj-Q4_K_M.gguf",
+        "ltxv23_uncensored_v1.4_projections.safetensors",
+        "ltxv23_uncensored_v1.4_video_vae.safetensors",
+        "ltxv23_uncensored_v1.4_audio_vae.safetensors"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        0,
+        290
+      ],
+      "size": [
+        330,
+        320
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LTXV23ImgToVideo",
+      "pos": [
+        460,
+        0
+      ],
+      "size": [
+        420,
+        420
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 2
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LTXV23ImgToVideo"
+      },
+      "widgets_values": [
+        "A cinematic shot of the subject moving naturally, with coherent motion and detailed lighting.",
+        "",
+        768,
+        512,
+        121,
+        24,
+        1,
+        0.7,
+        true
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LTXV23KSampler",
+      "pos": [
+        980,
+        0
+      ],
+      "size": [
+        360,
+        300
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LTXV23KSampler"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        8,
+        1.0,
+        "euler",
+        "dmd (8 steps)",
+        1.0
+      ]
+    },
+    {
+      "id": 5,
+      "type": "LTXV23AVDecode",
+      "pos": [
+        1430,
+        0
+      ],
+      "size": [
+        350,
+        250
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 9
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 10
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LTXV23AVDecode"
+      },
+      "widgets_values": [
+        24,
+        768,
+        64,
+        96,
+        16
+      ]
+    },
+    {
+      "id": 6,
+      "type": "SaveVideo",
+      "pos": [
+        1870,
+        0
+      ],
+      "size": [
+        330,
+        280
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 12
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "output",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      1,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      1,
+      2,
+      3,
+      1,
+      "VAE"
+    ],
+    [
+      3,
+      1,
+      3,
+      3,
+      2,
+      "VAE"
+    ],
+    [
+      4,
+      2,
+      0,
+      3,
+      3,
+      "IMAGE"
+    ],
+    [
+      5,
+      1,
+      0,
+      4,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      3,
+      0,
+      4,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      3,
+      1,
+      4,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      3,
+      2,
+      4,
+      3,
+      "LATENT"
+    ],
+    [
+      9,
+      4,
+      0,
+      5,
+      0,
+      "LATENT"
+    ],
+    [
+      10,
+      1,
+      2,
+      5,
+      1,
+      "VAE"
+    ],
+    [
+      11,
+      1,
+      3,
+      5,
+      2,
+      "VAE"
+    ],
+    [
+      12,
+      5,
+      0,
+      6,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "floatingLinks": [
+    {
+      "id": 3,
+      "origin_id": 3940,
+      "origin_slot": 2,
+      "target_id": -1,
+      "target_slot": -1,
+      "type": "VAE",
+      "parentId": 50
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8,
+      "offset": [
+        80,
+        180
+      ]
+    },
+    "frontendVersion": "1.42.8"
+  },
+  "version": 0.4
+}
