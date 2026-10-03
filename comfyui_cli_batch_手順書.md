@@ -2,7 +2,7 @@
 
 Vast.aiでGPUインスタンスを借り、このリポジトリから使用するモデルを選んでセットアップするための手順書です。
 
-基本方針は「インスタンスをRENTする → リポジトリをcloneする → モデルを1つ選ぶ → そのモデルのsetupを実行する」です。モデルごとのファイルは `models/<モデルID>/` に分離されています。
+基本方針は「インスタンスをRENTする → リポジトリをcloneする → 使うモデルのディレクトリへ移動する → そのディレクトリの `setup.sh` を実行する」です。モデルごとのファイルは `models/<モデル名>/` に分離されています。ルートの `setup.sh` にモデル名を渡す手順は使いません。
 
 ## 1. コマンド早見表
 
@@ -10,32 +10,33 @@ Vast.aiでGPUインスタンスを借り、このリポジトリから使用す�
 
 以下のコマンドは、Vast.aiのJupyter WebUIでTerminalを開いて実行します。
 
-### 初回だけ: cloneしてモデル一覧を表示
+### 初回だけ: リポジトリをclone
 
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
 cd /workspace/qwen_vast_sh
-bash setup.sh --list
 ```
 
-### モデルを選んでセットアップ
+### 使うモデルのディレクトリでセットアップ
 
-いずれか1つを実行します。
+次のいずれか1組を実行します。モデルディレクトリへ移動してから、その中の `setup.sh` を起動します。
 
 ```bash
-cd /workspace/qwen_vast_sh
-
 # Qwen Rapid AIO NSFW v19: 画像編集の一括生成向け
-bash setup.sh qwen-rapid-aio-nsfw-v19
+cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19
+bash setup.sh
 
 # Qwen Image Edit 2509: ComfyUI画面から画像編集
-bash setup.sh qwen-image-edit-2509
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2509
+bash setup.sh
 
 # Qwen Image Edit 2511: ComfyUI画面から画像編集
-bash setup.sh qwen-image-edit-2511
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
+bash setup.sh
 
 # LTX-2.3 Uncensored Turbo v1.4 Q4_K_M: 画像から動画を生成
-bash setup.sh ltx-2.3-uncensored-v1.4-q4
+cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4
+bash setup.sh
 ```
 
 ### リポジトリを更新
@@ -104,32 +105,27 @@ cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
 
-### 2.3 利用可能なモデルを確認する
+### 2.3 セットアップスクリプトがあるモデルを確認する
 
 ```bash
 cd /workspace/qwen_vast_sh
-bash setup.sh --list
+find models -mindepth 2 -maxdepth 2 -type f -name setup.sh -printf '%h\n'
 ```
 
-ルートの `setup.sh` は、`models/` 以下に `model.conf` と `setup.sh` があるモデルを自動検出します。新しいモデルが追加されても、通常はこのコマンドで一覧に表示されます。
+表示されたパスがセットアップ可能なモデルのディレクトリです。`models/` 直下には参照用workflowだけのディレクトリもあるため、`setup.sh` があるディレクトリを選びます。
 
-### 2.4 モデルを1つ選んでセットアップする
+### 2.4 モデルのディレクトリへ移動してセットアップする
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash setup.sh <モデルID>
+cd /workspace/qwen_vast_sh/models/<モデルのディレクトリ名>
+bash setup.sh
 ```
 
-例:
+例として、Qwen Image Edit 2511を使う場合:
 
 ```bash
-bash setup.sh qwen-image-edit-2511
-```
-
-モデルごとの `setup.sh` を直接実行しても結果は同じです。
-
-```bash
-bash /workspace/qwen_vast_sh/models/qwen-image-edit-2511/setup.sh
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
+bash setup.sh
 ```
 
 モデルによってComfyUI本体、カスタムノード、Python依存関係の構成が異なります。同じインスタンスへ複数モデルを順番に導入すると、後から実行したsetupがComfyUIや依存関係を更新することがあります。安定性を優先する場合は、1インスタンスにつき1モデルを使用してください。
@@ -150,7 +146,7 @@ setupが完了したら、Vast.aiのインスタンス画面で `Tunnels (Open N
 
 ### 3.1 Qwen Rapid AIO NSFW v19
 
-モデルID:
+モデルディレクトリ名:
 
 ```text
 qwen-rapid-aio-nsfw-v19
@@ -161,8 +157,8 @@ qwen-rapid-aio-nsfw-v19
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash setup.sh qwen-rapid-aio-nsfw-v19
+cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19
+bash setup.sh
 ```
 
 ComfyUI、モデル、固定済み依存関係、バッチ用workflow、認証付きプレビューに必要なファイルが準備されます。
@@ -259,7 +255,7 @@ bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 
 ### 3.2 Qwen Image Edit 2509
 
-モデルID:
+モデルディレクトリ名:
 
 ```text
 qwen-image-edit-2509
@@ -270,8 +266,8 @@ ComfyUIの画面上で操作するQwen Image Edit 2509です。DWPoseとAnimePos
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash setup.sh qwen-image-edit-2509
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2509
+bash setup.sh
 ```
 
 同梱している公式系workflowが、次の名前でComfyUIへ配置されます。
@@ -284,7 +280,7 @@ Qwen-Image-Edit-2509-official.json
 
 ### 3.3 Qwen Image Edit 2511
 
-モデルID:
+モデルディレクトリ名:
 
 ```text
 qwen-image-edit-2511
@@ -295,8 +291,8 @@ ComfyUIの画面上で操作するQwen Image Edit 2511 FP8 mixedです。DWPose�
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash setup.sh qwen-image-edit-2511
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
+bash setup.sh
 ```
 
 同梱している公式系workflowが、次の名前でComfyUIへ配置されます。
@@ -309,7 +305,7 @@ Qwen-Image-Edit-2511-official.json
 
 ### 3.4 LTX-2.3 Uncensored Turbo v1.4 Q4_K_M
 
-モデルID:
+モデルディレクトリ名:
 
 ```text
 ltx-2.3-uncensored-v1.4-q4
@@ -320,8 +316,8 @@ ChrisColeTech配布のLTX-2.3 Uncensored Turbo v1.4を、Q4_K_MのGGUF構成で�
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash setup.sh ltx-2.3-uncensored-v1.4-q4
+cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4
+bash setup.sh
 ```
 
 次のモデルファイルと `ComfyUI-GGUF-Loader` が導入されます。
@@ -378,7 +374,7 @@ LTXV23KSampler
 models/qwen-rapid-aio-v1-reference/
 ```
 
-これは2入力参照workflowの保管場所で、セットアップ可能なモデルではありません。`setup.sh --list` にも表示されません。モデル配布元とSHA-256が未定義で、workflowにSaveImageノードもないため、実行用workflowと混同しないでください。
+これは2入力参照workflowの保管場所で、セットアップ可能なモデルではありません。このディレクトリには `setup.sh` がありません。モデル配布元とSHA-256が未定義で、workflowにSaveImageノードもないため、実行用workflowと混同しないでください。
 
 ## 4. 余談
 
