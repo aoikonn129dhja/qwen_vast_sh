@@ -17,8 +17,6 @@ UV_ARCHIVE_URL="https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv
 UV_ARCHIVE_SHA256="e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224"
 UV_BIN_SHA256="1cb9cd0a1749debf6049d7d2bb933882cc52d81016326ee6d99a786d6c988b03"
 
-HF_BASE="https://huggingface.co/$HF_REPO/resolve/$HF_REVISION"
-
 log() {
     printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
@@ -86,35 +84,6 @@ git_clone_or_update() {
     fi
 }
 
-preflight_file() {
-    local rel="$1"
-    log "存在確認: $rel"
-    wget --spider -q "$HF_BASE/$rel" \
-        || die "Hugging Face上でファイルを確認できません: $HF_BASE/$rel"
-}
-
-download_file() {
-    local rel="$1"
-    local dest="$2"
-    local dir
-
-    dir="$(dirname "$dest")"
-    mkdir -p "$dir"
-
-    if [ -s "$dest" ]; then
-        log "既存ファイルを使用: $dest"
-        return 0
-    fi
-
-    log "ダウンロード: $(basename "$dest")"
-    (
-        cd "$dir"
-        wget -c --progress=bar:force:noscroll "$HF_BASE/$rel"
-    )
-
-    [ -s "$dest" ] || die "ダウンロード後のファイルが空です: $dest"
-}
-
 need_cmd git
 need_cmd wget
 need_cmd tar
@@ -122,9 +91,10 @@ need_cmd install
 need_cmd sha256sum
 [ -x "$PYTHON" ] || die "$PYTHON が見つかりません。Vast.aiのPyTorch系テンプレートを確認してください。"
 
+log "[1/5] uvを準備"
 install_uv
 
-log "ComfyUIを準備"
+log "[2/5] ComfyUIと依存を準備"
 if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
     if ! git -C "$COMFY_DIR" diff --quiet || ! git -C "$COMFY_DIR" diff --cached --quiet; then
         git -C "$COMFY_DIR" status --short
@@ -139,7 +109,7 @@ fi
 
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
 
-log "CCTech GGUF Loaderを準備"
+log "[3/5] CCTech GGUF Loaderと依存を準備"
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
 GGUF_LOADER_DIR="$CUSTOM_NODES_DIR/ComfyUI-GGUF-Loader"
 mkdir -p "$CUSTOM_NODES_DIR"
@@ -149,25 +119,20 @@ if [ -f "$GGUF_LOADER_DIR/requirements.txt" ]; then
 fi
 "$UV" pip install --python "$PYTHON" opencv-python-headless
 
-log "LTX-2.3 v1.4 Q4_K_M一式を配置"
+log "[4/5] LTX-2.3 v1.4 Q4_K_Mの5ファイルを配置"
 DIFFUSION_DIR="$COMFY_DIR/models/diffusion_models"
 TEXT_ENCODERS_DIR="$COMFY_DIR/models/text_encoders"
 VAE_DIR="$COMFY_DIR/models/vae"
 
-# 配布元のファイル構成変更を、数十GBのダウンロード開始前に検出する。
-preflight_file "$TRANSFORMER_REL"
-preflight_file "$TEXT_ENCODER_REL"
-preflight_file "$PROJECTIONS_REL"
-preflight_file "$VIDEO_VAE_REL"
-preflight_file "$AUDIO_VAE_REL"
+"$PYTHON" "$MODEL_DIR/download_models.py" \
+    --repo "$HF_REPO" --revision "$HF_REVISION" \
+    --file "$TRANSFORMER_REL" "$DIFFUSION_DIR/$TRANSFORMER_FILE" \
+    --file "$TEXT_ENCODER_REL" "$TEXT_ENCODERS_DIR/$TEXT_ENCODER_FILE" \
+    --file "$PROJECTIONS_REL" "$TEXT_ENCODERS_DIR/$PROJECTIONS_FILE" \
+    --file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE" \
+    --file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE"
 
-download_file "$TRANSFORMER_REL" "$DIFFUSION_DIR/$TRANSFORMER_FILE"
-download_file "$TEXT_ENCODER_REL" "$TEXT_ENCODERS_DIR/$TEXT_ENCODER_FILE"
-download_file "$PROJECTIONS_REL" "$TEXT_ENCODERS_DIR/$PROJECTIONS_FILE"
-download_file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE"
-download_file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE"
-
-log "ComfyUIを再起動"
+log "[5/5] ComfyUIを再起動"
 if pgrep -f "python.*main.py" >/dev/null 2>&1; then
     pkill -f "python.*main.py" || true
     sleep 2

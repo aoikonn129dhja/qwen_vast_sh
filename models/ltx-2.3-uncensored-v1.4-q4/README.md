@@ -28,6 +28,8 @@ bash models/ltx-2.3-uncensored-v1.4-q4/setup.sh
 
 x2 spatial upscaler、追加 LoRA、音声参照用の素材は初期構成に含めません。
 
+セットアップは `[1/5]` から `[5/5]` までの段階を表示します。モデル5ファイルのダウンロード前に Hugging Face から最大8 MiBを読み、回線速度を測定します。ダウンロード中は現在のファイル番号に加え、5ファイル合計の転送量、進捗率、実測速度、残り時間の目安を約5秒ごとに表示します。残り時間はモデルファイルの転送分で、ComfyUIやPython依存の導入時間は含みません。再実行時は配布サイズと一致する既存ファイルをスキップし、途中ファイルは続きから取得します。
+
 ## I2V の最小グラフ
 
 `LTX-2.3_Uncensored_v1.4_Q4_I2V.json` を ComfyUI に読み込んでください。Lightricks の公式 two-stage workflow JSON をコピーして別名にし、追加モデルを要しない単一段 I2V グラフへ組み替えたものです。元の `LTX-2.3_T2V_I2V_Two_Stage_Distilled.json` は変更していません。読み込み後、`LoadImage` で入力画像を選択し、プロンプトを編集してください。
