@@ -147,6 +147,7 @@ git_clone_or_update "$GGUF_LOADER_REPO" "$GGUF_LOADER_DIR"
 if [ -f "$GGUF_LOADER_DIR/requirements.txt" ]; then
     "$UV" pip install --python "$PYTHON" -r "$GGUF_LOADER_DIR/requirements.txt"
 fi
+"$UV" pip install --python "$PYTHON" opencv-python-headless
 
 log "LTX-2.3 v1.4 Q4_K_M一式を配置"
 DIFFUSION_DIR="$COMFY_DIR/models/diffusion_models"

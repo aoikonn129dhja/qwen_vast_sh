@@ -31,7 +31,7 @@ if [ "${1:-}" = "--list" ] || [ "$#" -eq 0 ]; then
     exit 0
 fi
 
-if [ "$#" -ne 1 ] || [[ "$1" != [a-z0-9]* ]] || [[ "$1" == *[!a-z0-9-]* ]]; then
+if [ "$#" -ne 1 ] || [[ ! "$1" =~ ^[a-z0-9]+([.-][a-z0-9]+)*$ ]]; then
     echo "ERROR: invalid model id: ${1:-}" >&2
     usage >&2
     exit 2
