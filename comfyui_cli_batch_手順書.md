@@ -46,6 +46,12 @@ cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
 
+### /workspace/ComfyUI/output/の生成動画の回収
+```
+cd /workspace/ComfyUI
+zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip"
+```
+
 ### Qwen Rapid v19のバッチ生成
 
 ```bash
