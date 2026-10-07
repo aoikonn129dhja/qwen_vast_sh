@@ -19,6 +19,7 @@ __pycache__/
 
 # Logs
 *.log
+*.env
 
 # OS / editor files
 .DS_Store
@@ -30,3 +31,4 @@ Thumbs.db
 *.bak
 *.tmp
 *~
+*.txt
