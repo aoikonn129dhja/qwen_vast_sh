@@ -1,11 +1,13 @@
-# SaladCloudで4モデルのComfyUIを開く手順
+# 公開リポジトリからSaladCloudで4モデルのComfyUIを開く手順
+
+対象は公開リポジトリ `aoikonn129dhja/qwen_vast_sh`。GHCRの4モデルのイメージもPublicに設定し、Saladではregistry認証なしで使用する。
 
 ## 1. GitHubで4モデルのイメージを作る（共通・初回）
 
-1. [GitHubリポジトリ](https://github.com/aoikonn129dhja/qwen_vast_sh)を開き、ログインする。
+1. GitHubにリポジトリ所有者の **aoikonn129dhja**（または書き込み権限のあるアカウント）でログインし、[GitHubリポジトリ](https://github.com/aoikonn129dhja/qwen_vast_sh)を開く。
 2. **Actions** をクリックする。
 3. 左側の **Build Salad images** を選ぶ。
-4. **Run workflow** をクリックし、Branchを **main** にして実行する。
+4. 実行一覧の上にある **Run workflow** をクリックし、Branchを **main** にして、開いたメニュー内の **Run workflow** をクリックする。
 5. 実行結果を開き、4つの `build` ジョブがすべて緑のチェックになるまで待つ。
 6. 各モデルのジョブを開き、`docker/build-push-action` のログから `ghcr.io/` で始まり、`:sha-` とコミットSHAで終わるイメージ指定をコピーして保存する。
 
@@ -16,19 +18,19 @@
 | Qwen Image Edit 2511 | `build (qwen-image-edit-2511)` | `salad-qwen-image-edit-2511` | `qwen-edit-2511` |
 | LTX 2.3 Uncensored v1.4 Q4 | `build (ltx-2.3-uncensored-v1.4-q4)` | `salad-ltx-2.3-uncensored-v1.4-q4` | `ltx-23-q4` |
 
+**Run workflowが表示されない場合**は、右上のプロフィールからログイン中のアカウントを確認し、所有者または書き込み権限のあるアカウントに切り替える。ページを再読み込みし、左側の **Build Salad images** を選び直す。公開リポジトリでも、手動実行には書き込み権限が必要。[GitHub公式手順](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+
 失敗したジョブのイメージは使わず、そのジョブのエラーを確認する。
 
-## 2. GitHubのイメージをSaladから取得できるようにする（共通・初回）
+## 2. GHCRの4モデルのイメージをPublicにする（共通・初回）
 
-公開イメージを使う場合:
-
-1. GitHubで自分のプロフィールを開き、**Packages** を選ぶ。
+1. GitHubで **aoikonn129dhja** のプロフィールを開き、**Packages** を選ぶ。
 2. 手順1で作成した対象モデルのpackageを開く。
 3. **Package settings** を開く。
-4. VisibilityがPrivateの場合は **Change visibility** から **Public** を選び、確認画面で確定する。
+4. Visibilityを確認する。Privateの場合は **Danger Zone → Change visibility → Public** を選び、package名を入力して公開を確定する。既にPublicなら変更しない。
 5. 使用する4モデルそれぞれで同じ操作を行う。
 
-Privateのまま使う場合は、GitHubで `read:packages` 権限のPersonal access token (classic)を作成する。手順3のImage Sourceでregistry認証を設定し、UsernameにGitHubユーザー名、Passwordにそのtokenを入力する。[SaladのGHCR設定](https://docs.salad.com/container-engine/how-to-guides/registries/github-ghcr)
+6. 4つのpackageすべてで **Public** と表示されていることを確認する。リポジトリが公開でも、GHCR packageの公開状態は別に確認する。[GitHubのpackage公開設定](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 
 ## 3. Saladでモデル用Container Groupを作る（モデルごと）
 
@@ -43,6 +45,7 @@ Privateのまま使う場合は、GitHubで `read:packages` 権限のPersonal ac
 |---|---|
 | Name | 手順1の表にある対象モデルのGroup名 |
 | Image Source | 対象モデルのログからコピーしたイメージ指定全体。`:sha-…` まで含める |
+| Registry authentication / Credentials | 設定しない。Username・Password・tokenは入力しない |
 | Replicas | `1` |
 | CPU | 初期設定として `4 vCPU` |
 | RAM | 初期設定として `32 GB` 以上 |
