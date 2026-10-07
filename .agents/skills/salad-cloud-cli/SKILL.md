@@ -35,6 +35,14 @@ python .agents/skills/salad-cloud-cli/scripts/salad_cli.py create qwen-rapid-v19
 
 createは同名Groupを事前確認し、存在すれば作成せず終了する。作成後はGETで確認する。タイムアウトや結果不明の場合はPOSTを再実行せずstatusで照合する。
 
+Qwen Image 2.1 GGUFとBFSには、成功した新規ビルドのSHAタグを`--image`で指定できる。RAMと保存領域もprepare時に指定する。
+
+```powershell
+python .agents/skills/salad-cloud-cli/scripts/salad_cli.py prepare qwen-image-21-uncensored-gguf --model qwen-image-21-uncensored-gguf --image ghcr.io/OWNER/REPO/salad-qwen-image-21-uncensored-gguf:sha-COMMIT_SHA --memory 32768 --storage-gb 50
+```
+
+`OWNER/REPO`と`COMMIT_SHA`は実際のビルド結果に置き換える。BFSはGroup名とmodelを`bfs-best-face-swap`にする。既存の金銭使用禁止が有効な間は、下記startコマンドを実行しない。
+
 ## 起動・停止
 
 ```powershell

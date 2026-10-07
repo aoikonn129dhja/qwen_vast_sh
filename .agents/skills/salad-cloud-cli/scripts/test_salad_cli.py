@@ -62,6 +62,17 @@ class SaladTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cli.create(Mock(), "qwen-edit-2511", {"name": "qwen-edit-2511", "autostart_policy": True})
 
+    def test_resource_override_keeps_autostart_off(self):
+        body = cli.payload(self.source, "bfs-best-face-swap", "image")
+        cli.configure_resources(body, 32768, 50)
+        self.assertEqual(body["container"]["resources"]["memory"], 32768)
+        self.assertEqual(body["container"]["resources"]["storage_amount"], 53687091200)
+        self.assertFalse(body["autostart_policy"])
+        with self.assertRaises(ValueError):
+            cli.configure_resources(body, storage_gb=0)
+        with self.assertRaises(ValueError):
+            cli.configure_resources(body, memory=999999)
+
     def test_http_error_does_not_expose_key(self):
         client = cli.Client({"SALAD_API_KEY": "secret-value", "SALAD_ORGANIZATION": "image-video-gen", "SALAD_PROJECT": "default"})
         with patch.object(cli, "urlopen", side_effect=HTTPError("url", 401, "secret-value", {}, None)):

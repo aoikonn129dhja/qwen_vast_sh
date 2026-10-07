@@ -1,0 +1,46 @@
+{
+  "repository": "Alissonerdx/BFS-Best-Face-Swap",
+  "revision": "0ca3913ade4b4ada458d60c232354e8586c4c181",
+  "assets": [
+    {
+      "file": "diffusion_models/qwen_image_2.1_int8_convrot.safetensors",
+      "sha256": "cb74113cb03faecd79611b01fd7fd642f0aa60d6f0b95086abee214d75eaa57d",
+      "size": 7256783064,
+      "repository": "Comfy-Org/Qwen-Image-2.1",
+      "revision": "cb504a4090723e43f17ad01cec0359490e2de613",
+      "destination": "diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+    },
+    {
+      "file": "text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+      "sha256": "8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f",
+      "size": 9350798360,
+      "repository": "Comfy-Org/Qwen-Image-2.1",
+      "revision": "cb504a4090723e43f17ad01cec0359490e2de613",
+      "destination": "text_encoders/qwen3vl_8b_int8_convrot.safetensors"
+    },
+    {
+      "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
+      "sha256": "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9",
+      "size": 675509688,
+      "repository": "Comfy-Org/Qwen-Image-2.1",
+      "revision": "cb504a4090723e43f17ad01cec0359490e2de613",
+      "destination": "vae/qwen_image_2.1_vae_bf16.safetensors"
+    },
+    {
+      "file": "bfs_body_swap_v1.0_qwen_2.1.safetensors",
+      "sha256": "7dc0a53aba4dbc70c204f498936a619d226559da11011f748c389189af46b664",
+      "size": 209753576,
+      "destination": "loras/bfs_body_swap_v1.0_qwen_2.1.safetensors"
+    },
+    {
+      "file": "bfs_head_v1.1_qwen_2.1.safetensors",
+      "sha256": "d1d748d5601077f3b6d05766f6823510e901970d916afa404a97e85dc92fa88e",
+      "size": 260096144,
+      "destination": "loras/bfs_head_v1.1_qwen_2.1.safetensors"
+    }
+  ],
+  "comfyui_commit": "c9d8a6e69c4b5ab7fa0f789e7b988c172cd31fc9",
+  "workflow_sources": {
+    "author": "Alissonerdx/BFS-Best-Face-Swap@0ca3913ade4b4ada458d60c232354e8586c4c181"
+  }
+}

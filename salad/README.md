@@ -4,6 +4,13 @@ Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版�
 
 対応モデルは `qwen-rapid-aio-nsfw-v19`、`qwen-image-edit-2509`、`qwen-image-edit-2511`、`ltx-2.3-uncensored-v1.4-q4` の4種類。参照専用のRapid v1は対象外。
 
+追加の画像編集モデル:
+
+- [Qwen Image 2.1 Uncensored GGUF](models/qwen-image-21-uncensored-gguf/README.md): 完成済み作品と別画像を入力し、人物性を保ちながらポーズ・構図・衣装を編集する。
+- [BFS Best Face Swap](models/bfs-best-face-swap/README.md): 作品の構図を利用して、別人物の頭部または全身を反映する。頭部用と全身用の2つのワークフローを同梱。
+
+追加2モデルのイメージは **Build Qwen 2.1 Salad images** でビルドする。既存4モデルのビルドとは分けている。
+
 ## ワークフローJSON
 
 各モデルの `workflows/` にVast版からコピーしたJSONを配置している。使用するJSONをローカルに保存し、Saladで開いたComfyUIへドラッグ＆ドロップして読み込む。

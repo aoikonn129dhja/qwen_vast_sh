@@ -13,6 +13,8 @@ MODELS = {
     "qwen-image-edit-2509": "SALAD_QWEN_EDIT_2509_IMAGE",
     "qwen-image-edit-2511": "SALAD_QWEN_EDIT_2511_IMAGE",
     "ltx-2.3-uncensored-v1.4-q4": "SALAD_LTX_23_Q4_IMAGE",
+    "qwen-image-21-uncensored-gguf": "SALAD_QWEN_21_GGUF_IMAGE",
+    "bfs-best-face-swap": "SALAD_BFS_IMAGE",
 }
 
 
@@ -121,6 +123,17 @@ def create(client, group, body):
     return summary(client.get(group))
 
 
+def configure_resources(body, memory=None, storage_gb=None):
+    if memory is not None:
+        if not 1024 <= memory <= 61440:
+            raise ValueError("RAM must be between 1024 and 61440 MiB.")
+        body["container"]["resources"]["memory"] = memory
+    if storage_gb is not None:
+        if not 1 <= storage_gb <= 250:
+            raise ValueError("Storage must be between 1 and 250 GiB.")
+        body["container"]["resources"]["storage_amount"] = storage_gb * 1024**3
+
+
 def operate(client, action, group, allow_paid=False):
     if action == "start" and not allow_paid:
         raise ValueError("Start requires user authorization and --allow-paid.")
@@ -141,6 +154,9 @@ def main():
     parser.add_argument("--model", choices=MODELS)
     parser.add_argument("--source", default="qwen-edit-2511")
     parser.add_argument("--allow-paid", action="store_true")
+    parser.add_argument("--image", help="Verified GHCR SHA tag for prepare")
+    parser.add_argument("--memory", type=int, help="RAM in MiB for prepare")
+    parser.add_argument("--storage-gb", type=int, help="Storage in GiB for prepare")
     args = parser.parse_args()
     if args.action not in ("list", "gpus") and not args.group:
         parser.error("group is required")
@@ -154,11 +170,14 @@ def main():
     elif args.action == "prepare":
         if not args.model:
             parser.error("--model is required for prepare")
-        refs = read_env(ROOT / "salad_image_references.txt")
-        image = refs[MODELS[args.model]]
+        image = args.image
+        if not image:
+            refs = read_env(ROOT / "salad_image_references.txt")
+            image = refs[MODELS[args.model]]
         if not re.fullmatch(r"ghcr\.io/[a-z0-9_./-]+:sha-[0-9a-f]{40}", image):
             raise ValueError("Invalid image reference.")
         output = payload(client.get(args.source), args.group, image)
+        configure_resources(output, args.memory, args.storage_gb)
         target = ROOT / "tmp" / f"salad-{name(args.group)}.json"
         target.parent.mkdir(exist_ok=True)
         target.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
