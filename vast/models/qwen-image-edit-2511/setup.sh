@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../../.." && pwd)"
 MODEL_CONFIG="$MODEL_DIR/model.conf"
 
 # Run the existing shared setup first. It installs/updates ComfyUI, the 2511

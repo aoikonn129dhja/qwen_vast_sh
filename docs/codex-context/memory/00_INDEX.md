@@ -1,3 +1,5 @@
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
 # Memory index
 
 - `01_current_status.md` — authoritative snapshot, repo divergence, hashes.

@@ -36,7 +36,7 @@ class DownloadModelsTest(unittest.TestCase):
                 download_models.model_sizes("owner/repo", "main", files)
 
     def test_progress_and_resume(self):
-        root = Path(__file__).resolve().parents[3] / "tmp"
+        root = Path(__file__).resolve().parents[4] / "tmp"
         root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=root) as temporary:
             first = Path(temporary) / "a.gguf"
@@ -64,7 +64,7 @@ class DownloadModelsTest(unittest.TestCase):
             self.assertIn("(2/2)", output.getvalue())
 
     def test_oversized_existing_file_fails(self):
-        root = Path(__file__).resolve().parents[3] / "tmp"
+        root = Path(__file__).resolve().parents[4] / "tmp"
         root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=root) as temporary:
             destination = Path(temporary) / "a.gguf"

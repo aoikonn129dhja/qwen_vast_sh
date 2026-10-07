@@ -3,8 +3,8 @@
 入力画像と `prompts.md` の全組み合わせを生成するバッチ対応モデルです。
 
 ```bash
-bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/setup.sh
-bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/setup.sh
+bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 - `setup.sh`: ComfyUI、モデル、依存、workflow、cloudflaredを準備します。

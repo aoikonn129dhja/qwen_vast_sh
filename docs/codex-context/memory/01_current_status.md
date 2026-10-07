@@ -1,4 +1,16 @@
-# Current status
+# Current repository layout
+
+- Repository: https://github.com/aoikonn129dhja/qwen_vast_sh
+- Vast clone: `/workspace/qwen_vast_sh`
+- Vast profiles: `vast/models/`
+- Salad containers: `salad/models/` (Web UI only)
+- Current batch: `vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh`
+- Current workflow: `vast/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json`
+- Historical snapshots remain unchanged and are not authoritative over current local code.
+
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
+# Historical status (2026-09-06)
 
 ## Repository
 - GitHub: `https://github.com/amamisa4/qwen_comfy_sh`

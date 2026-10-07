@@ -1,7 +1,7 @@
 {
   "bundle_name": "qwen_comfy_codex_context",
   "generated_date": "2026-09-06",
-  "purpose": "Compact Codex handoff context for amamisa4/qwen_comfy_sh",
+  "purpose": "Historical handoff with current Vast/Salad layout annotations",
   "authoritative_snapshot": "snapshot/run_batch.sh",
   "notes": [
     "No runtime passwords or secrets are included.",
@@ -10,72 +10,72 @@
   ],
   "files": {
     "AGENTS.md": {
-      "size_bytes": 2651,
-      "sha256": "01013a70fc0be42278e340ef81bc7b03dcd284500f083830fd484866b1e4c5aa"
+      "size_bytes": 2962,
+      "sha256": "388113653e24fb554ff2ebebb4a902adad0cf43d1fd38495725b7a2cc08458c8"
     },
     "CONTEXT_README.md": {
-      "size_bytes": 749,
-      "sha256": "1abdedd803418ee457935644286ee49b39dd998a771414896712dc68b7127fe6"
+      "size_bytes": 920,
+      "sha256": "f527614b61bd3873c6be418d5dec3db46a04ff3e62d1dd2be903017e836faac6"
     },
     "CURRENT_TASK.md": {
-      "size_bytes": 1293,
-      "sha256": "5bb8a59a6b0db3514334e44a326c00054f11d5ca5d4a5948133c98eeb1daafdc"
+      "size_bytes": 1954,
+      "sha256": "bb4476de78c28263aac6c1af94216d1ddd92e0d75563d5d99baa51df09065bab"
     },
     "memory/00_INDEX.md": {
-      "size_bytes": 1041,
-      "sha256": "e11e71734872d55b6b855fd11b86d0c76bc70e4c27cfd7c42152819a6830f521"
+      "size_bytes": 1212,
+      "sha256": "47b74ca3981369325784082028ba8e40ddfe23776db459ae6516c7a14561c1be"
     },
     "memory/01_current_status.md": {
-      "size_bytes": 1524,
-      "sha256": "61ba0a889bd836c325e819e0cf480579f9f5eaf0f554ea7de10a04f305c07a82"
+      "size_bytes": 2173,
+      "sha256": "85a23b28e5a35563ad84a2669bb4710733695deebf21b24053a784f78a339ffc"
     },
     "memory/02_architecture_and_paths.md": {
-      "size_bytes": 2154,
-      "sha256": "3f2d4e9520b1322391838487200b0b91affb9988ef4cba45a9c502ad07479e85"
+      "size_bytes": 2325,
+      "sha256": "7723edc90c7eb20200a4c53d55d0f5c44c4a9b8b16ed46bf7e15bc8ba2a51092"
     },
     "memory/03_run_batch_current_spec.md": {
-      "size_bytes": 1747,
-      "sha256": "af0fc3ef49e7afd45b37adfba25e197e46e2e91fc80f961b77d70a068fb9d9f9"
+      "size_bytes": 2025,
+      "sha256": "5cb981a8b2869138bacb8d5004a90319085dfba10738e6a43a4c6605f8c0fe8c"
     },
     "memory/04_preview_and_auth.md": {
-      "size_bytes": 1958,
-      "sha256": "89cc6b3f44d8f74d20716a04066820a7250a4deda82ae71453601e2bb1ce602b"
+      "size_bytes": 2129,
+      "sha256": "1b04da4b92cdbddb1c454d0cde081e786e66accf6cf9dae65ba258e5da7ad815"
     },
     "memory/05_inputs_and_prompts.md": {
-      "size_bytes": 1234,
-      "sha256": "b9e98bdf508fc46d6bea226adcaec8ed9d418a3469e6225972ea4d8e26b2d024"
+      "size_bytes": 1405,
+      "sha256": "3a697ce1d8b85662874ff2741e06b065400d929c4933e1cc709ccc44401494d6"
     },
     "memory/06_output_and_flatten.md": {
-      "size_bytes": 1474,
-      "sha256": "51f0418072b77827a281f2ab4f05d7ed2a77978a1de387efbe22a946df331ead"
+      "size_bytes": 1645,
+      "sha256": "c434761d75fad0304f4ae3f82acb5175c0ecb129c4d5246c2f92ca5786a703f2"
     },
     "memory/07_setup_and_vast.md": {
-      "size_bytes": 1844,
-      "sha256": "cb8f8980bc9d892fa67280be8b29cd28155400e5737a05472a33d5c174b74a80"
+      "size_bytes": 2015,
+      "sha256": "3116452539e34c9b31cecc65f9f532131b308a3fa2948146c65bf393d400fb4d"
     },
     "memory/08_operational_workflow.md": {
-      "size_bytes": 1211,
-      "sha256": "c57e8e51e333978b549d01dde0ab8c7c634382977bd9b36fea4fb91771e7d980"
+      "size_bytes": 1382,
+      "sha256": "fd4b3d41541c189ec0313d601279e071999a11142b55ec3f0391fc7b2ac8823b"
     },
     "memory/09_known_drift_and_risks.md": {
-      "size_bytes": 1860,
-      "sha256": "95594456e264b99b75c443a42ace0bf2e72f6e22de59ca9245c7d31cf5b22ffb"
+      "size_bytes": 2031,
+      "sha256": "b7fca46d138856cba219e42142db6a50631ae668b27cdb650b0b98e4abf473ec"
     },
     "memory/10_pending_requirements.md": {
-      "size_bytes": 2313,
-      "sha256": "29489eab9ef037da815f332fb313a02a77fdc5ef25889f1a86fef171a1307578"
+      "size_bytes": 2484,
+      "sha256": "9419bfc1e751e5834d9a824a8408fdb0654b825edc13d3cd02d690adc2aa7813"
     },
     "memory/11_validation_commands.md": {
-      "size_bytes": 1137,
-      "sha256": "2c4411fb91a234d74dd99a093cbb748f02e1a9c8ad6ff07a44060acdb0b4b85c"
+      "size_bytes": 1308,
+      "sha256": "bca61519ca5d56c3db98b712580786713f35b2fc884d79768025cb3a2e4a84c2"
     },
     "memory/12_decision_history.md": {
-      "size_bytes": 1657,
-      "sha256": "5ec3551042cffd4284c17eb1f4359eac32474f17d5301366cd53d8f931629d28"
+      "size_bytes": 1828,
+      "sha256": "30bba6ad61d25c1468b533edfbcecdbcc3852af8a660606d8d27976cdb4f8437"
     },
     "memory/99_sources.md": {
-      "size_bytes": 1788,
-      "sha256": "3783caefad1eb2e360c2e488eb3e30d060b9b4558db58e890b241e32950bd732"
+      "size_bytes": 1959,
+      "sha256": "3fb26003bdca31126489af50c206bd4a8f292135d80e9dc5856dc71c615af153"
     },
     "snapshot/prompts.example.md": {
       "size_bytes": 139,

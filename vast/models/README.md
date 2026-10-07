@@ -3,7 +3,7 @@
 実行可能なモデルは、それぞれのディレクトリに `model.conf` と `setup.sh` を持ちます。
 
 ```bash
-cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19
+cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19
 bash setup.sh
 ```
 

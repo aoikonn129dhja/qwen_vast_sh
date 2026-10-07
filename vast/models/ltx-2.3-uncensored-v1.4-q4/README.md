@@ -4,17 +4,17 @@ ChrisColeTech の `LTX-2.3-uncensored-v1.4-FP8` を、ComfyUI で画像から動
 
 ## セットアップ
 
-このディレクトリを `qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4/` として配置した後、このディレクトリで実行します。
+このディレクトリを `qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4/` として配置した後、このディレクトリで実行します。
 
 ```bash
-cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4
+cd /workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4
 bash setup.sh
 ```
 
 直接実行する場合は次です。
 
 ```bash
-bash models/ltx-2.3-uncensored-v1.4-q4/setup.sh
+bash vast/models/ltx-2.3-uncensored-v1.4-q4/setup.sh
 ```
 
 セットアップは次だけを追加します。

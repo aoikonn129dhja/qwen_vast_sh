@@ -1,3 +1,5 @@
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
 # Pending requirements
 
 These are the most recent requirements and are **not implemented** in `snapshot/run_batch.sh`.

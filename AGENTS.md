@@ -22,7 +22,7 @@
 - 実行できなかった検証がある場合は、未検証の内容と理由を明記すること。実行していない検証を成功したものとして報告しないこと。
 
 ## 外部環境を必要とする検証
-- Vast.ai、ComfyUI、GPU、Cloudflare Tunnelなどを使う実環境テストや実画像生成は行わないこと。
+- Vast.ai、SaladCloud、ComfyUI、GPU、Cloudflare Tunnelなどを使う実環境テストや実画像生成は行わないこと。
 - Chromeなどの実ブラウザを起動・操作してテストしないこと。ユーザーが明示的に依頼した場合を除き、既に開いているブラウザやUIにも触らないこと。
 - 検証結果を報告するときは、ローカルまたはWSLで実施した範囲を明記し、実環境で確認したと誤解される表現を使わないこと。
 
@@ -49,7 +49,7 @@
 cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
-models/qwen-rapid-aio-nsfw-v19/run_batch.sh を変更した場合に限り、続けて次の実行コマンドも提示すること。
+vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh を変更した場合に限り、続けて次の実行コマンドも提示すること。
 ```
-bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```

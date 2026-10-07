@@ -1,3 +1,16 @@
+# Current task: Vast / Salad layout
+
+Current implementation lives under `vast/models/` and `salad/models/`.
+Vast lifecycle scripts remain separate from Salad build/runtime scripts.
+Salad supports Rapid v19, Qwen Edit 2509/2511 and LTX 2.3 Q4 Web UI.
+Use `salad/README.md` for container builds and Gateway settings.
+The historical snapshot below does not describe current pending work.
+No GPU/provider/browser production tests are authorized for this task.
+
+## Historical task (2026-09-06)
+
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
 # Current pending request
 
 The user most recently asked for two changes to the existing `run_batch.sh` while preserving the current workflow and architecture:

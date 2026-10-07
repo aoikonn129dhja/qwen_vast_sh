@@ -1,7 +1,9 @@
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
 # AGENTS.md
 
 ## Purpose
-This repository is a Vast.ai + ComfyUI batch image-editing project. Use the files under `memory/` as the durable project context. Keep this file short; it is a map, not the encyclopedia.
+This repository supports Vast.ai ComfyUI batch/Web UI and SaladCloud container Web UI. Use the files under `memory/` as the durable project context. Keep this file short; it is a map, not the encyclopedia.
 
 ## Start here
 Read these before changing code:
@@ -16,9 +18,9 @@ If it touches output organization, also read `memory/06_output_and_flatten.md`.
 If it touches setup/Vast, also read `memory/07_setup_and_vast.md`.
 
 ## Source-of-truth rules
-- The most recent verified batch runner available in this handoff is `snapshot/run_batch.sh`.
-- Its SHA-256 is recorded in `manifest.json` and `memory/01_current_status.md`.
-- GitHub `main` is known to lag behind this snapshot for `run_batch.sh`.
+- The current batch runner is `vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh`; `snapshot/run_batch.sh` is historical.
+- The historical snapshot SHA-256 is recorded in `manifest.json`; it is not the hash of the current batch runner.
+- The reported GitHub divergence below is historical; inspect the current local working tree.
 - Do not assume historical README/handbook text is newer than the code.
 - When a local repository is available, inspect the local working tree before overwriting files; the user may have newer unshared changes.
 
@@ -26,7 +28,7 @@ If it touches setup/Vast, also read `memory/07_setup_and_vast.md`.
 Preserve the normal operation flow:
 1. Run setup.
 2. Put images in `/workspace/qwen_batch/input/` and prompts in `/workspace/qwen_batch/prompts.md`.
-3. Run `bash /workspace/qwen_comfy_sh/run_batch.sh`.
+3. Run `bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh`.
 
 Do not add a mandatory manual step, external notification service, npm build, database, or separate daemon unless the user explicitly requests it.
 
@@ -45,4 +47,4 @@ Do not add a mandatory manual step, external notification service, npm build, da
 - Do not silently change output paths, prompt parsing, Basic Auth behavior, or batch semantics.
 
 ## Pending work
-The latest user-requested change is documented in `memory/10_pending_requirements.md`. It has NOT been implemented in the verified snapshot.
+`memory/10_pending_requirements.md` describes historical snapshot requests; use `CURRENT_TASK.md` and the current working tree for current work.

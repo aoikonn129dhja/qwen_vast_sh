@@ -1,15 +1,17 @@
+<!-- Historical handoff from 2026-09-06. Current source: vast/models/; Salad containers: salad/models/. Local working tree is authoritative; snapshot/ is historical. -->
+
 # Current `run_batch.sh` specification
 
 ## Default invocation
 
 ```bash
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 Default inputs:
 - images: `/workspace/qwen_batch/input/`
 - prompts: `/workspace/qwen_batch/prompts.md`
-- workflow: `/workspace/qwen_comfy_sh/Qwen-Rapid-AIO-SaveImage.json`
+- workflow: `/workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json`
 - final output: `/workspace/qwen_batch/output/<RUN_ID>/`
 
 Optional positional form:
@@ -55,7 +57,7 @@ SCHEDULER=beta \
 WIDTH=1536 \
 HEIGHT=2048 \
 SEED=123 \
-bash /workspace/qwen_comfy_sh/run_batch.sh
+bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 Unspecified values remain those saved in the workflow JSON.
