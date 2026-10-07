@@ -6,6 +6,9 @@ tmp/
 docs/
 
 # Local prompt definitions
+.env
+.env.*
+!.env.example
 prompts.json
 prompts.md
 メモ.md

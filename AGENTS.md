@@ -1,6 +1,7 @@
 # AGENTS.md
 
 ## 環境
+- SaladCloudのCLI/API操作を依頼された場合は、リポジトリ内の `.agents/skills/salad-cloud-cli/SKILL.md` を読み、そのCLIを使用すること。
 - Pythonのライブラリ導入は uv のみ。pip でグローバルに入れない。
 - Linux構文のテストが必要になった場合は、WSLを使用すること。
 
