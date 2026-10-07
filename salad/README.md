@@ -4,6 +4,20 @@ Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版�
 
 対応モデルは `qwen-rapid-aio-nsfw-v19`、`qwen-image-edit-2509`、`qwen-image-edit-2511`、`ltx-2.3-uncensored-v1.4-q4` の4種類。参照専用のRapid v1は対象外。
 
+## ワークフローJSON
+
+各モデルの `workflows/` にVast版からコピーしたJSONを配置している。使用するJSONをローカルに保存し、Saladで開いたComfyUIへドラッグ＆ドロップして読み込む。
+
+| モデル | JSON |
+|---|---|
+| Qwen Rapid v19 | [batch-save-image.json](models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json) |
+| Qwen Edit 2509 | [official.json](models/qwen-image-edit-2509/workflows/official.json) |
+| Qwen Edit 2511 | [official.json](models/qwen-image-edit-2511/workflows/official.json) |
+| LTX 2.3 Q4 / I2V | [LTX-2.3_Uncensored_v1.4_Q4_I2V.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_Uncensored_v1.4_Q4_I2V.json) |
+| LTX 2.3 / Two Stage Distilled | [LTX-2.3_T2V_I2V_Two_Stage_Distilled.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json) |
+
+コピー元は対応する `vast/models/` 内の同名ファイル。JSONを手動で読み込むだけならイメージの再ビルドは不要。入力画像やプロンプトをComfyUI上で設定して使う。LTXの2つは用途・モデル構成が異なるため、読み込んだ後にモデル選択を確認する。今回の配置では起動・生成の確認は行っていない。
+
 ## ビルド
 
 repository rootをcontextにして、モデルごとに実行する。
