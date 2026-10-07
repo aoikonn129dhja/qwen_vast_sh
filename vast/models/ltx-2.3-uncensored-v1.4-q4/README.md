@@ -1,6 +1,6 @@
 # LTX-2.3 Uncensored Turbo v1.4 Q4_K_M
 
-ChrisColeTech の `LTX-2.3-uncensored-v1.4-FP8` を、ComfyUI で画像から動画へ変換するための最小構成です。
+ChrisColeTech の `LTX-2.3-uncensored-v1.4-FP8` を、ComfyUI で画像から動画へ変換するための単一段I2Vと二段階T2V/I2Vの構成です。
 
 ## セットアップ
 
@@ -26,13 +26,13 @@ bash vast/models/ltx-2.3-uncensored-v1.4-q4/setup.sh
 - `ltxv23_uncensored_v1.4_audio_vae.safetensors`
 - `ChrisColeTech/ComfyUI-GGUF-Loader`
 
-x2 spatial upscaler、追加 LoRA、音声参照用の素材は初期構成に含めません。
+さらに公式 `ltx-2.3-spatial-upscaler-x2-1.1.safetensors`（約0.93 GiB）を `models/latent_upscale_models/` に配置します。固定revisionとSHA-256で検証し、途中取得を再開します。追加LoRAは不要です。
 
 セットアップは `[1/5]` から `[5/5]` までの段階を表示します。モデル5ファイルのダウンロード前に Hugging Face から最大8 MiBを読み、回線速度を測定します。ダウンロード中は現在のファイル番号に加え、5ファイル合計の転送量、進捗率、実測速度、残り時間の目安を約5秒ごとに表示します。残り時間はモデルファイルの転送分で、ComfyUIやPython依存の導入時間は含みません。再実行時は配布サイズと一致する既存ファイルをスキップし、途中ファイルは続きから取得します。
 
 ## I2V の最小グラフ
 
-`LTX-2.3_Uncensored_v1.4_Q4_I2V.json` を ComfyUI に読み込んでください。Lightricks の公式 two-stage workflow JSON をコピーして別名にし、追加モデルを要しない単一段 I2V グラフへ組み替えたものです。元の `LTX-2.3_T2V_I2V_Two_Stage_Distilled.json` は変更していません。読み込み後、`LoadImage` で入力画像を選択し、プロンプトを編集してください。
+`LTX-2.3_Uncensored_v1.4_Q4_I2V.json` を ComfyUI に読み込んでください。Lightricks の公式 two-stage workflow JSON をコピーして別名にし、追加モデルを要しない単一段 I2V グラフへ組み替えたものです。`LTX-2.3_T2V_I2V_Two_Stage_Distilled.json` も、このコンテナに導入済みのCCTechノードとv1.4 GGUFに合わせて組み直しています。読み込み後、`LoadImage` で入力画像を選択し、プロンプトを編集してください。
 
 CCTech のノードを次の順で接続します。
 
@@ -81,3 +81,16 @@ https://huggingface.co/ChrisColeTech/LTX-2.3-uncensored-v1.4-FP8
 CCTech GGUF Loader。
 
 https://github.com/ChrisColeTech/ComfyUI-GGUF-Loader
+
+## 二段階 T2V / I2V
+
+`LTX-2.3_T2V_I2V_Two_Stage_Distilled.json` を読み込みます。これは公式グラフの無変更コピーではなく、v1.4 GGUF向けの二段階構成です。
+
+1. I2Vでは `LoadImage` で画像を選択します。T2Vでは `LTXV23ImgToVideo` の `image` 接続を外します。未接続のLoadImageは実行対象になりません。
+2. プロンプトを編集します。初期解像度384×256は生成後に2倍の768×512になります。121フレーム、24 fpsです。フレーム数は8k+1を維持します。
+3. `LTXV23RefineSampler` がDMD 8ステップ生成、動画latentのx2拡大、3ステップ再調整を行います。CFG 1.0、Eulerです。
+4. `LTXV23AVDecode` で動画・音声を復号し、`SaveVideo` で保存します。
+
+Vastでは更新後にsetupを実行すると6ファイルが揃います。Saladでは更新後のDockerイメージに再ビルドする必要があります。既存イメージの再起動だけでは新しいワークフローとupscaler取得処理は反映されません。
+
+ノード登録・配線・設定値は無課金のローカル検証対象です。GPUでのモデルロード、生成品質、VRAM所要量は実生成を行うまで未確認です。

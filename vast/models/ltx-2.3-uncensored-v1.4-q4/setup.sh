@@ -119,7 +119,7 @@ if [ -f "$GGUF_LOADER_DIR/requirements.txt" ]; then
 fi
 "$UV" pip install --python "$PYTHON" opencv-python-headless
 
-log "[4/5] LTX-2.3 v1.4 Q4_K_Mの5ファイルを配置"
+log "[4/5] LTX-2.3 v1.4 Q4_K_Mの5ファイルとx2 upscalerを配置"
 DIFFUSION_DIR="$COMFY_DIR/models/diffusion_models"
 TEXT_ENCODERS_DIR="$COMFY_DIR/models/text_encoders"
 VAE_DIR="$COMFY_DIR/models/vae"
@@ -131,6 +131,17 @@ VAE_DIR="$COMFY_DIR/models/vae"
     --file "$PROJECTIONS_REL" "$TEXT_ENCODERS_DIR/$PROJECTIONS_FILE" \
     --file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE" \
     --file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE"
+
+UPSCALER_PATH="$COMFY_DIR/models/latent_upscale_models/$UPSCALER_FILE"
+if ! sha256_matches "$UPSCALER_PATH" "$UPSCALER_SHA256"; then
+    mkdir -p -- "$(dirname -- "$UPSCALER_PATH")"
+    wget -q --https-only --tries=3 --timeout=60 -c -O "$UPSCALER_PATH.part" "$UPSCALER_URL"
+    if ! sha256_matches "$UPSCALER_PATH.part" "$UPSCALER_SHA256"; then
+        rm -f -- "$UPSCALER_PATH.part"
+        die "x2 upscalerのSHA-256が一致しません。"
+    fi
+    mv -f -- "$UPSCALER_PATH.part" "$UPSCALER_PATH"
+fi
 
 log "[5/5] ComfyUIを再起動"
 if pgrep -f "python.*main.py" >/dev/null 2>&1; then
