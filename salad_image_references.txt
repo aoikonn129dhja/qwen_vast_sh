@@ -1,0 +1,12 @@
+# Copy only the ghcr.io/...:sha-... value inside the quotes into Salad Image Source.
+# Qwen Rapid AIO NSFW v19
+SALAD_QWEN_RAPID_V19_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-qwen-rapid-aio-nsfw-v19:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
+
+# Qwen Image Edit 2509
+SALAD_QWEN_EDIT_2509_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-qwen-image-edit-2509:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
+
+# Qwen Image Edit 2511
+SALAD_QWEN_EDIT_2511_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-qwen-image-edit-2511:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
+
+# LTX 2.3 Uncensored v1.4 Q4
+SALAD_LTX_23_Q4_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-ltx-2.3-uncensored-v1.4-q4:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
