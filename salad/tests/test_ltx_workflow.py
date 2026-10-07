@@ -1,4 +1,8 @@
 import copy
+import hashlib
+import os
+import subprocess
+import tempfile
 import json
 import re
 import unittest
@@ -13,6 +17,7 @@ WORKFLOW = 'LTX-2.3_T2V_I2V_Two_Stage_Distilled.json'
 
 class LtxWorkflowTests(unittest.TestCase):
     def setUp(self):
+        (ROOT / "tmp").mkdir(exist_ok=True)
         self.graph = json.loads((SALAD / 'workflows' / WORKFLOW).read_text(encoding='utf-8'))
 
     def check_links(self, graph):
@@ -70,6 +75,32 @@ class LtxWorkflowTests(unittest.TestCase):
             self.assertIn('$UPSCALER_SHA256', text)
         self.assertEqual((SALAD / 'prepare_models.sh').read_text(encoding='utf-8').count('download_resume_verified'), 1)
 
+
+    def test_vast_upscaler_skip_and_hash_failure(self):
+        source = (VAST / 'setup.sh').read_text(encoding='utf-8')
+        helper = source.split('sha256_matches() {', 1)[1].split('\ninstall_uv()', 1)[0]
+        block = source.split('UPSCALER_PATH=', 1)[1].split('log "[5/5]', 1)[0]
+        script = 'set -Eeuo pipefail\nsha256_matches() {' + helper
+        script += '\ndie() { exit 1; }\nUPSCALER_PATH=' + block
+        with tempfile.TemporaryDirectory(dir=ROOT / 'tmp') as folder:
+            work = Path(folder)
+            wget = work / 'wget'
+            wget.write_text('#!/bin/bash\necho call >> "$CALLS"\nwhile (($#)); do if [ "$1" = -O ]; then out="$2"; shift 2; else shift; fi; done\nprintf "%s" "$CONTENT" > "$out"\n')
+            wget.chmod(0o755)
+            calls = work / 'calls'
+            env = dict(os.environ, PATH=str(work)+':'+os.environ['PATH'], COMFY_DIR=str(work / 'comfy'), UPSCALER_FILE='upscale.bin', UPSCALER_URL='https://offline.invalid', UPSCALER_SHA256=hashlib.sha256(b'valid').hexdigest(), CALLS=str(calls), CONTENT='valid')
+            def run():
+                return subprocess.run(['bash','-c',script],env=env,capture_output=True)
+            destination = work / 'comfy/models/latent_upscale_models/upscale.bin'
+            self.assertEqual(run().returncode, 0)
+            self.assertEqual(destination.read_bytes(), b'valid')
+            self.assertEqual(run().returncode, 0)
+            self.assertEqual(calls.read_text().splitlines(), ['call'])
+            destination.write_bytes(b'existing invalid')
+            env['CONTENT'] = 'corrupt'
+            self.assertNotEqual(run().returncode, 0)
+            self.assertEqual(destination.read_bytes(), b'existing invalid')
+            self.assertFalse(Path(str(destination)+'.part').exists())
 
 if __name__ == '__main__':
     unittest.main()

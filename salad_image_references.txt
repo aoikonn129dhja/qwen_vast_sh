@@ -9,4 +9,4 @@ SALAD_QWEN_EDIT_2509_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-qwen-image
 SALAD_QWEN_EDIT_2511_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-qwen-image-edit-2511:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
 
 # LTX 2.3 Uncensored v1.4 Q4
-SALAD_LTX_23_Q4_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-ltx-2.3-uncensored-v1.4-q4:sha-22651bc9474f367711e0c2c31cef65708ce8c050"
+SALAD_LTX_23_Q4_IMAGE="ghcr.io/aoikonn129dhja/qwen_vast_sh/salad-ltx-2.3-uncensored-v1.4-q4:sha-4e0a9cedf7135a385c9267a98d822e266bc7cff1"
