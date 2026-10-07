@@ -58,6 +58,7 @@ class Client:
         data = None if body is None else json.dumps(body).encode("utf-8")
         request = Request(url, data=data, method=method, headers={
             "Salad-Api-Key": self.key, "Accept": "application/json",
+            "User-Agent": "vast-image-salad-cli/1.0",
             "Content-Type": "application/json",
         })
         try:
@@ -94,8 +95,8 @@ def payload(source, group, image):
     resources = container["resources"]
     return {
         "name": name(group), "display_name": group, "autostart_policy": False,
-        "replicas": 1, "restart_policy": "always", "priority": source["priority"],
-        "container": {"image": image, "resources": {
+        "replicas": 1, "restart_policy": "always",
+        "container": {"image": image, "priority": source["priority"], "resources": {
             k: resources[k] for k in ("cpu", "memory", "gpu_classes", "shm_size", "storage_amount")
             if k in resources
         }},

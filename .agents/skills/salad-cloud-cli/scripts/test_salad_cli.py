@@ -25,6 +25,8 @@ class SaladTests(unittest.TestCase):
     def test_payload_is_stopped_and_drops_response_fields(self):
         body = cli.payload(self.source, "qwen-edit-2509", "image")
         self.assertFalse(body["autostart_policy"])
+        self.assertEqual(body["container"]["priority"], "batch")
+        self.assertNotIn("priority", body)
         self.assertNotIn("dns", body["networking"])
         self.assertNotIn("hash", body["container"])
         self.assertEqual(body["container"]["resources"]["memory"], 16384)
