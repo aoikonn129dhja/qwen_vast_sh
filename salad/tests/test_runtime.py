@@ -65,10 +65,16 @@ exit "${WGET_STATUS:-0}"
 trap 'exit 0' TERM INT
 {action}
 '''
-        for name in ['python', 'socat']:
-            action = 'sleep 0.1; exit 7' if name == fail_child else 'while :; do sleep 0.1; done'
-            self.script(name, code.format(name=name, action=action))
-        env = dict(os.environ, PATH=str(self.path) + ':' + os.environ['PATH'], PYTHON=str(self.path / 'python'), COMFY_DIR=str(self.path), PID_DIR=str(self.path))
+        python_code = '''if [ "$1" = main.py ]; then name=comfy; else name=proxy; fi
+echo $$ > "$PID_DIR/$name.pid"
+trap 'exit 0' TERM INT
+if [ "$FAIL_CHILD" = "$name" ]; then sleep 0.1; exit 7; fi
+while :; do sleep 0.1; done
+'''
+        self.script('python', python_code)
+        socat_action = 'sleep 0.1; exit 7' if fail_child == 'socat' else 'while :; do sleep 0.1; done'
+        self.script('socat', code.format(name='socat', action=socat_action))
+        env = dict(os.environ, PATH=str(self.path) + ':' + os.environ['PATH'], PYTHON=str(self.path / 'python'), COMFY_DIR=str(self.path), PID_DIR=str(self.path), FAIL_CHILD=fail_child or '', COMFY_GATEWAY_USER='test', COMFY_GATEWAY_PASSWORD='x' * 20)
         process = subprocess.Popen(['bash', str(ROOT / 'salad/common/start_comfyui.sh')], env=env)
         try:
             if sig:
@@ -78,7 +84,7 @@ trap 'exit 0' TERM INT
                     time.sleep(0.02)
                 process.send_signal(sig)
             result = process.wait(timeout=8)
-            for name in ['python', 'socat']:
+            for name in ['comfy', 'proxy', 'socat']:
                 p = self.path / (name + '.pid')
                 if p.exists():
                     with self.assertRaises(ProcessLookupError): os.kill(int(p.read_text()), 0)
@@ -89,7 +95,10 @@ trap 'exit 0' TERM INT
                 process.wait()
 
     def test_comfy_failure_stops_proxy(self):
-        self.assertEqual(self.supervise(fail_child='python'), 7)
+        self.assertEqual(self.supervise(fail_child='comfy'), 7)
+
+    def test_auth_proxy_failure_stops_comfy(self):
+        self.assertEqual(self.supervise(fail_child='proxy'), 7)
 
     def test_proxy_failure_stops_comfy(self):
         self.assertEqual(self.supervise(fail_child='socat'), 7)
@@ -101,10 +110,15 @@ trap 'exit 0' TERM INT
         self.assertEqual(self.supervise(sig=signal.SIGINT), 130)
 
     def test_invalid_ports(self):
-        for port in ['0', '65536', 'bad', '8189']:
-            env = dict(os.environ, COMFY_PORT=port)
+        for port in ['0', '65536', 'bad', '8189', '8190']:
+            env = dict(os.environ, COMFY_PORT=port, COMFY_GATEWAY_USER='test', COMFY_GATEWAY_PASSWORD='x' * 20)
             result = subprocess.run(['bash', str(ROOT / 'salad/common/start_comfyui.sh')], env=env, capture_output=True)
             self.assertEqual(result.returncode, 2)
+
+    def test_missing_gateway_credentials_fail_closed(self):
+        env = dict(os.environ, COMFY_GATEWAY_USER='', COMFY_GATEWAY_PASSWORD='')
+        result = subprocess.run(['bash', str(ROOT / 'salad/common/start_comfyui.sh')], env=env, capture_output=True)
+        self.assertEqual(result.returncode, 2)
 
     def test_ltx_only_publishes_completed_download(self):
         spec = importlib.util.spec_from_file_location('download_models', ROOT / 'vast/models/ltx-2.3-uncensored-v1.4-q4/download_models.py')

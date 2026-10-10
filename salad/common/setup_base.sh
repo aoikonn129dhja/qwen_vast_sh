@@ -13,6 +13,6 @@ clone_pinned() {
 }
 setup_base() {
     clone_pinned https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR" "$COMFYUI_COMMIT"
-    uv pip install --python "$PYTHON" --require-hashes --torch-backend cu128 -r /opt/profile/requirements.lock
+    uv pip install --python "$PYTHON" --require-hashes --torch-backend cu130 -r /opt/profile/requirements.lock
     mkdir -p "$COMFY_DIR/user/default/workflows" "$COMFY_DIR/input" "$COMFY_DIR/output"
 }

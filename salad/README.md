@@ -48,17 +48,19 @@ GitHub Actionsの **Build Salad images** を手動実行すると4モデルをGH
 | GPU | モデルに必要なVRAMを持つGPUを選択。実GPUで未検証 |
 | Container Gateway | enabled |
 | Container Gateway port | 8189 |
-| Gateway authentication | disabled |
+| Gateway authentication | disabled; the container requires HTTP Basic authentication before ComfyUI |
 | Protocol | HTTPS |
 | Disk Space | Qwenはモデル約30〜32GBに加えimageと作業領域が必要。初期目安として50GB級の空き領域を確保（実環境未検証） |
 
-[SaladのContainer Gateway](https://salad.com/developers/)はIPv6受信を使用する。ComfyUIは `127.0.0.1:8188` にbindし、socatが `[::]:8189` から転送する。WebSocketを使用するWeb UIのためGatewayのAPI-key認証は無効とする。Gateway URLを知る第三者はアクセスできるので、秘密のprompt、入力画像、workflowを扱う際は公開範囲に注意する。独自認証proxyはv1に含めていない。
+[SaladのContainer Gateway](https://salad.com/developers/)はIPv6受信を使用する。ComfyUIは `127.0.0.1:8188` にbindし、認証proxyは `127.0.0.1:8190` でHTTPとWebSocketを中継する。socatは `[::]:8189` から認証proxyへのみ転送する。Gateway側のAPI-key認証はWeb UIとの互換性のため無効とし、proxyが全てのComfyUI要求にHTTP Basic認証を要求する。GatewayはHTTPSを使用すること。
+
+Container Groupの環境変数に `COMFY_GATEWAY_USER` と20文字以上のランダムな `COMFY_GATEWAY_PASSWORD` を設定する。パスワードをリポジトリ、workflow、起動引数、ログへ書かない。どちらかが未設定ならComfyUI公開ポートは起動しない。ブラウザは初回アクセス時に認証情報を入力する。`GET /healthz` だけは認証不要で、ComfyUIの起動状態のみを `ok` または503で返す。既存のイメージにはこのproxyがないため、新しいイメージへ更新するまでは認証なしのままである。
 
 interactive Web UIはreplicaを1にして、ComfyUI状態が複数containerへ分散するのを避ける。モデル取得中はUIが起動しない。PortalのContainer logsで取得状況・失敗を確認し、準備完了後にGatewayのHTTPS URLをブラウザで開いてworkflowを選択する。初回は数十GBの取得に時間がかかり、回線によって待ち時間が変わる。
 
-[readiness probe](https://salad-tech.readme.io/reference/create_container_group)を設定する場合はHTTP `GET /system_stats`、port `8189` を指定する。モデル取得中の失敗は正常な待機状態として扱い、短いliveness/startup timeoutでダウンロードを繰り返し中断しないよう設定する。
+[readiness probe](https://salad-tech.readme.io/reference/create_container_group)を設定する場合はHTTP `GET /healthz`、port `8189` を指定する。モデル取得中の失敗は正常な待機状態として扱い、短いliveness/startup timeoutでダウンロードを繰り返し中断しないよう設定する。
 
-`COMFY_PORT`、`GATEWAY_PORT` は環境変数で変更できる。変更時はGateway portとprobeも一致させる。片方のプロセス終了、SIGTERM、SIGINTで両方を停止しcontainerを終了する。モデルDL失敗時はUIを起動せず非zeroで終了する。
+`COMFY_PORT`、`AUTH_PORT`、`GATEWAY_PORT` は環境変数で変更できる。変更時はGateway portとprobeも一致させる。いずれかのプロセス終了、SIGTERM、SIGINTで全プロセスを停止しcontainerを終了する。モデルDL失敗時はUIを起動せず非zeroで終了する。
 
 ## モデルと保存領域
 

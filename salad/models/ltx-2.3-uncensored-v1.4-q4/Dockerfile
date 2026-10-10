@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends bash git wget c
 RUN wget -q -O /opt/uv.tar.gz https://github.com/astral-sh/uv/releases/download/0.11.28/uv-x86_64-unknown-linux-gnu.tar.gz && echo 'e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224  /opt/uv.tar.gz' | sha256sum -c - && tar -xzf /opt/uv.tar.gz -C /opt && install -m 0755 /opt/uv-x86_64-unknown-linux-gnu/uv /usr/local/bin/uv && rm -rf /opt/uv.tar.gz /opt/uv-x86_64-unknown-linux-gnu && uv venv --python /usr/bin/python3.12 /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" COMFY_DIR=/opt/ComfyUI PYTHON=/opt/venv/bin/python
 COPY salad/common/ /opt/salad/common/
-COPY vast/models/qwen-rapid-aio-nsfw-v19/requirements.lock /opt/profile/requirements.lock
+COPY salad/requirements.lock /opt/profile/requirements.lock
 RUN bash -c 'source /opt/salad/common/setup_base.sh; setup_base'
 COPY salad/models/ltx-2.3-uncensored-v1.4-q4/ /opt/salad/model/
 COPY vast/models/ltx-2.3-uncensored-v1.4-q4/model.conf /opt/profile/model.conf
