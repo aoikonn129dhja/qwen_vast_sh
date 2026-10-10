@@ -57,27 +57,25 @@ if [ -f "$GGUF_NODE_DIR/requirements.txt" ]; then
     "$PYTHON" -m pip install -r "$GGUF_NODE_DIR/requirements.txt"
 fi
 
-# HFのX-Linked-EtagがSHA-256を示す場合、その値で検証する。
-# GGUF本体は、既知のSHA-256を固定して確認する。
-hf_sha256() {
-    local url="$1"
-    "$PYTHON" - "$url" <<'PY'
-import re, sys, urllib.request
-req = urllib.request.Request(sys.argv[1], method='HEAD')
-with urllib.request.urlopen(req, timeout=60) as res:
-    h = (res.headers.get('X-Linked-Etag') or res.headers.get('ETag') or '').strip('"')
-if not re.fullmatch(r'[0-9a-fA-F]{64}', h):
-    raise SystemExit('Hugging FaceのSHA-256を取得できません。安全のため中止します。')
-print(h.lower())
-PY
-}
-
+# 固定コミットと既知のSHA-256でモデルを検証する。
+# ハッシュはsalad/models/qwen-image-21-uncensored-gguf/prepare_models.shと共通。
 fetch_model() {
     local relative="$1" dest="$2" pinned="${3:-}" url expected actual
-    url="https://huggingface.co/$HF_REPO/resolve/main/$relative"
-    expected="$(hf_sha256 "$url")" || die "配布元のハッシュ取得に失敗: $relative"
+    local revision="6b34e59458d3eb7ba6a6f86a116aed5253dc02c3"
+
+    url="https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF/resolve/$revision/$relative"
+    case "$relative" in
+        "$GGUF_REL")
+            expected="e79c8a009f2ecbdb6c70fd663d9aea9ee304a0d91f347e4169a756b8ad141b41" ;;
+        "$TEXT_ENCODER_REL")
+            expected="8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f" ;;
+        "$VAE_REL")
+            expected="bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9" ;;
+        *) die "未登録のモデル: $relative" ;;
+    esac
+
     if [ -n "$pinned" ] && [ "$expected" != "$pinned" ]; then
-        die "モデルの配布元ハッシュが既知の値と異なります: $relative"
+        die "固定SHA-256が設定と一致しません: $relative"
     fi
     mkdir -p "$(dirname "$dest")"
     if [ -s "$dest" ]; then
