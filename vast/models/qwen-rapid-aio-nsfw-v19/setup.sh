@@ -319,7 +319,7 @@ installed_comfy_cli="$("$PYTHON" -c 'import importlib.metadata; print(importlib.
     || die "comfy-cliのバージョンが固定値と一致しません: $installed_comfy_cli"
 
 log "comfy-cli のデフォルト ComfyUI workspace を設定"
-"$COMFY_CLI" set-default "$COMFY_DIR"
+"$COMFY_CLI" --skip-prompt --enable-telemetry set-default "$COMFY_DIR"
 
 mkdir -p \
     "$COMFY_DIR/models/checkpoints" \
