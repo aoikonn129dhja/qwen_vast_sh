@@ -12,5 +12,6 @@ COPY salad/models/qwen-rapid-aio-nsfw-v19/ /opt/salad/model/
 COPY vast/models/qwen-rapid-aio-nsfw-v19/model.conf /opt/profile/model.conf
 COPY vast/models/qwen-rapid-aio-nsfw-v19/workflows/ /opt/profile/workflows/
 RUN bash /opt/salad/model/setup.sh
+COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189
 CMD ["bash", "/opt/salad/model/start.sh"]

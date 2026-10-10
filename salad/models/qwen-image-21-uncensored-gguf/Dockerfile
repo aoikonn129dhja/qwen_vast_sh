@@ -9,5 +9,6 @@ COPY salad/common/ /opt/salad/common/
 COPY vast/models/qwen-rapid-aio-nsfw-v19/requirements.lock /opt/profile/requirements.lock
 COPY salad/models/qwen-image-21-uncensored-gguf/ /opt/salad/model/
 RUN bash /opt/salad/common/setup_qwen21.sh
+COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189
 CMD ["bash", "/opt/salad/model/start.sh"]

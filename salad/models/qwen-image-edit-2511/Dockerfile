@@ -12,5 +12,6 @@ COPY salad/models/qwen-image-edit-2511/ /opt/salad/model/
 COPY vast/models/qwen-image-edit-2511/model.conf /opt/profile/model.conf
 COPY vast/models/qwen-image-edit-2511/workflows/ /opt/profile/workflows/
 RUN bash /opt/salad/model/setup.sh
+COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189
 CMD ["bash", "/opt/salad/model/start.sh"]
