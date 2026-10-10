@@ -112,6 +112,7 @@ uv pip compile \
 
 ```bash
 uv pip install \
+  --system \
   --python /usr/local/bin/python \
   --no-deps \
   --require-hashes \
@@ -120,12 +121,14 @@ uv pip install \
 
 Pythonライブラリの導入には引き続き`uv`だけを使用している。
 
+公式runtimeのPythonは仮想環境ではない。`uv`がシステムPythonへの変更を意図しない操作として拒否しないよう、Dockerfileでは`UV_SYSTEM_PYTHON=1`を設定し、直接実行するinstall/checkにも`--system`を明示している。カスタムノードのセットアップが内部で実行する`uv pip install`にも同じ環境変数が適用される。
+
 ## 6. Dockerfile内の検証
 
 Dockerビルド中に、非CUDA依存を入れた直後とカスタムノードを入れた直後の2回、次を実行する。
 
 ```bash
-uv pip check --python "$PYTHON"
+uv pip check --system --python "$PYTHON"
 ```
 
 1回目は2511専用lockが公式ベースのPyTorch環境と整合することを確認する。2回目はカスタムノードのrequirementsを追加した後も依存関係が壊れていないことを確認する。
@@ -149,6 +152,7 @@ torch.version.cuda == "13.0"
 
 - 公式PyTorch CUDA 13.0 runtimeのタグとdigestが固定されている
 - `/usr/local/bin/python`を使用している
+- `UV_SYSTEM_PYTHON=1`と`--system`を明示している
 - `/opt/venv`を作成していない
 - `python3.12-venv`をapt導入していない
 - 2511専用requirementsとlockに`torch`、`torchvision`、`torchaudio`、`triton`、`nvidia-*`が入っていない
@@ -165,9 +169,9 @@ torch.version.cuda == "13.0"
 3. linux/amd64のmanifest digestを取得し、`FROM`をdigestまで固定する。
 4. 既存環境の依存一覧から、公式ベースが提供する`torch`、`torchvision`、`torchaudio`、`triton`、`nvidia-*`を除いたモデル専用入力ファイルを作る。
 5. `uv pip compile --no-deps --generate-hashes`でモデル専用lockを生成する。
-6. 公式ベースのPythonへ`uv pip install --no-deps --require-hashes`で導入する。
-7. `uv pip check`を実行する。
-8. カスタムノード導入後にもう一度`uv pip check`を実行する。
+6. 公式ベースのPythonへ`uv pip install --system --no-deps --require-hashes`で導入する。
+7. `uv pip check --system`を実行する。
+8. カスタムノード導入後にもう一度`uv pip check --system`を実行する。
 9. PyTorch、torchvision、torchaudio、`torch.version.cuda`をassertする。
 10. Dockerビルド後、registry manifestから圧縮レイヤー合計を取得し、変更前と比較する。
 11. GPU実環境でGPU認識、`comfy_kitchen` backend、ComfyUI HTTP応答、対象workflowを確認する。

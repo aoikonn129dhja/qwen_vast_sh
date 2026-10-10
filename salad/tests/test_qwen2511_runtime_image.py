@@ -16,6 +16,7 @@ class Qwen2511RuntimeImageTests(unittest.TestCase):
             dockerfile,
         )
         self.assertIn("PYTHON=/usr/local/bin/python", dockerfile)
+        self.assertIn("UV_SYSTEM_PYTHON=1", dockerfile)
         self.assertNotIn("uv venv", dockerfile)
         self.assertNotIn("python3.12-venv", dockerfile)
 
@@ -31,6 +32,7 @@ class Qwen2511RuntimeImageTests(unittest.TestCase):
 
         dockerfile = (PROFILE / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("uv pip install", dockerfile)
+        self.assertGreaterEqual(dockerfile.count("--system"), 3)
         self.assertIn("--no-deps", dockerfile)
         self.assertIn("--require-hashes", dockerfile)
         self.assertGreaterEqual(dockerfile.count("uv pip check"), 2)

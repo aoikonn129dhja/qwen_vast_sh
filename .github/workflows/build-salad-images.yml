@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - .github/workflows/build-salad-images.yml
+      - salad/models/qwen-image-edit-2511/**
   workflow_dispatch:
     inputs:
       model:
