@@ -80,6 +80,31 @@ if s.count(old) != 1:
     raise SystemExit("ERROR: workflow コピー処理が見つからないか複数あります")
 s = s.replace(old, new, 1)
 
+# ComfyUI 起動前に v23 専用カスタムノードを導入する。
+old = '# Stop previous ComfyUI / tunnel if this script is re-run'
+new = '''# Load Image With Filename custom node
+CUSTOM_NODE_DIR="$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
+CUSTOM_NODE_REPO="https://github.com/kymeraj/comfyui-load-image-with-filename.git"
+if [ -e "$CUSTOM_NODE_DIR" ] || [ -L "$CUSTOM_NODE_DIR" ]; then
+    if [ ! -d "$CUSTOM_NODE_DIR/.git" ] \\
+        || [ ! -f "$CUSTOM_NODE_DIR/__init__.py" ] \\
+        || [ ! -f "$CUSTOM_NODE_DIR/load_image_with_filename.py" ] \\
+        || ! git -C "$CUSTOM_NODE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 \\
+        || [ "$(git -C "$CUSTOM_NODE_DIR" remote get-url origin 2>/dev/null || true)" != "$CUSTOM_NODE_REPO" ]; then
+        die "不完全なカスタムノードを検出しました: $CUSTOM_NODE_DIR"
+    fi
+    log "カスタムノードを確認: $CUSTOM_NODE_DIR"
+else
+    log "カスタムノードを取得: $CUSTOM_NODE_REPO"
+    mkdir -p "$COMFY_DIR/custom_nodes"
+    git clone "$CUSTOM_NODE_REPO" "$CUSTOM_NODE_DIR"
+fi
+
+# Stop previous ComfyUI / tunnel if this script is re-run'''
+if s.count(old) != 1:
+    raise SystemExit("ERROR: ComfyUI 起動前の挿入箇所が見つからないか複数あります")
+s = s.replace(old, new, 1)
+
 destination.write_text(s, encoding="utf-8")
 PY
 
