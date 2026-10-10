@@ -1,45 +1,63 @@
 # Vast.ai ComfyUI モデル利用手順書
 
-この手順書はVast.ai用である。SaladCloud用は [salad/README.md](salad/README.md) を参照する。
-
 Vast.aiでGPUインスタンスを借り、このリポジトリから使用するモデルを選んでセットアップするための手順書です。
 
-基本方針は「インスタンスをRENTする → リポジトリをcloneする → 使うモデルのディレクトリへ移動する → そのディレクトリの `setup.sh` を実行する」です。モデルごとのファイルは `vast/models/<モデル名>/` に分離されています。ルートの `setup.sh` にモデル名を渡す手順は使いません。
+基本方針は「インスタンスをRENTする → リポジトリをcloneする → 使うモデルのディレクトリへ移動する → そのディレクトリの `setup.sh` を実行する」です。モデルごとのファイルは `models/<モデル名>/` に分離されています。ルートの `setup.sh` にモデル名を渡す手順は使いません。
 
 ## 1. コマンド早見表
 
 [Vast.aiのダッシュボード](https://cloud.vast.ai/)
 
-以下のコマンドは、Vast.aiのJupyter WebUIでTerminalを開いて実行します。
 
-### 初回だけ: リポジトリをclone
+Vast.aiでPyTorch系インスタンスをRENTし、Jupyter WebUIのTerminalを開く。前提パスは `/workspace` と `/venv/main/bin/python`。GPUと十分なストレージが必要。モデル間で依存関係とComfyUIの変更があり得るため、安定運用では1インスタンス1モデルを基本とする。
 
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
-cd /workspace/qwen_vast_sh
 ```
 
-### 使うモデルのディレクトリでセットアップ
-
-次のいずれか1組を実行します。モデルディレクトリへ移動してから、その中の `setup.sh` を起動します。
+clone済みの場合は次で更新する。未コミットの変更がある場合は先に確認する。
 
 ```bash
-# Qwen Rapid AIO NSFW v19: 画像編集の一括生成向け
-cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19
-bash setup.sh
-
-# Qwen Image Edit 2509: ComfyUI画面から画像編集
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2509
-bash setup.sh
-
-# Qwen Image Edit 2511: ComfyUI画面から画像編集
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2511
-bash setup.sh
-
-# LTX-2.3 Uncensored Turbo v1.4 Q4_K_M: 画像から動画を生成
-cd /workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4
-bash setup.sh
+git -C /workspace/qwen_vast_sh pull --ff-only origin main
 ```
+
+利用可能なセットアップスクリプトを確認する。旧手順書の `find models ...` は現在のディレクトリ構成と一致しない。
+
+```bash
+find /workspace/qwen_vast_sh/vast/models -mindepth 2 -maxdepth 2 -type f -name setup.sh -printf '%h\n'
+```
+
+**使いたいモデルを1つ選び**、以下の該当コマンドだけを実行する。ルートにある共通 `setup.sh` にモデル名を渡す方式ではない。
+
+```bash
+# Qwen Rapid v19
+cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19 && bash setup.sh
+
+# Qwen Image Edit 2509
+cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2509 && bash setup.sh
+
+# Qwen Image Edit 2511
+cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2511 && bash setup.sh
+
+# LTX-2.3 Q4
+cd /workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
+```
+
+モデルのダウンロード元への事前速度測定を行うセットアップがある。Qwen系列では既定10 MiB/s未満の場合に続行確認または非対話実行の停止が発生し得る。必要な場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。
+
+
+### Comfy UI 開き方
+Create tunnelで
+```
+http://localhost:8188
+```
+を追加,URLをコピーして開く.
+
+bad gatewayの場合,以下で確認.JSONが返却されれば,Comfyは起動済み
+```
+curl --fail --silent http://127.0.0.1:8188/system_stats
+```
+
 
 ### リポジトリを更新
 
@@ -48,7 +66,7 @@ cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
 
-### /workspace/ComfyUI/output/の生成動画の回収
+### /workspace/ComfyUI/output/の生成物の回収
 ```
 cd /workspace/ComfyUI
 zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip"
@@ -58,13 +76,13 @@ zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip
 
 ```bash
 # 入力画像とほぼ同じ縦横比、約315万画素で生成
-MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 # 幅と高さを指定して生成
-WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 # 標準の1536×2048で生成
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ### よく使う確認コマンド
@@ -120,19 +138,19 @@ cd /workspace/qwen_vast_sh
 find models -mindepth 2 -maxdepth 2 -type f -name setup.sh -printf '%h\n'
 ```
 
-表示されたパスがセットアップ可能なモデルのディレクトリです。`vast/models/` 直下には参照用workflowだけのディレクトリもあるため、`setup.sh` があるディレクトリを選びます。
+表示されたパスがセットアップ可能なモデルのディレクトリです。`models/` 直下には参照用workflowだけのディレクトリもあるため、`setup.sh` があるディレクトリを選びます。
 
 ### 2.4 モデルのディレクトリへ移動してセットアップする
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/<モデルのディレクトリ名>
+cd /workspace/qwen_vast_sh/models/<モデルのディレクトリ名>
 bash setup.sh
 ```
 
 例として、Qwen Image Edit 2511を使う場合:
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2511
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
 bash setup.sh
 ```
 
@@ -165,7 +183,7 @@ qwen-rapid-aio-nsfw-v19
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19
+cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19
 bash setup.sh
 ```
 
@@ -204,7 +222,7 @@ second prompt
 #### バッチ生成を開始
 
 ```bash
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 開始時に表示される `Images`、`Prompts`、`Total` を確認してください。`Total` は `Images × Prompts` です。
@@ -212,13 +230,13 @@ bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 `MATCH_INPUT_ASPECT=1` を指定すると、入力画像ごとに縦横比を計算し、約315万画素になるよう幅と高さを64px刻みに丸めます。
 
 ```bash
-MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+MATCH_INPUT_ASPECT=1 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 `WIDTH` と `HEIGHT` で出力サイズを固定することもできます。
 
 ```bash
-WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 `MATCH_INPUT_ASPECT=1` と `WIDTH` または `HEIGHT` は同時に指定できません。入力画像が基準画素数の105%を超える場合は、元画像を変更せず、モデルへ渡す直前に縦横比を保って縮小されます。
@@ -235,7 +253,7 @@ password : Terminalに表示された20文字のパスワード
 このプレビューは認証付きで、ComfyUI本体のポート8188とは別です。Preview URLが開けなくなった場合は、生成処理を止めずにQuick Tunnelだけを再起動できます。
 
 ```bash
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 #### 生成中の注意
@@ -274,7 +292,7 @@ ComfyUIの画面上で操作するQwen Image Edit 2509です。DWPoseとAnimePos
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2509
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2509
 bash setup.sh
 ```
 
@@ -299,7 +317,7 @@ ComfyUIの画面上で操作するQwen Image Edit 2511 FP8 mixedです。DWPose�
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2511
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
 bash setup.sh
 ```
 
@@ -324,7 +342,7 @@ ChrisColeTech配布のLTX-2.3 Uncensored Turbo v1.4を、Q4_K_MのGGUF構成で�
 #### セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4
+cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4
 bash setup.sh
 ```
 
@@ -346,7 +364,7 @@ x2 spatial upscaler、追加LoRA、音声参照用素材は初期セットアッ
 このモデル用の最小I2V workflowは次です。
 
 ```text
-/workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_Uncensored_v1.4_Q4_I2V.json
+/workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_Uncensored_v1.4_Q4_I2V.json
 ```
 
 LTXのsetupは、このJSONをComfyUIの保存済みworkflow一覧へ自動コピーしません。JupyterのファイルブラウザからJSONを手元へダウンロードし、ComfyUI画面へドラッグ＆ドロップするか、ComfyUIの `Load` から読み込んでください。
@@ -373,7 +391,7 @@ LTXV23KSampler
 次のJSONはLightricks公式のtwo-stage workflowを保存した参照用ファイルです。ChrisColeTechのsplit GGUF構成でそのまま動作することを保証するものではありません。
 
 ```text
-/workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json
+/workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json
 ```
 
 モデル配布元ではライセンスが `unknown` と表示されています。商用利用や再配布を行う場合は、利用者自身で最新のライセンス条件を確認してください。
@@ -381,7 +399,7 @@ LTXV23KSampler
 ### 3.5 Qwen Rapid AIO v1 reference
 
 ```text
-vast/models/qwen-rapid-aio-v1-reference/
+models/qwen-rapid-aio-v1-reference/
 ```
 
 これは2入力参照workflowの保管場所で、セットアップ可能なモデルではありません。このディレクトリには `setup.sh` がありません。モデル配布元とSHA-256が未定義で、workflowにSaveImageノードもないため、実行用workflowと混同しないでください。
@@ -414,8 +432,8 @@ git -C /workspace/qwen_vast_sh pull --ff-only origin main
 ### 詳細資料
 
 - リポジトリ全体とRapid v19の詳細: [README.md](./README.md)
-- モデルディレクトリの規約: [vast/models/README.md](./vast/models/README.md)
-- Rapid v19: [vast/models/qwen-rapid-aio-nsfw-v19/README.md](./vast/models/qwen-rapid-aio-nsfw-v19/README.md)
-- Qwen Image Edit 2509: [vast/models/qwen-image-edit-2509/README.md](./vast/models/qwen-image-edit-2509/README.md)
-- Qwen Image Edit 2511: [vast/models/qwen-image-edit-2511/README.md](./vast/models/qwen-image-edit-2511/README.md)
-- LTX-2.3 v1.4 Q4: [vast/models/ltx-2.3-uncensored-v1.4-q4/README.md](./vast/models/ltx-2.3-uncensored-v1.4-q4/README.md)
+- モデルディレクトリの規約: [models/README.md](./models/README.md)
+- Rapid v19: [models/qwen-rapid-aio-nsfw-v19/README.md](./models/qwen-rapid-aio-nsfw-v19/README.md)
+- Qwen Image Edit 2509: [models/qwen-image-edit-2509/README.md](./models/qwen-image-edit-2509/README.md)
+- Qwen Image Edit 2511: [models/qwen-image-edit-2511/README.md](./models/qwen-image-edit-2511/README.md)
+- LTX-2.3 v1.4 Q4: [models/ltx-2.3-uncensored-v1.4-q4/README.md](./models/ltx-2.3-uncensored-v1.4-q4/README.md)
