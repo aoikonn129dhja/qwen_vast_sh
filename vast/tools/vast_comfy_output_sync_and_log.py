@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SaladCloud ComfyUI manual GUI image sync. Python standard library only."""
+"""Vast.ai ComfyUI manual GUI image sync. Python standard library only."""
 from __future__ import annotations
 import base64
 import csv
@@ -81,7 +81,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def fetch(url: str, authorization: str | None = None) -> bytes:
-    headers = {"User-Agent": "salad-comfy-sync/1.0"}
+    headers = {"User-Agent": "vast-comfy-sync/1.0"}
     if authorization:
         headers["Authorization"] = authorization
     req = urllib.request.Request(url, headers=headers)
@@ -190,7 +190,7 @@ def main() -> int:
         return 2
     authorization = ("Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")) if username else None
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    state_file = OUTPUT_DIR / ".salad_comfy_sync_state.json"
+    state_file = OUTPUT_DIR / ".vast_comfy_sync_state.json"
     server_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
     state = {"server_key": server_key, "done": {}}
     if state_file.exists():
@@ -198,7 +198,7 @@ def main() -> int:
         if not isinstance(state, dict) or state.get("server_key") != server_key or not isinstance(state.get("done"), dict):
             print("保存先に別サーバーの同期履歴があります。OUTPUT_DIR を変更してください。")
             return 2
-    session_csv = OUTPUT_DIR / f"salad_comfy_sync_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+    session_csv = OUTPUT_DIR / f"vast_comfy_sync_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     with session_csv.open("x", encoding="utf-8-sig", newline="") as out:
         csv.DictWriter(out, fieldnames=CSV_FIELDS).writeheader()
         out.flush()
@@ -228,13 +228,12 @@ def main() -> int:
                         if not data:
                             raise ValueError("Empty image response")
                         dest = candidate_name(str(prompt_id), item)
-                        metadata = {"source": "SaladCloud ComfyUI", "prompt_id": prompt_id, "node_id": node_id,
+                        metadata = {"source": "Vast.ai ComfyUI", "prompt_id": prompt_id, "node_id": node_id,
                                     "filename": item["filename"], "subfolder": item.get("subfolder", ""), "local_image": dest.name,
                                     "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                                     "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                                     **time_fields(history), "status": history.get("status"),
                                     "api_workflow": workflow, "extra_data": extra_data}
-                        # Never overwrite a pre-existing image.
                         with dest.open("xb") as out:
                             out.write(data)
                             out.flush()

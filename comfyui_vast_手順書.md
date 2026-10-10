@@ -33,6 +33,9 @@ find /workspace/qwen_vast_sh/vast/models -mindepth 2 -maxdepth 2 -type f -name s
 # Qwen Rapid v19
 cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19 && bash setup.sh
 
+# Qwen Rapid v23
+cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v23 && bash setup.sh
+
 # Qwen Image Edit 2509
 cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2509 && bash setup.sh
 
