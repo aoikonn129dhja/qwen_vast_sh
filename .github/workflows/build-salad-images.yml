@@ -1,5 +1,10 @@
 name: Build Salad images
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-salad-images.yml
   workflow_dispatch:
     inputs:
       model:
@@ -21,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ${{ fromJSON(inputs.model == 'all' && '["qwen-rapid-aio-nsfw-v19","qwen-image-edit-2509","qwen-image-edit-2511","ltx-2.3-uncensored-v1.4-q4"]' || format('["{0}"]', inputs.model)) }}
+        model: ${{ fromJSON(github.event_name == 'push' && '["qwen-image-edit-2511"]' || (inputs.model == 'all' && '["qwen-rapid-aio-nsfw-v19","qwen-image-edit-2509","qwen-image-edit-2511","ltx-2.3-uncensored-v1.4-q4"]' || format('["{0}"]', inputs.model))) }}
     steps:
       - uses: actions/checkout@v4
       - name: Free space for CUDA and PyTorch layers
