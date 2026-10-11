@@ -1,97 +1,32 @@
-# SaladCloud ComfyUI Web UI
+# SaladCloud 共通イメージ
 
-Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版は `../models/` を使用する。Rapidのバッチ、preview tunnel、Windows出力同期はSaladへ移植していない。
+`salad/Dockerfile` は Vast.ai の `models/<モデル名>/setup.sh` をそのまま実行するための共通環境を作る。モデル本体はイメージに含まれず、コンテナ起動時に選択した setup.sh が取得する。
 
-対応モデルは `qwen-rapid-aio-nsfw-v19`、`qwen-image-edit-2509`、`qwen-image-edit-2511`、`ltx-2.3-uncensored-v1.4-q4` の4種類。参照専用のRapid v1は対象外。
+## ビルドと起動
 
-追加の画像編集モデル:
-
-- [Qwen Image 2.1 Uncensored GGUF](models/qwen-image-21-uncensored-gguf/README.md): 完成済み作品と別画像を入力し、人物性を保ちながらポーズ・構図・衣装を編集する。
-- [BFS Best Face Swap](models/bfs-best-face-swap/README.md): 作品の構図を利用して、別人物の頭部または全身を反映する。頭部用と全身用の2つのワークフローを同梱。
-
-追加2モデルのイメージは **Build Qwen 2.1 Salad images** でビルドする。既存4モデルのビルドとは分けている。
-
-## ワークフローJSON
-
-各モデルの `workflows/` にVast版からコピーしたJSONを配置している。使用するJSONをローカルに保存し、Saladで開いたComfyUIへドラッグ＆ドロップして読み込む。
-
-| モデル | JSON |
-|---|---|
-| Qwen Rapid v19 | [batch-save-image.json](models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json) |
-| Qwen Edit 2509 | [official.json](models/qwen-image-edit-2509/workflows/official.json) |
-| Qwen Edit 2511 | [official.json](models/qwen-image-edit-2511/workflows/official.json) |
-| LTX 2.3 Q4 / I2V | [LTX-2.3_Uncensored_v1.4_Q4_I2V.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_Uncensored_v1.4_Q4_I2V.json) |
-| LTX 2.3 / Two Stage Distilled | [LTX-2.3_T2V_I2V_Two_Stage_Distilled.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json) |
-
-コピー元は対応する `models/` 内の同名ファイル。JSONを手動で読み込むだけならイメージの再ビルドは不要。入力画像やプロンプトをComfyUI上で設定して使う。LTXの2つは用途・モデル構成が異なるため、読み込んだ後にモデル選択を確認する。今回の配置では起動・生成の確認は行っていない。
-
-## ビルド
-
-repository rootをcontextにして、モデルごとに実行する。
+リポジトリのルートをビルド context にする。
 
 ```bash
-docker build --platform linux/amd64 \
-  -f salad/models/qwen-rapid-aio-nsfw-v19/Dockerfile \
-  -t qwen-salad:qwen-rapid-aio-nsfw-v19 .
+docker build --platform linux/amd64 -f salad/Dockerfile -t salad:local .
 ```
 
-他の3モデルも上記のモデル名を置換する。setup.shはbuild専用で、巨大モデルの取得・GPU確認・ComfyUI起動を行わない。start.shは起動時にprepare_models.shを実行し、成功したときだけComfyUIとsocatを起動する。
+Container Group では `MODEL` に以下のいずれかを指定する。
 
-GitHub Actionsの **Build Salad images** を手動実行すると4モデルをGHCRへpushする。GITHUB_TOKENを使い、タグは `sha-<full commit SHA>`。成功したActionsのログに表示されたimage名とSHAタグをContainer Groupへ指定する。GHCR pushはローカル検証の対象外。private packageならPortalのregistry認証を設定する。公開packageを使う場合はGitHubのpackage visibilityを確認する。
+- `qwen-rapid-aio-nsfw-v19`
+- `qwen-rapid-aio-nsfw-v23`
+- `qwen-image-edit-2509`
+- `qwen-image-edit-2511`
+- `ltx-2.3-uncensored-v1.4-q4`
+- `qwen-image-2.1-uncensored-gguf`
 
-## Container Group設定
+`COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PASSWORD` も必須。Container Gateway は HTTPS、port 8189、Gateway 側の認証は無効にし、コンテナ内の HTTP Basic 認証を使用する。ComfyUI は localhost の port 8188 で起動し、認証 proxy を経由して公開される。`GET /healthz` は認証不要の readiness probe に使える。モデルの取得中は Gateway を開かない。取得失敗や ComfyUI の停止時はコンテナが終了する。
 
-| 項目 | 設定 |
-|---|---|
-| Container image | 成功したGHCR buildログの対象モデルimage・SHAタグ |
-| Replica count | 1 |
-| GPU | モデルに必要なVRAMを持つGPUを選択。実GPUで未検証 |
-| Container Gateway | enabled |
-| Container Gateway port | 8189 |
-| Gateway authentication | disabled; the container requires HTTP Basic authentication before ComfyUI |
-| Protocol | HTTPS |
-| Disk Space | Qwenはモデル約30〜32GBに加えimageと作業領域が必要。初期目安として50GB級の空き領域を確保（実環境未検証） |
+ビルド用 GitHub Actions は手動起動のみ。両方の workflow は共通イメージ `ghcr.io/<owner>/<repo>/salad:sha-<commit>` をビルドする。従来のモデル別タグは発行しない。課金の有無が未確認のため、この手順では Actions や Salad の Container Group を実行しない。
 
-[SaladのContainer Gateway](https://salad.com/developers/)はIPv6受信を使用する。ComfyUIは `127.0.0.1:8188` にbindし、認証proxyは `127.0.0.1:8190` でHTTPとWebSocketを中継する。socatは `[::]:8189` から認証proxyへのみ転送する。Gateway側のAPI-key認証はWeb UIとの互換性のため無効とし、proxyが全てのComfyUI要求にHTTP Basic認証を要求する。GatewayはHTTPSを使用すること。
+## 環境と注意点
 
-Container Groupの環境変数に `COMFY_GATEWAY_USER` と20文字以上のランダムな `COMFY_GATEWAY_PASSWORD` を設定する。パスワードをリポジトリ、workflow、起動引数、ログへ書かない。どちらかが未設定ならComfyUI公開ポートは起動しない。ブラウザは初回アクセス時に認証情報を入力する。`GET /healthz` だけは認証不要で、ComfyUIの起動状態のみを `ok` または503で返す。既存のイメージにはこのproxyがないため、新しいイメージへ更新するまでは認証なしのままである。
+初期環境は PyTorch 2.11 / CUDA 13.0。`/workspace/qwen_vast_sh` に Vast 側の `models/` と `scripts/` を配置し、`/venv/main/bin/python` を用意する。setup.sh が依存を更新した後の環境はモデルごとのスクリプトに従う。`MODEL` の切替時はコンテナを再作成する。
 
-interactive Web UIはreplicaを1にして、ComfyUI状態が複数containerへ分散するのを避ける。モデル取得中はUIが起動しない。PortalのContainer logsで取得状況・失敗を確認し、準備完了後にGatewayのHTTPS URLをブラウザで開いてworkflowを選択する。初回は数十GBの取得に時間がかかり、回線によって待ち時間が変わる。
+モデル取得には数十 GB の空き容量と GPU が必要な場合がある。入力・生成物・取得済みモデルはコンテナのローカルストレージに置かれる。永続ボリュームを使わない場合、再配置時に失われる可能性がある。Rapid 系 setup.sh は cloudflared 実行ファイルも用意するが、ComfyUI の公開経路は Salad の認証付き Gateway を使用する。
 
-[readiness probe](https://salad-tech.readme.io/reference/create_container_group)を設定する場合はHTTP `GET /healthz`、port `8189` を指定する。モデル取得中の失敗は正常な待機状態として扱い、短いliveness/startup timeoutでダウンロードを繰り返し中断しないよう設定する。
-
-`COMFY_PORT`、`AUTH_PORT`、`GATEWAY_PORT` は環境変数で変更できる。変更時はGateway portとprobeも一致させる。いずれかのプロセス終了、SIGTERM、SIGINTで全プロセスを停止しcontainerを終了する。モデルDL失敗時はUIを起動せず非zeroで終了する。
-
-## モデルと保存領域
-
-巨大モデルはimageに含めず起動時に取得する。Qwenは既知SHA-256を検証し、正常な既存ファイルは再取得しない。LTXは既存Vast download_models.pyを再利用し配布元サイズを確認してから `.part` を最終名へ変更する。LTXはSHA-256が既存設定にないため、同サイズの破損の検出はできない。HF_REVISION=mainを維持しており再現性上の未固定点である。
-
-入力、生成物、手動編集workflowはcontainer local filesystemに置かれ、停止・node reallocationで失われる可能性がある。再allocation後はモデルの再取得が必要になる。必要な生成物は利用中に回収する。R2/S3同期、Vastのflatten/output syncの流用は行わない。
-
-## 固定環境
-
-4モデルともlinux/amd64、Python 3.12、CUDA 12.8.1を使用する。
-
-- base: `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04`
-- amd64 digest: `sha256:9175fa92f96de35a8cfb9493f0dfcf9435c7a597e9d95ad41d2cae382a95e3f9`（Docker Registry manifest APIで存在確認）
-- ComfyUI: `15eb748b3ec5f8a0a2d470b7fb280e2d7579f916`（既存Rapidと同じ）
-- bootstrap uv: 0.11.28（配布アーカイブSHA-256検証）。Python lockにはuv 0.12.10が含まれ、依存導入後のPATHではこの固定版を使用する
-- Rapid requirements.lockを共通基盤として使用: torch 2.11.0+cu128、torchvision 0.26.0+cu128、torchaudio 2.11.0+cu128、comfy-cli 1.20.0
-- DWPose: `0cd290477128d42cdc3e76a826a402d866e8c684`
-- AnimePose: `315e758b17a578a7efb9b3eb95fdf4061d256866`
-- GGUF Loader: `142c614fe6852f18a513742cc098fd13d72320a9`
-
-custom nodeの追加依存は各requirements.txtからuvで導入するため、全依存の完全なlockではない。Qwen設定・workflow、LTX設定・downloaderをVastからCOPYするが、Vast setupは実行しない。2511 workflowのfilename置換はbuild内のコピーだけに適用する。
-
-## ローカル検証
-
-```bash
-find models salad scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
-python3 -m unittest discover -s salad/tests -v
-python3 -m unittest discover -s models/ltx-2.3-uncensored-v1.4-q4/tests -v
-git diff --check
-```
-
-SaladCloudでのContainer Group作成、GPU認識、巨大モデル実DL、Gateway/WebSocket接続、実生成、GHCR pushは未検証。ローカルbuild成功はGPU実環境での動作保証ではない。
-
-2026-10-07にWSL Ubuntu-24.04 / Docker Engine 29.8.2で4モデルのbuildを確認した。Docker inspectのサイズはRapid約21.6GB、2509/2511約23.3GB、LTX約22.6GB。ネットワーク無効のcontainer内で固定torch関連バージョン、workflow JSON、巨大モデル未同梱、uv pip checkを確認した。WSLで全shell構文検査、Python構文検査、LTX 4件・Salad 7件のオフラインテスト、JSON、Actions YAML、contextハッシュ、Vast変更範囲の検証を実施した。
+ローカル検証は `bash -n`、`python3 -m unittest discover -s salad/tests -v`、`git diff --check` で行う。GPU、巨大モデルのダウンロード、Gateway の実接続、画像生成は別途無料と確認できる環境でのみ検証する。

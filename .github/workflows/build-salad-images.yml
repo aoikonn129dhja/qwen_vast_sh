@@ -1,33 +1,13 @@
-name: Build Salad images
+name: Build Salad image
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/build-salad-images.yml
-      - salad/models/qwen-image-edit-2511/**
   workflow_dispatch:
-    inputs:
-      model:
-        description: Model to build
-        type: choice
-        default: all
-        options:
-          - all
-          - qwen-rapid-aio-nsfw-v19
-          - qwen-image-edit-2509
-          - qwen-image-edit-2511
-          - ltx-2.3-uncensored-v1.4-q4
+  workflow_call:
 permissions:
   contents: read
   packages: write
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        model: ${{ fromJSON(github.event_name == 'push' && '["qwen-image-edit-2511"]' || (inputs.model == 'all' && '["qwen-rapid-aio-nsfw-v19","qwen-image-edit-2509","qwen-image-edit-2511","ltx-2.3-uncensored-v1.4-q4"]' || format('["{0}"]', inputs.model))) }}
     steps:
       - uses: actions/checkout@v4
       - name: Free space for CUDA and PyTorch layers
@@ -40,7 +20,7 @@ jobs:
         shell: bash
         env:
           REPOSITORY: ${{ github.repository }}
-        run: echo "name=ghcr.io/${REPOSITORY,,}/salad-${{ matrix.model }}" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${REPOSITORY,,}/salad" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -49,7 +29,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: salad/models/${{ matrix.model }}/Dockerfile
+          file: salad/Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.image.outputs.name }}:sha-${{ github.sha }}

@@ -4,7 +4,7 @@
 
 ## 操作
 
-1. SaladのContainer Group `qwen-image-21-uncensored-gguf` を使用する。構成作成時はAutostartを無効にする。
+1. 共通イメージを使用し、`MODEL=qwen-image-2.1-uncensored-gguf` を指定する。構成作成時はAutostartを無効にする。
 2. ユーザー自身がStartを押すとモデルをダウンロードし、その後ComfyUIが起動する。起動中は課金される。
 3. Container Logsで `Starting server` を確認し、GatewayのHTTPS URLを開く。
 4. 下記のJSONをComfyUIにドラッグ＆ドロップする。
@@ -17,8 +17,8 @@
 ## 構成
 
 - NVIDIA RTX 5090 (32 GB)、CPU 4 vCPU、RAMは初期目安32 GB、Replicas 1。
-- Gateway 8189、IPv6転送、認証なし。URLを知る人がアクセスできる。
-- ComfyUI固定コミット: `c9d8a6e69c4b5ab7fa0f789e7b988c172cd31fc9`。
+- Gateway 8189。`COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PASSWORD` が必要。
+- ComfyUIと依存の導入は Vast 側の setup.sh に従う。
 - 巨大モデルはDockerイメージに含めず、起動時に固定revisionから取得しSHA-256を検証する。詳細は `source_manifest.json`。
 - `workflows/source/` は配布元から取得した原本。直接使用すると追加ノードや任意モデルが必要になる。上記の読み込み用JSONは原本の入力契約を参考に構成し、任意の8-step加速LoRAは使用せず25-stepで実行する。
 - 保存領域はコンテナ内。停止・再配置に備えて生成物を手元へ保存する。
@@ -26,7 +26,7 @@
 ## ビルド
 
 ```bash
-docker build --platform linux/amd64 -f salad/models/qwen-image-21-uncensored-gguf/Dockerfile -t salad-qwen-image-21-uncensored-gguf .
+docker build --platform linux/amd64 -f salad/Dockerfile -t salad:local .
 ```
 
 GitHub Actionsからビルド・GHCR公開後、そのSHAタグをSaladへ指定する。リポジトリのCLIで作成し、停止状態を確認する。Codexによる有料起動・生成は禁止。
