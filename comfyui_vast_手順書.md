@@ -75,6 +75,30 @@ cd /workspace/ComfyUI
 zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip"
 ```
 
+### タスクマネージャーの開き方
+```
+watch -n 1 nvidia-smi
+```
+
+### ComfyUIの再起動
+#### 再起動コマンド
+```sh
+pkill -f '[p]ython.*main.py' || true
+sleep 2
+
+cd /workspace/ComfyUI
+
+nohup /venv/main/bin/python main.py \
+  --listen 0.0.0.0 \
+  --port 8188 \
+  > /workspace/comfyui.log 2>&1 &
+```
+
+#### 再起動確認
+```sh
+tail -f /workspace/comfyui.log
+```
+
 ### Qwen Rapid v19のバッチ生成
 
 ```bash
