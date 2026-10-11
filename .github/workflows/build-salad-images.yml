@@ -1,5 +1,13 @@
 name: Build Salad image
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-salad-images.yml
+      - salad/**
+      - models/**
+      - scripts/**
   workflow_dispatch:
   workflow_call:
 permissions:

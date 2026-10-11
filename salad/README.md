@@ -21,7 +21,7 @@ Container Group では `MODEL` に以下のいずれかを指定する。
 
 `COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PASSWORD` も必須。Container Gateway は HTTPS、port 8189、Gateway 側の認証は無効にし、コンテナ内の HTTP Basic 認証を使用する。ComfyUI は localhost の port 8188 で起動し、認証 proxy を経由して公開される。`GET /healthz` は認証不要の readiness probe に使える。モデルの取得中は Gateway を開かない。取得失敗や ComfyUI の停止時はコンテナが終了する。
 
-ビルド用 GitHub Actions は手動起動のみ。両方の workflow は共通イメージ `ghcr.io/<owner>/<repo>/salad:sha-<commit>` をビルドする。従来のモデル別タグは発行しない。課金の有無が未確認のため、この手順では Actions や Salad の Container Group を実行しない。
+`main` の Salad・Vast モデル・セットアップスクリプト・ビルド workflow の変更をプッシュすると GitHub Actions が共通イメージ `ghcr.io/<owner>/<repo>/salad:sha-<commit>` をビルドする。手動起動も可能。従来のモデル別タグは発行しない。Salad の Container Group は自動起動しない。
 
 ## 環境と注意点
 
