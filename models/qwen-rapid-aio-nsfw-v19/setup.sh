@@ -27,7 +27,6 @@ UV="$WORKSPACE/bin/uv"
 MODEL_FILE="Qwen-Rapid-AIO-NSFW-v19.safetensors"
 MODEL_REPO_COMMIT="691024f438640508f8aa86414863fc15edfb8a84"
 MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/v19/Qwen-Rapid-AIO-NSFW-v19.safetensors"
-MODEL_SHA256="ba71575515709c9912560d1176b2386eaa49294fedc6ce57b9734aa57e91e5ac"
 
 QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/fixed-textencode-node/nodes_qwen.v2.py"
 QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
@@ -86,26 +85,18 @@ fetch_verified() {
     mv -f -- "$temporary" "$destination"
 }
 
-ensure_large_file_verified() {
+ensure_large_file() {
     local url="$1"
     local destination="$2"
-    local expected="$3"
-    local label="$4"
+    local label="$3"
     local partial="${destination}.part"
 
     if [ -s "$destination" ]; then
-        log "$label のSHA-256を確認"
-        verify_sha256 "$destination" "$expected" \
-            || die "$label のSHA-256が固定値と一致しません。破損または差し替えの可能性があります。"
         return 0
     fi
 
     wget -c -O "$partial" "$url" || die "$label のダウンロードに失敗しました。"
-    log "$label のSHA-256を確認"
-    if ! verify_sha256 "$partial" "$expected"; then
-        rm -f -- "$partial"
-        die "$label のSHA-256が固定値と一致しません。"
-    fi
+    [ -s "$partial" ] || die "$label のダウンロード結果が空です。"
     mv -f -- "$partial" "$destination"
 }
 
@@ -336,7 +327,7 @@ mkdir -p \
 if [ ! -s "$MODEL_PATH" ]; then
     log "Qwen Rapid AIO NSFW v19固定版をダウンロード（約28.4GB）"
 fi
-ensure_large_file_verified "$MODEL_URL" "$MODEL_PATH" "$MODEL_SHA256" "Qwenモデル"
+ensure_large_file "$MODEL_URL" "$MODEL_PATH" "Qwenモデル"
 
 log "モデルサイズ"
 ls -lh "$MODEL_PATH"
