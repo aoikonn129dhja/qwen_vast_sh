@@ -2,11 +2,11 @@
 set -Eeuo pipefail
 
 MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "$MODEL_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
 
 # ============================================================
 # Vast.ai / PyTorch (Vast)
-# Qwen Rapid AIO NSFW v23 + ComfyUI one-shot setup
+# Qwen Rapid AIO NSFW v19 + ComfyUI one-shot setup
 # ============================================================
 
 WORKSPACE="/workspace"
@@ -24,16 +24,16 @@ UV_ARCHIVE_SHA256="e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0
 UV_BIN_SHA256="1cb9cd0a1749debf6049d7d2bb933882cc52d81016326ee6d99a786d6c988b03"
 UV="$WORKSPACE/bin/uv"
 
-MODEL_FILE="Qwen-Rapid-AIO-NSFW-v23.safetensors"
+MODEL_FILE="Qwen-Rapid-AIO-NSFW-v19.safetensors"
 MODEL_REPO_COMMIT="691024f438640508f8aa86414863fc15edfb8a84"
-MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/v23/Qwen-Rapid-AIO-NSFW-v23.safetensors"
-MODEL_SHA256="fdb919fc81bea63f13759967fc92c9118142e5c70d4e6795199233a35eefa233"
+MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/v19/Qwen-Rapid-AIO-NSFW-v19.safetensors"
+MODEL_SHA256="ba71575515709c9912560d1176b2386eaa49294fedc6ce57b9734aa57e91e5ac"
 
 QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/fixed-textencode-node/nodes_qwen.v2.py"
 QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
 
 REPO_WORKFLOW="$MODEL_DIR/workflows/batch-save-image.json"
-WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v23-Batch.json"
+WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v19-Batch.json"
 BATCH_ROOT="$WORKSPACE/qwen_batch"
 
 COMFY_LOG="$WORKSPACE/comfyui.log"
@@ -334,7 +334,7 @@ mkdir -p \
 # Model
 # ------------------------------------------------------------
 if [ ! -s "$MODEL_PATH" ]; then
-    log "Qwen Rapid AIO NSFW v23固定版をダウンロード（約28.4GB）"
+    log "Qwen Rapid AIO NSFW v19固定版をダウンロード（約28.4GB）"
 fi
 ensure_large_file_verified "$MODEL_URL" "$MODEL_PATH" "$MODEL_SHA256" "Qwenモデル"
 
@@ -359,46 +359,13 @@ fetch_verified "$QWEN_NODE_URL" "$QWEN_NODE" "$QWEN_NODE_SHA256" "nodes_qwen.v2.
 # Repository workflow
 # ------------------------------------------------------------
 log "リポジトリの workflow を ComfyUI に配置"
-"$PYTHON" - "$REPO_WORKFLOW" "$WORKFLOW_FILE" "$MODEL_FILE" <<'WORKFLOW_PY'
-import json
-from pathlib import Path
-import sys
-
-source, destination = map(Path, sys.argv[1:3])
-checkpoint = sys.argv[3]
-data = json.loads(source.read_text(encoding="utf-8"))
-loaders = [node for node in data.get("nodes", []) if node.get("type") == "CheckpointLoaderSimple"]
-if len(loaders) != 1:
-    raise SystemExit("ERROR: checkpoint loader node must occur exactly once")
-node = loaders[0]
-node["widgets_values"][0] = checkpoint
-node.setdefault("widgets_values_named", {})["ckpt_name"] = checkpoint
-destination.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-WORKFLOW_PY
+cp -f "$REPO_WORKFLOW" "$WORKFLOW_FILE"
 
 if [ -f "$MODEL_DIR/run_batch.sh" ]; then
     chmod +x "$MODEL_DIR/run_batch.sh"
 fi
 
 # ------------------------------------------------------------
-# Load Image With Filename custom node
-CUSTOM_NODE_DIR="$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
-CUSTOM_NODE_REPO="https://github.com/kymeraj/comfyui-load-image-with-filename.git"
-if [ -e "$CUSTOM_NODE_DIR" ] || [ -L "$CUSTOM_NODE_DIR" ]; then
-    if [ ! -d "$CUSTOM_NODE_DIR/.git" ] \
-        || [ ! -f "$CUSTOM_NODE_DIR/__init__.py" ] \
-        || [ ! -f "$CUSTOM_NODE_DIR/load_image_with_filename.py" ] \
-        || ! git -C "$CUSTOM_NODE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-        || [ "$(git -C "$CUSTOM_NODE_DIR" remote get-url origin 2>/dev/null || true)" != "$CUSTOM_NODE_REPO" ]; then
-        die "不完全なカスタムノードを検出しました: $CUSTOM_NODE_DIR"
-    fi
-    log "カスタムノードを確認: $CUSTOM_NODE_DIR"
-else
-    log "カスタムノードを取得: $CUSTOM_NODE_REPO"
-    mkdir -p "$COMFY_DIR/custom_nodes"
-    git clone "$CUSTOM_NODE_REPO" "$CUSTOM_NODE_DIR"
-fi
-
 # Stop previous ComfyUI / tunnel if this script is re-run
 # ------------------------------------------------------------
 if pgrep -f "python main.py.*8188" >/dev/null 2>&1; then
@@ -489,7 +456,7 @@ echo "  $BATCH_ROOT/input"
 echo "Prompts Markdown:"
 echo "  $BATCH_ROOT/prompts.md"
 echo "Batch command:"
-echo "  bash $MODEL_DIR/run_batch.sh $BATCH_ROOT/input $BATCH_ROOT/prompts.md $WORKFLOW_FILE"
+echo "  bash $MODEL_DIR/run_batch.sh"
 echo
 echo "ComfyUI local:"
 echo "  http://127.0.0.1:8188"

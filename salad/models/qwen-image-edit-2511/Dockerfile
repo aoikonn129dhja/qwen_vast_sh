@@ -10,8 +10,8 @@ COPY salad/models/qwen-image-edit-2511/requirements-runtime.lock /opt/profile/re
 COPY salad/models/qwen-image-edit-2511/verify_runtime.py /opt/profile/verify_runtime.py
 RUN bash -c 'source /opt/salad/common/setup_base.sh; clone_pinned https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR" "$COMFYUI_COMMIT"; uv pip install --system --python "$PYTHON" --no-deps --require-hashes -r /opt/profile/requirements-runtime.lock; uv pip check --system --python "$PYTHON"; mkdir -p "$COMFY_DIR/user/default/workflows" "$COMFY_DIR/input" "$COMFY_DIR/output"; "$PYTHON" /opt/profile/verify_runtime.py'
 COPY salad/models/qwen-image-edit-2511/ /opt/salad/model/
-COPY vast/models/qwen-image-edit-2511/model.conf /opt/profile/model.conf
-COPY vast/models/qwen-image-edit-2511/workflows/ /opt/profile/workflows/
+COPY models/qwen-image-edit-2511/model.conf /opt/profile/model.conf
+COPY models/qwen-image-edit-2511/workflows/ /opt/profile/workflows/
 RUN bash /opt/salad/model/setup.sh && uv pip check --system --python "$PYTHON" && "$PYTHON" /opt/profile/verify_runtime.py
 COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189

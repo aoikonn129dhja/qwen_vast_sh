@@ -4,7 +4,7 @@ Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するため�
 
 ## プロバイダを選ぶ
 
-- `vast/`: Vast.ai用。以下の手順を使用する。
+- `models/`: Vast.ai用モデル設定。以下の手順を使用する。
 - `salad/`: SaladCloud用。詳細は [salad/README.md](salad/README.md) を参照する。
 
 ## モデルを選ぶ
@@ -14,7 +14,7 @@ Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するため�
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
 cd /workspace/qwen_vast_sh
-cd vast/models/qwen-rapid-aio-nsfw-v19
+cd models/qwen-rapid-aio-nsfw-v19
 bash setup.sh
 ```
 
@@ -28,7 +28,7 @@ bash setup.sh
 Rapid v19のバッチ実行:
 
 ```bash
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ## リポジトリ構成
@@ -36,7 +36,7 @@ bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```text
 qwen_vast_sh/
 ├─ salad/                     # SaladCloud containers
-├─ vast/models/
+├─ models/
 │  ├─ qwen-rapid-aio-nsfw-v19/
 │  │  ├─ setup.sh
 │  │  ├─ run_batch.sh
@@ -58,11 +58,12 @@ qwen_vast_sh/
 │  │  └─ model.conf
 │  └─ qwen-rapid-aio-v1-reference/
 │     └─ workflows/two-input-preview.json
+├─ tools/                      # Vast出力同期ツール
 ├─ scripts/
 │  ├─ setup_qwen_edit_model.sh
 │  └─ flatten_output.sh
 ├─ local_tools/
-├─ comfyui_cli_batch_手順書.md
+├─ comfyui_vast_手順書.md
 └─ README.md
 ```
 
@@ -70,7 +71,7 @@ qwen_vast_sh/
 
 ## Rapid v19 setupの処理
 
-`vast/models/qwen-rapid-aio-nsfw-v19/setup.sh` は次を行う。
+`models/qwen-rapid-aio-nsfw-v19/setup.sh` は次を行う。
 
 1. GPUとDiskの確認
 2. Hugging Faceへの実ダウンロード速度の事前測定
@@ -174,7 +175,7 @@ input/
 標準構成なら引数なしで実行できる。
 
 ```bash
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ## ComfyUI 自動起動
@@ -264,13 +265,13 @@ URL が漏れても、認証情報がなければプレビュー画像を取得�
 無効化する場合:
 
 ```bash
-PREVIEW_ENABLED=0 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+PREVIEW_ENABLED=0 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 プレビューポートを変更する場合:
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ## Preview URL を再生成する
@@ -278,13 +279,13 @@ PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v
 `Preview URL` が `ERR_NAME_NOT_RESOLVED` などで開けなくなった場合は、バッチ処理を止めずに Cloudflare Quick Tunnel だけを再起動できる。
 
 ```bash
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 新しい `Preview URL`、ユーザー名、現在のパスワードが Terminal に表示される。古い URL は使用できなくなる。標準以外のプレビューポートで `run_batch.sh` を起動した場合は、同じポートを指定する。
 
 ```bash
-PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
+PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/restart_preview_tunnel.sh
 ```
 
 ---
@@ -294,7 +295,7 @@ PREVIEW_PORT=8877 bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v
 バッチのベース workflow:
 
 ```text
-/workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
+/workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
 ```
 
 主要 slot address:
@@ -339,7 +340,7 @@ Input    : normal.png 1536x2048 (kept)
 
 ```bash
 DOWNSCALE_LARGE_INPUTS=0 \
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 この縮小はステージ用のコピーにだけ行う。`/workspace/qwen_batch/input/` 内の元画像は書き換えない。
@@ -350,7 +351,7 @@ bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 
 ```bash
 MATCH_INPUT_ASPECT=1 \
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 画像のEXIF回転を考慮した縦横比を使い、モデルで扱いやすいよう幅と高さをそれぞれ64px刻みに丸める。そのため画素数と縦横比は僅かに誤差が出る。`MATCH_INPUT_ASPECT=1` と `WIDTH` / `HEIGHT` は同時に指定できない。
@@ -366,14 +367,14 @@ SCHEDULER=beta \
 WIDTH=1536 \
 HEIGHT=2048 \
 SEED=123456 \
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ネガティブプロンプトを全ジョブ共通で上書きする場合:
 
 ```bash
 NEGATIVE_PROMPT="negative prompt" \
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
 ---
@@ -637,7 +638,7 @@ find /workspace/qwen_batch/output -maxdepth 2 -type f | head -n 50
 
 ```bash
 /venv/main/bin/comfy --where local workflow slots \
-  /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
+  /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/workflows/batch-save-image.json
 ```
 
 ## Preview ログ

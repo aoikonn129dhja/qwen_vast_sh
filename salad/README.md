@@ -1,6 +1,6 @@
 # SaladCloud ComfyUI Web UI
 
-Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版は `../vast/models/` を使用する。Rapidのバッチ、preview tunnel、Windows出力同期はSaladへ移植していない。
+Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版は `../models/` を使用する。Rapidのバッチ、preview tunnel、Windows出力同期はSaladへ移植していない。
 
 対応モデルは `qwen-rapid-aio-nsfw-v19`、`qwen-image-edit-2509`、`qwen-image-edit-2511`、`ltx-2.3-uncensored-v1.4-q4` の4種類。参照専用のRapid v1は対象外。
 
@@ -23,7 +23,7 @@ Salad版は通常のComfyUI Web UIをDocker containerで提供する。Vast版�
 | LTX 2.3 Q4 / I2V | [LTX-2.3_Uncensored_v1.4_Q4_I2V.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_Uncensored_v1.4_Q4_I2V.json) |
 | LTX 2.3 / Two Stage Distilled | [LTX-2.3_T2V_I2V_Two_Stage_Distilled.json](models/ltx-2.3-uncensored-v1.4-q4/workflows/LTX-2.3_T2V_I2V_Two_Stage_Distilled.json) |
 
-コピー元は対応する `vast/models/` 内の同名ファイル。JSONを手動で読み込むだけならイメージの再ビルドは不要。入力画像やプロンプトをComfyUI上で設定して使う。LTXの2つは用途・モデル構成が異なるため、読み込んだ後にモデル選択を確認する。今回の配置では起動・生成の確認は行っていない。
+コピー元は対応する `models/` 内の同名ファイル。JSONを手動で読み込むだけならイメージの再ビルドは不要。入力画像やプロンプトをComfyUI上で設定して使う。LTXの2つは用途・モデル構成が異なるため、読み込んだ後にモデル選択を確認する。今回の配置では起動・生成の確認は行っていない。
 
 ## ビルド
 
@@ -86,9 +86,9 @@ custom nodeの追加依存は各requirements.txtからuvで導入するため、
 ## ローカル検証
 
 ```bash
-find vast salad scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+find models salad scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
 python3 -m unittest discover -s salad/tests -v
-python3 -m unittest discover -s vast/models/ltx-2.3-uncensored-v1.4-q4/tests -v
+python3 -m unittest discover -s models/ltx-2.3-uncensored-v1.4-q4/tests -v
 git diff --check
 ```
 

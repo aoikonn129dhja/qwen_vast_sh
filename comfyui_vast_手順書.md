@@ -21,29 +21,29 @@ clone済みの場合は次で更新する。未コミットの変更がある場
 git -C /workspace/qwen_vast_sh pull --ff-only origin main
 ```
 
-利用可能なセットアップスクリプトを確認する。旧手順書の `find models ...` は現在のディレクトリ構成と一致しない。
+利用可能なセットアップスクリプトを確認する。
 
 ```bash
-find /workspace/qwen_vast_sh/vast/models -mindepth 2 -maxdepth 2 -type f -name setup.sh -printf '%h\n'
+find /workspace/qwen_vast_sh/models -mindepth 2 -maxdepth 2 -type f -name setup.sh -printf '%h\n'
 ```
 
 **使いたいモデルを1つ選び**、以下の該当コマンドだけを実行する。ルートにある共通 `setup.sh` にモデル名を渡す方式ではない。
 
 ```bash
 # Qwen Rapid v19
-cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19 && bash setup.sh
+cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19 && bash setup.sh
 
 # Qwen Rapid v23
-cd /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v23 && bash setup.sh
+cd /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v23 && bash setup.sh
 
 # Qwen Image Edit 2509
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2509 && bash setup.sh
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2509 && bash setup.sh
 
 # Qwen Image Edit 2511
-cd /workspace/qwen_vast_sh/vast/models/qwen-image-edit-2511 && bash setup.sh
+cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511 && bash setup.sh
 
 # LTX-2.3 Q4
-cd /workspace/qwen_vast_sh/vast/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
+cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
 ```
 
 モデルのダウンロード元への事前速度測定を行うセットアップがある。Qwen系列では既定10 MiB/s未満の場合に続行確認または非対話実行の停止が発生し得る。必要な場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。

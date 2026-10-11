@@ -9,8 +9,8 @@ COPY salad/common/ /opt/salad/common/
 COPY salad/requirements.lock /opt/profile/requirements.lock
 RUN bash -c 'source /opt/salad/common/setup_base.sh; setup_base'
 COPY salad/models/qwen-image-edit-2509/ /opt/salad/model/
-COPY vast/models/qwen-image-edit-2509/model.conf /opt/profile/model.conf
-COPY vast/models/qwen-image-edit-2509/workflows/ /opt/profile/workflows/
+COPY models/qwen-image-edit-2509/model.conf /opt/profile/model.conf
+COPY models/qwen-image-edit-2509/workflows/ /opt/profile/workflows/
 RUN bash /opt/salad/model/setup.sh
 COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189

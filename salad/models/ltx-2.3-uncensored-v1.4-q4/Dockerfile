@@ -9,8 +9,8 @@ COPY salad/common/ /opt/salad/common/
 COPY salad/requirements.lock /opt/profile/requirements.lock
 RUN bash -c 'source /opt/salad/common/setup_base.sh; setup_base'
 COPY salad/models/ltx-2.3-uncensored-v1.4-q4/ /opt/salad/model/
-COPY vast/models/ltx-2.3-uncensored-v1.4-q4/model.conf /opt/profile/model.conf
-COPY vast/models/ltx-2.3-uncensored-v1.4-q4/download_models.py vast/models/ltx-2.3-uncensored-v1.4-q4/*.json /opt/profile/
+COPY models/ltx-2.3-uncensored-v1.4-q4/model.conf /opt/profile/model.conf
+COPY models/ltx-2.3-uncensored-v1.4-q4/download_models.py models/ltx-2.3-uncensored-v1.4-q4/*.json /opt/profile/
 RUN bash /opt/salad/model/setup.sh
 COPY salad/common/watch_qwen_download.sh /watch_qwen_download.sh
 EXPOSE 8189

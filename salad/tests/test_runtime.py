@@ -121,7 +121,7 @@ while :; do sleep 0.1; done
         self.assertEqual(result.returncode, 2)
 
     def test_ltx_only_publishes_completed_download(self):
-        spec = importlib.util.spec_from_file_location('download_models', ROOT / 'vast/models/ltx-2.3-uncensored-v1.4-q4/download_models.py')
+        spec = importlib.util.spec_from_file_location('download_models', ROOT / 'models/ltx-2.3-uncensored-v1.4-q4/download_models.py')
         downloader = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(downloader)
         with mock.patch.dict('sys.modules', download_models=downloader):

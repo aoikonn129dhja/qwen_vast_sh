@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 # Run at any location after cloning qwen_vast_sh.
 REPO_ROOT="${1:-/workspace/qwen_vast_sh}"
-SOURCE="$REPO_ROOT/vast/models/qwen-rapid-aio-nsfw-v19"
-TARGET="$REPO_ROOT/vast/models/qwen-rapid-aio-nsfw-v23"
+SOURCE="$REPO_ROOT/models/qwen-rapid-aio-nsfw-v19"
+TARGET="$REPO_ROOT/models/qwen-rapid-aio-nsfw-v23"
 
 [ -d "$SOURCE" ] || { echo "ERROR: v19 source directory not found: $SOURCE" >&2; exit 1; }
 [ ! -e "$TARGET" ] || { echo "ERROR: target already exists (will not overwrite): $TARGET" >&2; exit 1; }
@@ -12,7 +12,7 @@ for file in setup.sh run_batch.sh restart_preview_tunnel.sh requirements.in requ
     [ -s "$SOURCE/$file" ] || { echo "ERROR: missing v19 source file: $file" >&2; exit 1; }
 done
 
-STAGE="$(mktemp -d "$REPO_ROOT/vast/models/.qwen-rapid-aio-nsfw-v23.XXXXXXXX")"
+STAGE="$(mktemp -d "$REPO_ROOT/models/.qwen-rapid-aio-nsfw-v23.XXXXXXXX")"
 cleanup() { if [ -n "${STAGE:-}" ] && [ -d "$STAGE" ]; then rm -rf -- "$STAGE"; fi; }
 trap cleanup EXIT
 cp -a "$SOURCE/." "$STAGE/"

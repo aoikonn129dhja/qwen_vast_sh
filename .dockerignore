@@ -1,9 +1,8 @@
 *
 !salad/
 !salad/**
-!vast/
-!vast/models/
-!vast/models/**
+!models/
+!models/**
 !scripts/
 !scripts/**
 .git

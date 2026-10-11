@@ -55,7 +55,7 @@
 cd /workspace/qwen_vast_sh
 git pull --ff-only origin main
 ```
-vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh を変更した場合に限り、続けて次の実行コマンドも提示すること。
+models/qwen-rapid-aio-nsfw-v19/run_batch.sh を変更した場合に限り、続けて次の実行コマンドも提示すること。
 ```
-bash /workspace/qwen_vast_sh/vast/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```

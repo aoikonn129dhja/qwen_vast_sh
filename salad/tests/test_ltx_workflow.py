@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = 'ltx-2.3-uncensored-v1.4-q4'
-VAST = ROOT / 'vast/models' / MODEL
+VAST = ROOT / 'models' / MODEL
 SALAD = ROOT / 'salad/models' / MODEL
 WORKFLOW = 'LTX-2.3_T2V_I2V_Two_Stage_Distilled.json'
 
