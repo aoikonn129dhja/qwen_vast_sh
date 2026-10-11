@@ -21,7 +21,7 @@ class AuthProxyTests(unittest.IsolatedAsyncioTestCase):
             if request.path == "/system_stats":
                 return web.json_response({"system": "ready"})
             if request.path == "/headers":
-                return web.json_response({"authorization": request.headers.get("Authorization"), "forwarded_for": request.headers.get("X-Forwarded-For")})
+                return web.json_response({"authorization": request.headers.get("Authorization"), "forwarded_for": request.headers.get("X-Forwarded-For"), "origin": request.headers.get("Origin")})
             if request.path == "/ws":
                 ws = web.WebSocketResponse()
                 await ws.prepare(request)
@@ -55,7 +55,7 @@ class AuthProxyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 200)
             self.assertEqual(await response.text(), "private")
         async with self.client.get(self.proxy.make_url("/headers"), headers={**self.auth, "X-Forwarded-For": "spoofed"}) as response:
-            self.assertEqual(await response.json(), {"authorization": None, "forwarded_for": None})
+            self.assertEqual(await response.json(), {"authorization": None, "forwarded_for": None, "origin": None})
         async with self.client.post(self.proxy.make_url("/upload/image"), data=b"test payload", headers=self.auth) as response:
             self.assertEqual(response.status, 200)
             self.assertEqual(await response.read(), b"test payload")
@@ -77,6 +77,15 @@ class AuthProxyTests(unittest.IsolatedAsyncioTestCase):
         headers = {**self.auth, "Origin": "https://attacker.invalid"}
         async with self.client.post(self.proxy.make_url("/prompt"), headers=headers) as response:
             self.assertEqual(response.status, 403)
+
+    async def test_same_origin_is_checked_but_not_forwarded(self):
+        origin = str(self.proxy.make_url("/")).rstrip("/")
+        async with self.client.get(self.proxy.make_url("/headers"), headers={**self.auth, "Origin": origin}) as response:
+            self.assertEqual(response.status, 200)
+            self.assertIsNone((await response.json())["origin"])
+        async with self.client.ws_connect(self.proxy.make_url("/ws"), headers={**self.auth, "Origin": origin}) as ws:
+            await ws.send_str("hello")
+            self.assertEqual((await ws.receive()).data, "hello")
 
     def test_credential_validation(self):
         with mock.patch.dict("os.environ", {"COMFY_GATEWAY_USER": "", "COMFY_GATEWAY_PASSWORD": ""}):

@@ -15,7 +15,7 @@ import aiohttp
 from aiohttp import WSMsgType, web
 
 HOP_HEADERS = {
-    "authorization", "connection", "content-length", "host", "keep-alive",
+    "authorization", "connection", "content-length", "host", "keep-alive", "origin",
     "proxy-authenticate", "proxy-authorization", "te", "trailer",
     "transfer-encoding", "upgrade", "x-forwarded-for", "x-forwarded-host",
     "x-forwarded-proto",
