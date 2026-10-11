@@ -47,7 +47,7 @@ def workflow_fields(workflow: object) -> dict:
 
     lora_enabled = setting("170:168", "value")
     sampler = inputs("170:169")
-    return {
+    fields = {
         "positive_prompt": setting("170:151", "prompt"),
         "negative_prompt": setting("170:149", "prompt"),
         "image_1": setting("41", "image"),
@@ -73,6 +73,44 @@ def workflow_fields(workflow: object) -> dict:
         "scheduler": setting("170:169", "scheduler"),
         "denoise": setting("170:169", "denoise"),
     }
+    # ComfyUI history contains the API prompt graph. Follow the sampler's
+    # conditioning links so node IDs can differ between saved workflows.
+    def node_by_type(*types: str) -> tuple[str | None, dict]:
+        for node_id, node in workflow.items():
+            if isinstance(node, dict) and node.get("class_type") in types:
+                return str(node_id), node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
+        return None, {}
+
+    def scalar(value):
+        return value if not isinstance(value, (list, dict)) else None
+
+    _, sampler_inputs = node_by_type("KSampler", "KSamplerAdvanced")
+    if sampler_inputs:
+        for field, input_name in (("positive_prompt", "positive"), ("negative_prompt", "negative")):
+            link = sampler_inputs.get(input_name)
+            if isinstance(link, list) and link:
+                prompt_node = workflow.get(str(link[0]))
+                prompt_inputs = prompt_node.get("inputs", {}) if isinstance(prompt_node, dict) else {}
+                if isinstance(prompt_inputs, dict):
+                    fields[field] = scalar(prompt_inputs.get("prompt")) or scalar(prompt_inputs.get("text"))
+        for field, input_name in (("seed", "seed"), ("steps", "steps"), ("cfg", "cfg"),
+                                  ("sampler", "sampler_name"), ("scheduler", "scheduler"),
+                                  ("denoise", "denoise")):
+            value = scalar(sampler_inputs.get(input_name))
+            if value is not None:
+                fields[field] = value
+
+    _, model_inputs = node_by_type("CheckpointLoaderSimple", "UNETLoader")
+    if model_inputs:
+        fields["model"] = scalar(model_inputs.get("ckpt_name")) or scalar(model_inputs.get("unet_name"))
+        fields["model_weight_dtype"] = scalar(model_inputs.get("weight_dtype"))
+    _, image_inputs = node_by_type("LoadImageWithFilename", "LoadImage")
+    if image_inputs:
+        fields["image_1"] = scalar(image_inputs.get("image"))
+    _, save_inputs = node_by_type("SaveImage", "SaveImageAdvanced")
+    if save_inputs and "filename_prefix" in save_inputs:
+        fields["filename_prefix"] = scalar(save_inputs["filename_prefix"])
+    return fields
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
