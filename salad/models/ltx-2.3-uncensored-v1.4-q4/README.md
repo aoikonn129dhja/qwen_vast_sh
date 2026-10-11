@@ -1,6 +1,6 @@
 # LTX-2.3 v1.4 Q4 Salad
 
-`workflows/` に単一段I2Vと二段階T2V/I2Vを配置しています。共通イメージに同梱される Vast 側の `models/ltx-2.3-uncensored-v1.4-q4/setup.sh` が起動時にモデルを準備します。Container Group では `MODEL=ltx-2.3-uncensored-v1.4-q4` を指定します。
+`workflows/` に単一段I2Vと二段階T2V/I2Vを配置しています。共通イメージを起動した後、SaladCloud のターミナルで `bash /opt/salad/select_model.sh ltx-2.3-uncensored-v1.4-q4` を実行します。Vast 側の `models/ltx-2.3-uncensored-v1.4-q4/setup.sh` がモデルを準備します。
 
 起動時はv1.4の5ファイルと公式x2 upscalerを取得します。upscalerは固定revisionとSHA-256で検証します。
 

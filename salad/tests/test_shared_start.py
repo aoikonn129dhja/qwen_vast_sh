@@ -6,7 +6,7 @@ import time
 import unittest
 
 
-START = Path(__file__).resolve().parents[1] / 'start.sh'
+SALAD = Path(__file__).resolve().parents[1]
 
 
 class SharedStartTests(unittest.TestCase):
@@ -14,54 +14,55 @@ class SharedStartTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.model = self.root / 'models' / 'sample'
-        self.model.mkdir(parents=True)
-        self.setup = self.model / 'setup.sh'
+        model = self.root / 'models' / 'sample'
+        model.mkdir(parents=True)
+        self.setup = model / 'setup.sh'
+        self.env = dict(os.environ, SALAD_REPO_ROOT=str(self.root), WORKSPACE=str(self.root),
+                        COMFY_GATEWAY_USER='user', COMFY_GATEWAY_PASSWORD='x' * 20)
 
-    def run_start(self, model='sample', password='x' * 20):
-        env = dict(os.environ, SALAD_REPO_ROOT=str(self.root), WORKSPACE=str(self.root),
-                   MODEL=model, COMFY_GATEWAY_USER='user', COMFY_GATEWAY_PASSWORD=password)
-        return subprocess.run(['bash', str(START)], env=env, capture_output=True, timeout=5)
+    def select(self, model='sample'):
+        return subprocess.run(['bash', str(SALAD / 'select_model.sh'), model],
+                              env=self.env, capture_output=True, timeout=5)
 
-    def test_missing_or_unknown_model(self):
-        self.assertEqual(self.run_start(model='').returncode, 2)
-        self.assertEqual(self.run_start(model='../sample').returncode, 2)
-        self.assertEqual(self.run_start(model='unknown').returncode, 2)
+    def test_unknown_model_is_rejected(self):
+        for model in ('', '../sample', 'unknown'):
+            self.assertEqual(self.select(model).returncode, 2)
 
-    def test_bad_credentials_prevent_setup(self):
-        marker = self.root / 'called'
-        self.setup.write_text(f'touch "{marker}"\n', encoding='utf-8')
-        self.assertEqual(self.run_start(password='short').returncode, 2)
-        self.assertFalse(marker.exists())
+    def test_start_requires_gateway_credentials(self):
+        env = dict(self.env, COMFY_GATEWAY_PASSWORD='short')
+        result = subprocess.run(['bash', str(SALAD / 'start.sh')], env=env,
+                                capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 2)
 
-    def test_failed_setup_does_not_start_gateway(self):
-        marker = self.root / 'called'
-        self.setup.write_text(f'touch "{marker}"\nexit 17\n', encoding='utf-8')
-        self.assertEqual(self.run_start().returncode, 17)
-        self.assertTrue(marker.exists())
+    def test_failed_setup_does_not_mark_ready(self):
+        self.setup.write_text('exit 17\n', encoding='utf-8')
+        self.assertEqual(self.select().returncode, 17)
+        self.assertFalse((self.root / '.salad-setup-ready').exists())
 
-    def test_missing_comfy_process_prevents_gateway(self):
+    def test_missing_comfy_process_does_not_mark_ready(self):
         self.setup.write_text('exit 0\n', encoding='utf-8')
-        self.assertEqual(self.run_start().returncode, 2)
+        self.assertEqual(self.select().returncode, 2)
+        self.assertFalse((self.root / '.salad-setup-ready').exists())
 
-    def test_comfy_stop_ends_gateway(self):
-        self.setup.write_text('sleep 1000 &\necho $! > "$WORKSPACE/comfyui.pid"\n', encoding='utf-8')
+    def test_manual_selection_opens_gateway_then_comfy_stop_ends_it(self):
+        self.setup.write_text('sleep 1000 >/dev/null 2>&1 &\necho $! > "$WORKSPACE/comfyui.pid"\n', encoding='utf-8')
         fake = self.root / 'fake-process'
-        fake.write_text('#!/usr/bin/env bash\nsleep 1000\n', encoding='utf-8')
+        fake.write_text('#!/usr/bin/env bash\nexec sleep 1000\n', encoding='utf-8')
         fake.chmod(0o755)
         (self.root / 'socat').symlink_to(fake)
-        env = dict(os.environ, SALAD_REPO_ROOT=str(self.root), WORKSPACE=str(self.root),
-                   MODEL='sample', COMFY_GATEWAY_USER='user', COMFY_GATEWAY_PASSWORD='x' * 20,
-                   PYTHON=str(fake), PATH=str(self.root) + ':' + os.environ['PATH'])
-        proc = subprocess.Popen(['bash', str(START)], env=env, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
+        env = dict(self.env, PYTHON=str(fake), PATH=str(self.root) + ':' + os.environ['PATH'])
+        proc = subprocess.Popen(['bash', str(SALAD / 'start.sh')], env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            pid_file = self.root / 'comfyui.pid'
-            deadline = time.monotonic() + 5
-            while not pid_file.exists() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            self.assertTrue(pid_file.exists())
-            os.kill(int(pid_file.read_text().strip()), 15)
+            time.sleep(0.2)
+            self.assertIsNone(proc.poll())
+            self.assertFalse((self.root / '.salad-setup-ready').exists())
+            self.assertEqual(self.select().returncode, 0)
+            self.assertEqual(self.select().returncode, 2)
+            pid = int((self.root / 'comfyui.pid').read_text().strip())
+            time.sleep(2.2)
+            self.assertIsNone(proc.poll())
+            os.kill(pid, 15)
             self.assertEqual(proc.wait(timeout=5), 2)
         finally:
             if proc.poll() is None:

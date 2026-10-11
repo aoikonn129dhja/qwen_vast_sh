@@ -4,7 +4,7 @@
 
 ## 操作
 
-1. 共通イメージを使用し、`MODEL=qwen-image-2.1-uncensored-gguf` を指定する。構成作成時はAutostartを無効にする。
+1. 共通イメージを使用する。構成作成時はAutostartを無効にする。起動後のターミナルで `bash /opt/salad/select_model.sh qwen-image-2.1-uncensored-gguf` を実行する。
 2. ユーザー自身がStartを押すとモデルをダウンロードし、その後ComfyUIが起動する。起動中は課金される。
 3. Container Logsで `Starting server` を確認し、GatewayのHTTPS URLを開く。
 4. 下記のJSONをComfyUIにドラッグ＆ドロップする。

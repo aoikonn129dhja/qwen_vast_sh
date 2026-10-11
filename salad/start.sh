@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO_ROOT="${SALAD_REPO_ROOT:-/workspace/qwen_vast_sh}"
 WORKSPACE="${WORKSPACE:-/workspace}"
 PYTHON="${PYTHON:-/venv/main/bin/python}"
 COMFY_PORT="${COMFY_PORT:-8188}"
 AUTH_PORT="${AUTH_PORT:-8190}"
 GATEWAY_PORT="${GATEWAY_PORT:-8189}"
-MODEL="${MODEL:-}"
+READY_FILE="${SALAD_READY_FILE:-$WORKSPACE/.salad-setup-ready}"
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
-[[ "$MODEL" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || fail 'MODEL must name a model directory.'
-SETUP="$REPO_ROOT/models/$MODEL/setup.sh"
-[ -f "$SETUP" ] || fail "Unknown model: $MODEL"
 for port in "$COMFY_PORT" "$AUTH_PORT" "$GATEWAY_PORT"; do
     [[ "$port" =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) || fail 'Invalid port.'
 done
@@ -23,10 +19,7 @@ GATEWAY_PORT=$((10#$GATEWAY_PORT))
 password="${COMFY_GATEWAY_PASSWORD:-}"
 [[ -n "${COMFY_GATEWAY_USER:-}" && "${COMFY_GATEWAY_USER}" != *:* && "${COMFY_GATEWAY_USER}" != *$'\n'* && "${COMFY_GATEWAY_USER}" != *$'\r'* && ${#password} -ge 20 ]] || fail 'Gateway credentials are required.'
 
-bash "$SETUP"
-PID_FILE="$WORKSPACE/comfyui.pid"
-[ -f "$PID_FILE" ] || fail 'ComfyUI PID file is missing.'
-read -r comfy_pid < "$PID_FILE"
+comfy_pid=""
 comfy_running() {
     [[ "$comfy_pid" =~ ^[0-9]+$ ]] || return 1
     kill -0 "$comfy_pid" 2>/dev/null || return 1
@@ -35,8 +28,6 @@ comfy_running() {
     state="$(sed -E 's/^.*\) ([A-Z]) .*/\1/' "/proc/$comfy_pid/stat")"
     [ "$state" != Z ] && [ "$state" != X ]
 }
-comfy_running || fail 'ComfyUI is not running.'
-
 pids=()
 cleanup() {
     trap - TERM INT
@@ -44,11 +35,21 @@ cleanup() {
         kill "${pids[@]}" 2>/dev/null || true
         wait "${pids[@]}" 2>/dev/null || true
     fi
-    kill "$comfy_pid" 2>/dev/null || true
+    if [ -n "$comfy_pid" ]; then kill "$comfy_pid" 2>/dev/null || true; fi
 }
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap cleanup EXIT
+
+rm -f -- "$READY_FILE"
+printf 'Waiting for model setup. In the Salad terminal run: bash /opt/salad/select_model.sh <model-name>\n'
+while [ ! -s "$READY_FILE" ]; do
+    sleep 2 &
+    wait "$!"
+done
+read -r selected_model comfy_pid < "$READY_FILE"
+comfy_running || fail 'ComfyUI is not running after setup.'
+printf 'Model ready: %s\n' "$selected_model"
 
 "$PYTHON" /opt/salad/auth_proxy.py --comfy-port "$COMFY_PORT" --proxy-port "$AUTH_PORT" &
 pids+=("$!")

@@ -11,5 +11,6 @@ COPY models/ models/
 COPY scripts/ scripts/
 COPY salad/common/auth_proxy.py /opt/salad/auth_proxy.py
 COPY salad/start.sh /opt/salad/start.sh
+COPY salad/select_model.sh /opt/salad/select_model.sh
 EXPOSE 8189
 CMD ["bash", "/opt/salad/start.sh"]
