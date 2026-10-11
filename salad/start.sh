@@ -56,7 +56,6 @@ pids+=("$!")
 socat "TCP6-LISTEN:${GATEWAY_PORT},bind=[::],ipv6only=1,reuseaddr,fork" "TCP4:127.0.0.1:${AUTH_PORT}" &
 pids+=("$!")
 while :; do
-    comfy_running || fail 'ComfyUI stopped.'
     for pid in "${pids[@]}"; do
         kill -0 "$pid" 2>/dev/null || fail 'Gateway process stopped.'
     done

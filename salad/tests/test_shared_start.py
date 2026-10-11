@@ -44,7 +44,7 @@ class SharedStartTests(unittest.TestCase):
         self.assertEqual(self.select().returncode, 2)
         self.assertFalse((self.root / '.salad-setup-ready').exists())
 
-    def test_manual_selection_opens_gateway_then_comfy_stop_ends_it(self):
+    def test_manual_selection_keeps_container_alive_during_comfy_restart(self):
         self.setup.write_text('sleep 1000 >/dev/null 2>&1 &\necho $! > "$WORKSPACE/comfyui.pid"\n', encoding='utf-8')
         fake = self.root / 'fake-process'
         fake.write_text('#!/usr/bin/env bash\nexec sleep 1000\n', encoding='utf-8')
@@ -63,7 +63,8 @@ class SharedStartTests(unittest.TestCase):
             time.sleep(2.2)
             self.assertIsNone(proc.poll())
             os.kill(pid, 15)
-            self.assertEqual(proc.wait(timeout=5), 2)
+            time.sleep(2.2)
+            self.assertIsNone(proc.poll())
         finally:
             if proc.poll() is None:
                 proc.kill()
