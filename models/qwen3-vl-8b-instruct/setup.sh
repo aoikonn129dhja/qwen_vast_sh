@@ -25,9 +25,87 @@ MODEL_PATH="$COMFY_DIR/models/LLM/Qwen-VL/$MODEL_NAME"
 MODEL_REVISION="${MODEL_REVISION:-main}"
 WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/Qwen3-VL-8B-Pose-Analysis.json"
 
+# Measure the actual Hugging Face route before downloading ComfyUI or the model.
+MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
+SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"
+ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
+
 log() { printf '\n[%s] %s\n' "$(TZ=Asia/Tokyo date '+%H:%M:%S')" "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 が見つかりません。"; }
+
+check_download_speed() {
+    local result speed mbps elapsed bytes minutes is_slow answer
+    log "回線速度を事前確認（Hugging Faceから最大8MiBだけ試験DL）"
+    result="$(MODEL_ID="$MODEL_ID" MODEL_REVISION="$MODEL_REVISION" SPEED_TEST_BYTES="$SPEED_TEST_BYTES" "$PYTHON" - <<'PY'
+import os
+import time
+import urllib.parse
+import urllib.request
+
+revision = urllib.parse.quote(os.environ['MODEL_REVISION'], safe='')
+url = f"https://huggingface.co/{os.environ['MODEL_ID']}/resolve/{revision}/model-00001-of-00004.safetensors"
+target = int(os.environ['SPEED_TEST_BYTES'])
+if target <= 0:
+    print('ERROR|SPEED_TEST_BYTES must be positive')
+    raise SystemExit(0)
+request = urllib.request.Request(url, headers={
+    'Range': f'bytes=0-{target - 1}',
+    'User-Agent': 'vast-qwen3-vl-setup-speed-test/1.0',
+})
+start = time.monotonic()
+downloaded = 0
+try:
+    with urllib.request.urlopen(request, timeout=15) as response:
+        while downloaded < target and time.monotonic() - start < 20:
+            chunk = response.read(min(1024 * 1024, target - downloaded))
+            if not chunk:
+                break
+            downloaded += len(chunk)
+except Exception as exc:
+    print(f'ERROR|{type(exc).__name__}: {exc}')
+    raise SystemExit(0)
+if downloaded == 0:
+    print('ERROR|No data received')
+else:
+    elapsed = max(time.monotonic() - start, 0.001)
+    speed = downloaded / 1024 / 1024 / elapsed
+    print(f'OK|{speed:.2f}|{speed * 8.388608:.1f}|{elapsed:.2f}|{downloaded}')
+PY
+)"
+    if [[ "$result" != OK\|* ]]; then
+        printf 'WARNING: 回線速度の事前測定に失敗しました: %s\n' "${result#ERROR|}"
+        printf '速度判定をスキップして続行します。\n'
+        return
+    fi
+
+    IFS='|' read -r _ speed mbps elapsed bytes <<< "$result"
+    minutes="$("$PYTHON" - "$speed" <<'PY'
+import sys
+print(f'{17_500_000_000 / (max(float(sys.argv[1]), 0.001) * 1024 * 1024) / 60:.1f}')
+PY
+)"
+    log "実測: ${speed} MiB/s（約 ${mbps} Mbps、${bytes} bytes / ${elapsed} 秒）"
+    printf '約17.5GBモデルの推定DL時間: 約 %s 分\n' "$minutes"
+    is_slow="$("$PYTHON" - "$speed" "$MIN_DOWNLOAD_MIB_S" <<'PY'
+import sys
+print(1 if float(sys.argv[1]) < float(sys.argv[2]) else 0)
+PY
+)"
+    if [ "$is_slow" -eq 0 ]; then return; fi
+
+    printf 'WARNING: このホストの実回線速度は遅いです。モデルDL推定: 約 %s 分\n' "$minutes"
+    printf '目安: 20 MiB/s以上を推奨、10 MiB/s未満なら別ホストを推奨します。\n'
+    if [ "$ALLOW_SLOW_DOWNLOAD" = 1 ]; then return; fi
+    if [ ! -t 0 ]; then
+        die "非対話実行のため中止します。続行する場合は ALLOW_SLOW_DOWNLOAD=1 を指定してください。"
+    fi
+    read -r -p 'それでもこのホストで続行しますか？ [y/N]: ' answer
+    case "$answer" in
+        y|Y|yes|YES) ;;
+        *) die "セットアップを中止しました。" ;;
+    esac
+}
 
 # Use the existing venv. Do not create a second PyTorch installation.
 install_pip() {
@@ -44,20 +122,26 @@ install_pip() {
 
 # Install a deterministic version of a Git repository without modifying an existing checkout.
 ensure_git_checkout() {
-    local url="$1" target="$2" sha="$3"
-    if [ -d "$target/.git" ]; then
-        [ -f "$target/requirements.txt" ] || die "既存Git checkoutが不完全です: $target"
+    local url="$1" target="$2" sha="$3" marker="$4"
+    if [ -f "$target/$marker" ] && [ -d "$target/.git" ]; then
         log "既存のGit checkoutを使用: $target"
         return
     fi
-    [ ! -e "$target" ] || die "Git管理外の既存ディレクトリがあります: $target"
-    mkdir -p "$(dirname "$target")"
+    if [ -d "$target/.git" ]; then
+        [ "$(git -C "$target" remote get-url origin 2>/dev/null || true)" = "$url" ] \
+            || die "取得途中のGit checkoutのリモートが異なります: $target"
+        log "取得途中のGit checkoutを再開: $target"
+    else
+        [ ! -e "$target" ] || die "Git管理外の既存ディレクトリがあります: $target"
+        mkdir -p "$(dirname "$target")"
+        git init -q "$target"
+        git -C "$target" remote add origin "$url"
+    fi
     log "Gitコミットを取得: $url @ $sha"
-    git init -q "$target"
-    git -C "$target" remote add origin "$url"
     git -C "$target" fetch --progress --depth 1 origin "$sha"
     git -C "$target" checkout -q --detach FETCH_HEAD
     [ "$(git -C "$target" rev-parse HEAD)" = "$sha" ] || die "Git commitの検証に失敗しました: $target"
+    [ -f "$target/$marker" ] || die "取得したGit checkoutが不完全です: $target"
 }
 
 api_ready() {
@@ -107,22 +191,22 @@ log "GPU・ストレージの確認"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 df -h "$WORKSPACE"
 
+check_download_speed
+
 TORCH_BEFORE="$("$PYTHON" -c 'import torch; print(torch.__version__)')"
 
 log "ComfyUIを準備"
 if [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
     log "既存ComfyUIを保持: $COMFY_DIR"
 else
-    if [ -e "$COMFY_DIR" ]; then
-        die "既存ComfyUIが不完全です。安全のため削除・再作成しません: $COMFY_DIR"
-    fi
-    ensure_git_checkout "$COMFY_REPO" "$COMFY_DIR" "$COMFY_COMMIT"
+    ensure_git_checkout "$COMFY_REPO" "$COMFY_DIR" "$COMFY_COMMIT" "requirements.txt"
+    [ -f "$COMFY_DIR/main.py" ] || die "ComfyUIのmain.pyがありません。"
     log "ComfyUI依存パッケージをインストール"
     install_pip -r "$COMFY_DIR/requirements.txt"
 fi
 
 log "ComfyUI-QwenVLを導入"
-ensure_git_checkout "$NODE_REPO" "$NODE_DIR" "$NODE_COMMIT"
+ensure_git_checkout "$NODE_REPO" "$NODE_DIR" "$NODE_COMMIT" "__init__.py"
 [ -s "$NODE_DIR/__init__.py" ] || die "ComfyUI-QwenVLの初期化ファイルがありません。"
 
 # Pin Transformers 4.x for stable Qwen3-VL and compatibility with this node.
