@@ -43,22 +43,30 @@ trap cleanup EXIT
 
 rm -f -- "$READY_FILE"
 printf 'Waiting for model setup. In the Salad terminal run: bash /opt/salad/select_model.sh <model-name>\n'
-while [ ! -s "$READY_FILE" ]; do
-    sleep 2 &
-    wait "$!"
-done
-read -r selected_model comfy_pid < "$READY_FILE"
-comfy_running || fail 'ComfyUI is not running after setup.'
-printf 'Model ready: %s\n' "$selected_model"
-
-"$PYTHON" /opt/salad/auth_proxy.py --comfy-port "$COMFY_PORT" --proxy-port "$AUTH_PORT" &
-pids+=("$!")
-socat "TCP6-LISTEN:${GATEWAY_PORT},bind=[::],ipv6only=1,reuseaddr,fork" "TCP4:127.0.0.1:${AUTH_PORT}" &
-pids+=("$!")
 while :; do
-    for pid in "${pids[@]}"; do
-        kill -0 "$pid" 2>/dev/null || fail 'Gateway process stopped.'
-    done
+    if [ -s "$READY_FILE" ]; then
+        read -r selected_model comfy_pid < "$READY_FILE"
+        if comfy_running; then
+            if ((${#pids[@]} == 0)); then
+                printf 'Model ready: %s\n' "$selected_model"
+                "$PYTHON" /opt/salad/auth_proxy.py --comfy-port "$COMFY_PORT" --proxy-port "$AUTH_PORT" &
+                pids+=("$!")
+                socat "TCP6-LISTEN:${GATEWAY_PORT},bind=[::],ipv6only=1,reuseaddr,fork" "TCP4:127.0.0.1:${AUTH_PORT}" &
+                pids+=("$!")
+            fi
+        fi
+    fi
+    if ((${#pids[@]})); then
+        if [ ! -s "$READY_FILE" ] || ! comfy_running; then
+            kill "${pids[@]}" 2>/dev/null || true
+            wait "${pids[@]}" 2>/dev/null || true
+            pids=()
+        else
+            for pid in "${pids[@]}"; do
+                kill -0 "$pid" 2>/dev/null || fail 'Gateway process stopped.'
+            done
+        fi
+    fi
     sleep 2 &
     wait "$!"
 done
