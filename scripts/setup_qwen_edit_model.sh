@@ -24,9 +24,6 @@ MODEL_DIR="$(cd -- "$(dirname -- "$MODEL_CONFIG")" && pwd)"
 : "${DIFFUSION_FILE:?DIFFUSION_FILE is required}"
 : "${DIFFUSION_URL:?DIFFUSION_URL is required}"
 : "${DIFFUSION_SHA256:?DIFFUSION_SHA256 is required}"
-: "${LORA_FILE:?LORA_FILE is required}"
-: "${LORA_URL:?LORA_URL is required}"
-: "${LORA_SHA256:?LORA_SHA256 is required}"
 : "${WORKFLOW_FILE_NAME:?WORKFLOW_FILE_NAME is required}"
 : "${WORKFLOW_SOURCE:?WORKFLOW_SOURCE is required}"
 : "${APPROX_TOTAL_BYTES:?APPROX_TOTAL_BYTES is required}"
@@ -37,8 +34,6 @@ PYTHON="${PYTHON:-/venv/main/bin/python}"
 COMFY_PORT="${COMFY_PORT:-8188}"
 COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
 VERIFY_SHA256="${VERIFY_SHA256:-1}"
-INSTALL_DWPOSE="${INSTALL_DWPOSE:-1}"
-INSTALL_ANIMEPOSE="${INSTALL_ANIMEPOSE:-1}"
 MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
 SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"
 ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
@@ -60,10 +55,8 @@ VAE_SHA256="a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
 DIFFUSION_PATH="$COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
 TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
 VAE_PATH="$COMFY_DIR/models/vae/$VAE_FILE"
-LORA_PATH="$COMFY_DIR/models/loras/$LORA_FILE"
 WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/$WORKFLOW_FILE_NAME"
 WORKFLOW_SOURCE_PATH="$MODEL_DIR/$WORKFLOW_SOURCE"
-CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
 
 log() {
     printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
@@ -157,21 +150,6 @@ download_file() {
     sha256_verify "$dest" "$sha"
 }
 
-git_clone_or_update() {
-    local url="$1"
-    local dest="$2"
-
-    if [ -d "$dest/.git" ]; then
-        log "更新: $dest"
-        git -C "$dest" pull --ff-only
-    elif [ -e "$dest" ]; then
-        die "Git管理外の既存パスがあります: $dest"
-    else
-        log "clone: $url"
-        git clone --depth 1 "$url" "$dest"
-    fi
-}
-
 need_cmd git
 need_cmd wget
 need_cmd tar
@@ -185,10 +163,7 @@ echo "ComfyUI      : $COMFY_DIR"
 echo "Diffusion    : $DIFFUSION_FILE"
 echo "Text encoder : $TEXT_ENCODER_FILE"
 echo "VAE          : $VAE_FILE"
-echo "Lightning    : $LORA_FILE。インストールのみ。初回品質比較ではOFF推奨"
 echo "Workflow     : $WORKFLOW_FILE_NAME"
-echo "DWPose       : $INSTALL_DWPOSE"
-echo "AnimePose    : $INSTALL_ANIMEPOSE"
 
 log "GPU確認"
 nvidia-smi || true
@@ -199,8 +174,11 @@ df -h "$WORKSPACE" || true
 # ------------------------------------------------------------
 # Network preflight
 # ------------------------------------------------------------
-log "回線速度を事前確認。Hugging Faceから最大8 MiBだけ試験DL"
+log "不足モデルの回線速度を事前確認。Hugging Faceから最大8 MiBだけ試験DL"
 
+if [ -s "$DIFFUSION_PATH" ] && [ -s "$TEXT_ENCODER_PATH" ] && [ -s "$VAE_PATH" ]; then
+    SPEED_RESULT="SKIP|既存モデルを再利用"
+else
 SPEED_RESULT="$(
     MODEL_URL="$DIFFUSION_URL" SPEED_TEST_BYTES="$SPEED_TEST_BYTES" "$PYTHON" - <<'PY'
 import os
@@ -238,6 +216,7 @@ mbps = mib_s * 8.388608
 print(f"OK|{mib_s:.2f}|{mbps:.1f}|{elapsed:.2f}|{downloaded}")
 PY
 )"
+fi
 
 if [[ "$SPEED_RESULT" == OK\|* ]]; then
     IFS='|' read -r _ DOWNLOAD_MIB_S DOWNLOAD_MBPS TEST_SECONDS TEST_BYTES <<< "$SPEED_RESULT"
@@ -252,7 +231,7 @@ PY
     )"
 
     log "実測: ${DOWNLOAD_MIB_S} MiB/s。約 ${DOWNLOAD_MBPS} Mbps"
-    echo "モデル一式約31 GBの推定DL時間: 約 ${EST_MINUTES} 分"
+    echo "不足モデルの推定DL時間（最大約31 GB）: 約 ${EST_MINUTES} 分"
 
     IS_SLOW="$(
         "$PYTHON" - "$DOWNLOAD_MIB_S" "$MIN_DOWNLOAD_MIB_S" <<'PY'
@@ -274,7 +253,7 @@ PY
             die "非対話実行では中止します。続行する場合は ALLOW_SLOW_DOWNLOAD=1 を指定してください。"
         fi
     fi
-else
+elif [[ "$SPEED_RESULT" == ERROR\|* ]]; then
     echo "WARNING: 回線速度測定に失敗しました。速度判定をスキップします: ${SPEED_RESULT#ERROR|}"
 fi
 
@@ -319,11 +298,9 @@ mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
     "$COMFY_DIR/models/text_encoders" \
     "$COMFY_DIR/models/vae" \
-    "$COMFY_DIR/models/loras" \
     "$COMFY_DIR/input" \
     "$COMFY_DIR/output" \
-    "$COMFY_DIR/user/default/workflows" \
-    "$CUSTOM_NODES_DIR"
+    "$COMFY_DIR/user/default/workflows"
 
 # ------------------------------------------------------------
 # Official-base Qwen models for native ComfyUI
@@ -332,7 +309,6 @@ log "Qwen-Image-Editモデルを準備"
 download_file "$DIFFUSION_URL" "$DIFFUSION_PATH" "$DIFFUSION_SHA256"
 download_file "$TEXT_ENCODER_URL" "$TEXT_ENCODER_PATH" "$TEXT_ENCODER_SHA256"
 download_file "$VAE_URL" "$VAE_PATH" "$VAE_SHA256"
-download_file "$LORA_URL" "$LORA_PATH" "$LORA_SHA256"
 
 # ------------------------------------------------------------
 # Bundled official ComfyUI workflow template
@@ -359,27 +335,6 @@ if old not in s:
     raise SystemExit(f"expected model name not found in workflow: {old}")
 p.write_text(s.replace(old, new), encoding="utf-8")
 PYWF
-fi
-
-# ------------------------------------------------------------
-# Pose / keypoint preprocessors
-# ------------------------------------------------------------
-if [ "$INSTALL_DWPOSE" = "1" ]; then
-    DWPOSE_DIR="$CUSTOM_NODES_DIR/comfyui_controlnet_aux"
-    git_clone_or_update "https://github.com/Fannovel16/comfyui_controlnet_aux.git" "$DWPOSE_DIR"
-    if [ -f "$DWPOSE_DIR/requirements.txt" ]; then
-        log "comfyui_controlnet_aux依存をインストール"
-        "$UV" pip install --python "$PYTHON" -r "$DWPOSE_DIR/requirements.txt"
-    fi
-fi
-
-if [ "$INSTALL_ANIMEPOSE" = "1" ]; then
-    ANIMEPOSE_DIR="$CUSTOM_NODES_DIR/ComfyUI-AnimePose"
-    git_clone_or_update "https://github.com/dalai2/ComfyUI-AnimePose.git" "$ANIMEPOSE_DIR"
-    if [ -f "$ANIMEPOSE_DIR/requirements.txt" ]; then
-        log "ComfyUI-AnimePose依存をインストール"
-        "$UV" pip install --python "$PYTHON" -r "$ANIMEPOSE_DIR/requirements.txt"
-    fi
 fi
 
 # ------------------------------------------------------------
@@ -444,19 +399,13 @@ echo "Text encoder:"
 echo "  $TEXT_ENCODER_PATH"
 echo "VAE:"
 echo "  $VAE_PATH"
-echo "Lightning LoRA。初回の骨格追従テストではOFF推奨:"
-echo "  $LORA_PATH"
 echo "Workflow:"
 echo "  $WORKFLOW_PATH"
-echo
-echo "Pose nodes:"
-[ "$INSTALL_DWPOSE" = "1" ] && echo "  DWPose: $CUSTOM_NODES_DIR/comfyui_controlnet_aux"
-[ "$INSTALL_ANIMEPOSE" = "1" ] && echo "  AnimePose: $CUSTOM_NODES_DIR/ComfyUI-AnimePose"
 echo
 echo "次の操作:"
 echo "  1. Vast.aiのTunnelsから http://localhost:$COMFY_PORT を開く。"
 echo "  2. ComfyUIで $WORKFLOW_FILE_NAME を読み込む。"
-echo "  3. 人物画像をimage1、DWPose/AnimePoseの骨格IMAGEをimage2へ接続して試す。"
+echo "  3. 編集元画像をimage1へ読み込み、プロンプトを入力する。"
 echo
 echo "ログ:"
 echo "  tail -n 100 $COMFY_LOG"

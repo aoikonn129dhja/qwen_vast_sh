@@ -23,7 +23,7 @@
       "title": "Note: Model Links",
       "properties": {},
       "widgets_values": [
-        "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n## Model Links\n\n- [Hugging Face:Comfy-Org/Qwen-Image_ComfyUI](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI)\n- [ModelScope:Comfy-Org/Qwen-Image_ComfyUI](https://modelscope.cn/models/Comfy-Org/Qwen-Image_ComfyUI)\n- [Hugging Face:Comfy-Org/Qwen-Image-Edit_ComfyUI](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI)\n- [ModelScope:Comfy-Org/Qwen-Image-Edit_ComfyUI](https://modelscope.cn/models/Comfy-Org/Qwen-Image-Edit_ComfyUI)\n- [Hugging Face:Comfy-Org/HunyuanVideo_1.5_repackaged](https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged)\n- [ModelScope:Comfy-Org/HunyuanVideo_1.5_repackaged](https://modelscope.cn/models/Comfy-Org/HunyuanVideo_1.5_repackaged)\n\n**vae**\n\n- [qwen_image_vae.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors) (242 MB)\n\n**loras**\n\n- [Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors) (810.2 MB)\n\n**diffusion_models**\n\n- [qwen_image_edit_2511_bf16.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_bf16.safetensors) (38.05 GB)\n\n**text_encoders**\n\n- [qwen_2.5_vl_7b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors) (8.74 GB)\n\n\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n│   ├── 📂 vae/\n│   │   └── qwen_image_vae.safetensors\n│   ├── 📂 loras/\n│   │   └── Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors\n│   ├── 📂 diffusion_models/\n│   │   └── qwen_image_edit_2511_bf16.safetensors\n│   └── 📂 text_encoders/\n│       └── qwen_2.5_vl_7b_fp8_scaled.safetensors\n```\n\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/installation/update_comfyui)) and prepare required models. Desktop/Cloud updates follow stable releases, so some nightly-supported models may not be available yet.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
+        "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n## Model Links\n\n- [Hugging Face:Comfy-Org/Qwen-Image_ComfyUI](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI)\n- [ModelScope:Comfy-Org/Qwen-Image_ComfyUI](https://modelscope.cn/models/Comfy-Org/Qwen-Image_ComfyUI)\n- [Hugging Face:Comfy-Org/Qwen-Image-Edit_ComfyUI](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI)\n- [ModelScope:Comfy-Org/Qwen-Image-Edit_ComfyUI](https://modelscope.cn/models/Comfy-Org/Qwen-Image-Edit_ComfyUI)\n- [Hugging Face:Comfy-Org/HunyuanVideo_1.5_repackaged](https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged)\n- [ModelScope:Comfy-Org/HunyuanVideo_1.5_repackaged](https://modelscope.cn/models/Comfy-Org/HunyuanVideo_1.5_repackaged)\n\n**vae**\n\n- [qwen_image_vae.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors) (242 MB)\n\n**diffusion_models**\n\n- [qwen_image_edit_2511_fp8mixed.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors)\n\n**text_encoders**\n\n- [qwen_2.5_vl_7b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors) (8.74 GB)\n\n\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n│   ├── 📂 vae/\n│   │   └── qwen_image_vae.safetensors\n│   ├── 📂 diffusion_models/\n│   │   └── qwen_image_edit_2511_fp8mixed.safetensors\n│   └── 📂 text_encoders/\n│       └── qwen_2.5_vl_7b_fp8_scaled.safetensors\n```\n\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/installation/update_comfyui)) and prepare required models. Desktop/Cloud updates follow stable releases, so some nightly-supported models may not be available yet.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
       ],
       "color": "#222",
       "bgcolor": "#000"
@@ -223,7 +223,7 @@
           "link": null
         },
         {
-          "label": "enable_turbo_mode",
+          "label": "use_short_sampling_steps",
           "name": "value",
           "type": "BOOLEAN",
           "widget": {
@@ -501,22 +501,10 @@
             "linkIds": [
               385
             ],
-            "label": "enable_turbo_mode",
+            "label": "use_short_sampling_steps",
             "pos": [
               -1484.255859375,
               3134
-            ]
-          },
-          {
-            "id": "a14e50ab-b418-49af-ad5d-e072d4998c06",
-            "name": "lora_name",
-            "type": "COMBO",
-            "linkIds": [
-              386
-            ],
-            "pos": [
-              -1484.255859375,
-              3154
             ]
           },
           {
@@ -989,8 +977,7 @@
                 "name": "patched_model",
                 "type": "MODEL",
                 "links": [
-                  327,
-                  331
+                  351
                 ]
               }
             ],
@@ -1009,71 +996,6 @@
             "widgets_values": [
               1,
               false
-            ]
-          },
-          {
-            "id": 153,
-            "type": "LoraLoaderModelOnly",
-            "pos": [
-              470,
-              2940
-            ],
-            "size": [
-              370,
-              140
-            ],
-            "flags": {},
-            "order": 12,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "link": 327
-              },
-              {
-                "localized_name": "lora_name",
-                "name": "lora_name",
-                "type": "COMBO",
-                "widget": {
-                  "name": "lora_name"
-                },
-                "link": 386
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "MODEL",
-                "name": "MODEL",
-                "type": "MODEL",
-                "links": [
-                  332
-                ]
-              }
-            ],
-            "properties": {
-              "Node name for S&R": "LoraLoaderModelOnly",
-              "cnr_id": "comfy-core",
-              "ver": "0.5.1",
-              "models": [
-                {
-                  "name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
-                  "url": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
-                  "directory": "loras"
-                }
-              ],
-              "enableTabs": false,
-              "tabWidth": 65,
-              "tabXOffset": 10,
-              "hasSecondTab": false,
-              "secondTabText": "Send Back",
-              "secondTabOffset": 80,
-              "secondTabWidth": 65
-            },
-            "widgets_values": [
-              "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
-              1
             ]
           },
           {
@@ -1334,70 +1256,6 @@
             ]
           },
           {
-            "id": 163,
-            "type": "ComfySwitchNode",
-            "pos": [
-              950,
-              2650
-            ],
-            "size": [
-              270,
-              130
-            ],
-            "flags": {},
-            "order": 18,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "on_false",
-                "name": "on_false",
-                "type": "MODEL",
-                "link": 331
-              },
-              {
-                "localized_name": "on_true",
-                "name": "on_true",
-                "type": "MODEL",
-                "link": 332
-              },
-              {
-                "localized_name": "switch",
-                "name": "switch",
-                "type": "BOOLEAN",
-                "widget": {
-                  "name": "switch"
-                },
-                "link": 333
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "output",
-                "name": "output",
-                "type": "MODEL",
-                "links": [
-                  351
-                ]
-              }
-            ],
-            "title": "Switch (Model)",
-            "properties": {
-              "Node name for S&R": "ComfySwitchNode",
-              "cnr_id": "comfy-core",
-              "ver": "0.13.0",
-              "enableTabs": false,
-              "tabWidth": 65,
-              "tabXOffset": 10,
-              "hasSecondTab": false,
-              "secondTabText": "Send Back",
-              "secondTabOffset": 80,
-              "secondTabWidth": 65
-            },
-            "widgets_values": [
-              false
-            ]
-          },
-          {
             "id": 165,
             "type": "PrimitiveInt",
             "pos": [
@@ -1515,12 +1373,11 @@
                 "type": "BOOLEAN",
                 "links": [
                   330,
-                  333,
                   350
                 ]
               }
             ],
-            "title": "Enable 4steps LoRA?",
+            "title": "Use short sampling steps (optional)",
             "properties": {
               "Node name for S&R": "PrimitiveBoolean",
               "cnr_id": "comfy-core",
@@ -1986,14 +1843,6 @@
             "type": "MODEL"
           },
           {
-            "id": 327,
-            "origin_id": 152,
-            "origin_slot": 0,
-            "target_id": 153,
-            "target_slot": 0,
-            "type": "MODEL"
-          },
-          {
             "id": 334,
             "origin_id": 160,
             "origin_slot": 0,
@@ -2008,30 +1857,6 @@
             "target_id": 156,
             "target_slot": 1,
             "type": "VAE"
-          },
-          {
-            "id": 331,
-            "origin_id": 152,
-            "origin_slot": 0,
-            "target_id": 163,
-            "target_slot": 0,
-            "type": "MODEL"
-          },
-          {
-            "id": 332,
-            "origin_id": 153,
-            "origin_slot": 0,
-            "target_id": 163,
-            "target_slot": 1,
-            "type": "MODEL"
-          },
-          {
-            "id": 333,
-            "origin_id": 168,
-            "origin_slot": 0,
-            "target_id": 163,
-            "target_slot": 2,
-            "type": "BOOLEAN"
           },
           {
             "id": 328,
@@ -2083,7 +1908,7 @@
           },
           {
             "id": 351,
-            "origin_id": 163,
+            "origin_id": 152,
             "origin_slot": 0,
             "target_id": 169,
             "target_slot": 0,
@@ -2234,28 +2059,20 @@
             "type": "COMBO"
           },
           {
+            "id": 387,
+            "origin_id": -10,
+            "origin_slot": 9,
+            "target_id": 169,
+            "target_slot": 4,
+            "type": "INT"
+          },
+          {
             "id": 385,
             "origin_id": -10,
             "origin_slot": 8,
             "target_id": 168,
             "target_slot": 0,
             "type": "BOOLEAN"
-          },
-          {
-            "id": 386,
-            "origin_id": -10,
-            "origin_slot": 9,
-            "target_id": 153,
-            "target_slot": 1,
-            "type": "COMBO"
-          },
-          {
-            "id": 387,
-            "origin_id": -10,
-            "origin_slot": 10,
-            "target_id": 169,
-            "target_slot": 4,
-            "type": "INT"
           }
         ],
         "extra": {
