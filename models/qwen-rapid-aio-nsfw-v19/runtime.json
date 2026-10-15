@@ -1,0 +1,23 @@
+{
+  "model_id": "qwen-rapid-aio-nsfw-v19",
+  "runtime_type": "comfyui",
+  "comfy_commit": "15eb748b3ec5f8a0a2d470b7fb280e2d7579f916",
+  "python_requirements": "requirements.lock",
+  "model_paths": [
+    "models/checkpoints/Qwen-Rapid-AIO-NSFW-v19.safetensors"
+  ],
+  "custom_nodes": [],
+  "workflows": [
+    "Qwen-Rapid-AIO-NSFW-v19-Batch.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 30720
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18219,
+  "signatures": {
+    "model_files": [
+      "Qwen-Rapid-AIO-NSFW-v19.safetensors"
+    ]
+  }
+}

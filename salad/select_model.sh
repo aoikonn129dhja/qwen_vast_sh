@@ -16,15 +16,21 @@ if [ -f "$CONF" ]; then
     fail 'LightWan uses LightX2V, not ComfyUI. Run its setup.sh directly in the container. The Salad ComfyUI Gateway cannot serve this model.'
   fi
 fi
-[ ! -e "$READY_FILE" ] || fail 'A model is already configured in this container.'
 LOCK="$WORKSPACE/.salad-setup-lock"
 mkdir "$LOCK" 2>/dev/null || fail 'Another model setup is already running.'
 trap 'rmdir "$LOCK"' EXIT
 bash "$SETUP"
-PID_FILE="$WORKSPACE/comfyui.pid"
-[ -s "$PID_FILE" ] || fail 'ComfyUI PID file is missing.'
-read -r comfy_pid < "$PID_FILE"
-[[ "$comfy_pid" =~ ^[0-9]+$ ]] && kill -0 "$comfy_pid" 2>/dev/null || fail 'ComfyUI is not running.'
-printf '%s %s\n' "$MODEL" "$comfy_pid" > "$READY_FILE.part"
-mv -- "$READY_FILE.part" "$READY_FILE"
+PID_FILE="$WORKSPACE/.qwen_runtime/state/gateway.pid"
+[ -s "$PID_FILE" ] || fail 'Runtime Gateway PID file is missing.'
+read -r gateway_pid < "$PID_FILE"
+[[ "$gateway_pid" =~ ^[0-9]+$ ]] && kill -0 "$gateway_pid" 2>/dev/null || fail 'Runtime Gateway is not running.'
+[ -r "/proc/$gateway_pid/cmdline" ] || fail 'Runtime Gateway PID cannot be verified.'
+gateway_command="$(tr '\0' ' ' < "/proc/$gateway_pid/cmdline")"
+[[ "$gateway_command" == *scripts/runtime/gateway.py* ]] || fail 'PID file does not identify the Runtime Gateway.'
+if [ -s "$READY_FILE" ]; then
+    grep -Fxq "$MODEL" "$READY_FILE" || { cat "$READY_FILE" > "$READY_FILE.part"; printf '%s\n' "$MODEL" >> "$READY_FILE.part"; mv -- "$READY_FILE.part" "$READY_FILE"; }
+else
+    printf '%s\n' "$MODEL" > "$READY_FILE.part"
+    mv -- "$READY_FILE.part" "$READY_FILE"
+fi
 printf 'Model setup complete: %s\n' "$MODEL"

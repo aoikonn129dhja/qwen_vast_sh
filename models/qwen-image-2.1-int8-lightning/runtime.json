@@ -1,0 +1,23 @@
+{
+  "model_id": "qwen-image-2.1-int8-lightning",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/qwen_image_2.1_int8_convrot.safetensors"
+  ],
+  "custom_nodes": [],
+  "workflows": [
+    "Qwen-Image-2.1-INT8-Lightning-4steps-1input.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 20480
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18211,
+  "signatures": {
+    "model_files": [
+      "qwen_image_2.1_int8_convrot.safetensors"
+    ]
+  }
+}

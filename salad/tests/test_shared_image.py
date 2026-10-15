@@ -15,13 +15,10 @@ class SharedImageTests(unittest.TestCase):
         self.assertIn('COPY scripts/ scripts/', source)
         self.assertIn('/venv/main/bin/python', source)
 
-    def test_every_vast_setup_is_selectable(self):
+    def test_every_comfy_setup_has_runtime_config(self):
         models = {setup.parent.name for setup in (ROOT / 'models').glob('*/setup.sh')}
-        self.assertEqual(models, {
-            'qwen-rapid-aio-nsfw-v19', 'qwen-rapid-aio-nsfw-v23',
-            'qwen-image-edit-2509', 'qwen-image-edit-2511',
-            'ltx-2.3-uncensored-v1.4-q4', 'qwen-image-2.1-uncensored-gguf',
-        })
+        for model in models - {'lightwan2.2-a14b'}:
+            self.assertTrue((ROOT / 'models' / model / 'runtime.json').is_file(), model)
 
 
 if __name__ == '__main__':

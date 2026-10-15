@@ -31,11 +31,13 @@ MODEL_DIR="$(cd -- "$(dirname -- "$MODEL_CONFIG")" && pwd)"
 : "${WORKFLOW_SOURCE:?WORKFLOW_SOURCE is required}"
 : "${APPROX_TOTAL_BYTES:?APPROX_TOTAL_BYTES is required}"
 
-WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY_PORT="${COMFY_PORT:-8188}"
-COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "$MODEL_ID"
+COMFY_PORT="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
+PY
+)"
 VERIFY_SHA256="${VERIFY_SHA256:-1}"
 MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
 SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"
@@ -55,11 +57,11 @@ VAE_FILE="qwen_image_vae.safetensors"
 VAE_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/$VAE_FILE"
 VAE_SHA256="a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
 
-DIFFUSION_PATH="$COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
-TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
-VAE_PATH="$COMFY_DIR/models/vae/$VAE_FILE"
-LORA_PATH="$COMFY_DIR/models/loras/$LORA_FILE"
-WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/$WORKFLOW_FILE_NAME"
+DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
+TEXT_ENCODER_PATH="$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
+VAE_PATH="$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
+LORA_PATH="$SHARED_COMFY_DIR/models/loras/$LORA_FILE"
+WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/$WORKFLOW_FILE_NAME"
 WORKFLOW_SOURCE_PATH="$MODEL_DIR/$WORKFLOW_SOURCE"
 
 log() {
@@ -265,34 +267,30 @@ fi
 # ------------------------------------------------------------
 # ComfyUI
 # ------------------------------------------------------------
-if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
-    log "既存ComfyUIを使用"
-
-    # Older project setup replaced this core file with Phr00t's custom version.
-    # For official Qwen-Image-Edit, restore ComfyUI's own core node first.
-    if [ -f "$COMFY_DIR/comfy_extras/nodes_qwen.py" ] && ! git -C "$COMFY_DIR" diff --quiet -- comfy_extras/nodes_qwen.py; then
-        BACKUP_DIR="$WORKSPACE/qwen_setup_backup/$(date '+%Y%m%d_%H%M%S')"
-        mkdir -p "$BACKUP_DIR"
-        log "変更済みnodes_qwen.pyをバックアップしてComfyUI標準版へ戻す"
-        cp "$COMFY_DIR/comfy_extras/nodes_qwen.py" "$BACKUP_DIR/nodes_qwen.py"
-        git -C "$COMFY_DIR" restore --source=HEAD -- comfy_extras/nodes_qwen.py
-        echo "backup: $BACKUP_DIR/nodes_qwen.py"
-    fi
-
-    if ! git -C "$COMFY_DIR" diff --quiet || ! git -C "$COMFY_DIR" diff --cached --quiet; then
-        git -C "$COMFY_DIR" status --short
-        die "ComfyUIに上記のtracked変更があります。安全のため自動更新しません。"
-    fi
-
-    log "ComfyUIをfast-forward更新"
-    git -C "$COMFY_DIR" pull --ff-only
+if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ]; then
+    COMFY_PIN="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['comfy_commit'])
+PY
+)"
+    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFY_PIN" ] || die "専用ComfyUIコミットが異なります: $COMFY_DIR"
+    log "既存のモデル専用ComfyUIを使用"
+elif [ -e "$COMFY_DIR" ]; then
+    die "不完全またはGit管理外の専用ComfyUIがあります: $COMFY_DIR"
 else
-    if [ -e "$COMFY_DIR" ]; then
-        die "不完全またはGit管理外のComfyUIがあります: $COMFY_DIR"
-    fi
-    log "ComfyUIをshallow clone"
-    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
+    log "モデル専用ComfyUIを取得"
+    COMFY_PIN="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['comfy_commit'])
+PY
+)"
+    git init -q "$COMFY_DIR"
+    git -C "$COMFY_DIR" remote add origin https://github.com/Comfy-Org/ComfyUI.git
+    git -C "$COMFY_DIR" fetch -q --depth 1 origin "$COMFY_PIN"
+    git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
+    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFY_PIN" ] || die "取得したComfyUIコミットが一致しません。"
 fi
+runtime_link_data
 
 cd "$COMFY_DIR"
 
@@ -303,27 +301,15 @@ log "ComfyUI依存パッケージをインストール"
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
 FILENAME_NODE_DIR="$CUSTOM_NODES_DIR/ComfyUI-LoadImageWithFilename"
 mkdir -p "$CUSTOM_NODES_DIR"
-if [ -d "$FILENAME_NODE_DIR/.git" ]; then
-    log "既存のLoadImageWithFilenameノードを使用"
-elif [ -e "$FILENAME_NODE_DIR" ]; then
-    die "Git管理外の既存ノードがあります: $FILENAME_NODE_DIR"
-else
-    log "LoadImageWithFilenameノードを導入"
-    git clone https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git "$FILENAME_NODE_DIR"
-fi
+runtime_clone_node "https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git" \
+    "f6321875b3e8c5c200f558a76f6c49bbd0038387" "$FILENAME_NODE_DIR"
 [ -s "$FILENAME_NODE_DIR/__init__.py" ] && [ -s "$FILENAME_NODE_DIR/nodes.py" ] \
     || die "LoadImageWithFilenameノードの必須ファイルが見つかりません: $FILENAME_NODE_DIR"
 
 if [ "${INSTALL_PEPE_UTILS:-0}" = "1" ]; then
     PEPE_UTILS_DIR="$CUSTOM_NODES_DIR/ComfyUI-PepeUtils"
-    if [ -d "$PEPE_UTILS_DIR/.git" ]; then
-        log "既存のComfyUI-PepeUtilsノードを使用"
-    elif [ -e "$PEPE_UTILS_DIR" ]; then
-        die "Git管理外の既存ノードがあります: $PEPE_UTILS_DIR"
-    else
-        log "ComfyUI-PepeUtilsノードを導入"
-        git clone https://github.com/Pepehoschi/ComfyUI-PepeUtils.git "$PEPE_UTILS_DIR"
-    fi
+    runtime_clone_node "https://github.com/Pepehoschi/ComfyUI-PepeUtils.git" \
+        "a6b3e160b89f5f6d5a25d5ce5b7d312ec451aaba" "$PEPE_UTILS_DIR"
 fi
 
 if [ "${INSTALL_QWEN_CROP_NODE:-0}" = "1" ]; then
@@ -340,13 +326,13 @@ if [ "${INSTALL_QWEN_CROP_NODE:-0}" = "1" ]; then
 fi
 
 mkdir -p \
-    "$COMFY_DIR/models/diffusion_models" \
-    "$COMFY_DIR/models/text_encoders" \
-    "$COMFY_DIR/models/vae" \
-    "$COMFY_DIR/models/loras" \
-    "$COMFY_DIR/input" \
-    "$COMFY_DIR/output" \
-    "$COMFY_DIR/user/default/workflows"
+    "$SHARED_COMFY_DIR/models/diffusion_models" \
+    "$SHARED_COMFY_DIR/models/text_encoders" \
+    "$SHARED_COMFY_DIR/models/vae" \
+    "$SHARED_COMFY_DIR/models/loras" \
+    "$SHARED_COMFY_DIR/input" \
+    "$SHARED_COMFY_DIR/output" \
+    "$SHARED_COMFY_DIR/user/default/workflows"
 
 # ------------------------------------------------------------
 # Official-base Qwen models for native ComfyUI
@@ -362,20 +348,33 @@ download_file "$LORA_URL" "$LORA_PATH" "$LORA_SHA256"
 # ------------------------------------------------------------
 log "同梱のComfy-Org公式workflow templateを配置"
 [ -s "$WORKFLOW_SOURCE_PATH" ] || die "同梱workflowが見つかりません: $WORKFLOW_SOURCE_PATH"
-cp -f "$WORKFLOW_SOURCE_PATH" "$WORKFLOW_PATH.tmp"
-mv -f "$WORKFLOW_PATH.tmp" "$WORKFLOW_PATH"
+WORKFLOW_CREATED=0
+if [ ! -e "$WORKFLOW_PATH" ]; then
+    cp "$WORKFLOW_SOURCE_PATH" "$WORKFLOW_PATH.tmp"
+    mv "$WORKFLOW_PATH.tmp" "$WORKFLOW_PATH"
+    WORKFLOW_CREATED=1
+fi
 
 if [ "${INSTALL_QWEN_CROP_NODE:-0}" = "1" ]; then
     CROP_WORKFLOW_SOURCE="$MODEL_DIR/workflows/2511-2input-visual-crop-filename.json"
-    CROP_WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/2511-2input-visual-crop-filename.json"
+    CROP_WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/2511-2input-visual-crop-filename.json"
     [ -s "$CROP_WORKFLOW_SOURCE" ] || die "同梱のトリミングワークフローが見つかりません: $CROP_WORKFLOW_SOURCE"
-    cp "$CROP_WORKFLOW_SOURCE" "$CROP_WORKFLOW_PATH"
+    if [ ! -e "$CROP_WORKFLOW_PATH" ]; then
+        "$PYTHON" - "$CROP_WORKFLOW_SOURCE" "$CROP_WORKFLOW_PATH" "$MODEL_ID" <<'PY'
+import json, sys
+from pathlib import Path
+source, destination = map(Path, sys.argv[1:3])
+data = json.loads(source.read_text(encoding='utf-8'))
+data.setdefault('extra', {})['qwen_model_id'] = sys.argv[3]
+destination.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+    fi
     log "2画像入力トリミングワークフローを配置: $CROP_WORKFLOW_PATH"
 fi
 
 # The official 2511 template points to BF16 by default. For a 32 GB GPU this
 # setup downloads fp8mixed instead, so rewrite only that model filename.
-if [ -n "${WORKFLOW_REPLACE_FROM:-}" ]; then
+if [ "$WORKFLOW_CREATED" = 1 ] && [ -n "${WORKFLOW_REPLACE_FROM:-}" ]; then
     WORKFLOW_REPLACE_FROM="$WORKFLOW_REPLACE_FROM" \
     WORKFLOW_REPLACE_TO="${WORKFLOW_REPLACE_TO:-}" \
     "$PYTHON" - "$WORKFLOW_PATH" <<'PYWF'
@@ -392,51 +391,24 @@ p.write_text(s.replace(old, new), encoding="utf-8")
 PYWF
 fi
 
+if [ "$WORKFLOW_CREATED" = 1 ]; then
+    "$PYTHON" - "$WORKFLOW_PATH" "$MODEL_ID" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding='utf-8'))
+data.setdefault('extra', {})['qwen_model_id'] = sys.argv[2]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+PY
+fi
+
 # ------------------------------------------------------------
 # Restart ComfyUI
 # ------------------------------------------------------------
-if pgrep -f "python.*main.py.*--port[ =]?$COMFY_PORT" >/dev/null 2>&1 || pgrep -f "python.*main.py" >/dev/null 2>&1; then
-    log "既存ComfyUIを停止"
-    pkill -f "python.*main.py" || true
-    sleep 2
-fi
-
-log "ComfyUIをバックグラウンド起動"
-cd "$COMFY_DIR"
-nohup "$PYTHON" main.py \
-    --listen 127.0.0.1 \
-    --port "$COMFY_PORT" \
-    > "$COMFY_LOG" 2>&1 &
-
-COMFY_PID=$!
-echo "$COMFY_PID" > "$WORKSPACE/comfyui.pid"
-
-log "ComfyUI API起動待ち"
-READY=0
-for _ in $(seq 1 90); do
-    if ! kill -0 "$COMFY_PID" 2>/dev/null; then
-        echo "ComfyUIが起動途中で終了しました。ログ:"
-        tail -n 100 "$COMFY_LOG" || true
-        exit 1
-    fi
-
-    if "$PYTHON" - <<PY >/dev/null 2>&1
-import urllib.request
-urllib.request.urlopen("http://127.0.0.1:${COMFY_PORT}/system_stats", timeout=1).read(1)
-PY
-    then
-        READY=1
-        break
-    fi
-
-    sleep 2
-done
-
-if [ "$READY" -ne 1 ]; then
-    echo "ComfyUIが時間内に応答しませんでした。ログ:"
-    tail -n 100 "$COMFY_LOG" || true
-    exit 1
-fi
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+runtime_start "$RUNTIME_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
 
 COMFY_COMMIT="$(git -C "$COMFY_DIR" rev-parse --short HEAD 2>/dev/null || true)"
 

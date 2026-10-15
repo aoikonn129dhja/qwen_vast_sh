@@ -6,12 +6,11 @@ set -Eeuo pipefail
 # It preserves existing ComfyUI installations, other models and workflows.
 
 MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY_PORT="${COMFY_PORT:-8188}"
-COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
-PID_FILE="$WORKSPACE/comfyui.pid"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "qwen3-vl-8b-instruct"
+COMFY_PORT=18308
+PID_FILE="$RUNTIME_PID_FILE"
 
 COMFY_REPO="https://github.com/Comfy-Org/ComfyUI.git"
 COMFY_COMMIT="ba994879b88d0ebd9950b1e5c1e923d928f216ba"
@@ -21,9 +20,9 @@ NODE_DIR="$COMFY_DIR/custom_nodes/ComfyUI-QwenVL"
 
 MODEL_ID="Qwen/Qwen3-VL-8B-Instruct"
 MODEL_NAME="Qwen3-VL-8B-Instruct"
-MODEL_PATH="$COMFY_DIR/models/LLM/Qwen-VL/$MODEL_NAME"
-MODEL_REVISION="${MODEL_REVISION:-main}"
-WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/Qwen3-VL-8B-Pose-Analysis.json"
+MODEL_PATH="$SHARED_COMFY_DIR/models/LLM/Qwen-VL/$MODEL_NAME"
+MODEL_REVISION="${MODEL_REVISION:-0c351dd01ed87e9c1b53cbc748cba10e6187ff3b}"
+WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/Qwen3-VL-8B-Pose-Analysis.json"
 
 # Measure the actual Hugging Face route before downloading ComfyUI or the model.
 MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
@@ -124,6 +123,7 @@ install_pip() {
 ensure_git_checkout() {
     local url="$1" target="$2" sha="$3" marker="$4"
     if [ -f "$target/$marker" ] && [ -d "$target/.git" ]; then
+        [ "$(git -C "$target" rev-parse HEAD)" = "$sha" ] || die "Git checkout commit differs: $target"
         log "既存のGit checkoutを使用: $target"
         return
     fi
@@ -160,26 +160,6 @@ assert 'AILab_QwenVL' in data
 PY
 }
 
-stop_existing_comfy() {
-    if ! api_ready; then
-        return
-    fi
-    if [ ! -s "$PID_FILE" ]; then
-        die "8188でComfyUIが稼働中ですがPIDファイルがありません。誤停止を防ぐため手動で停止してから再実行してください。"
-    fi
-    local pid command_line
-    read -r pid < "$PID_FILE"
-    [[ "$pid" =~ ^[0-9]+$ ]] || die "PIDファイルが不正です: $PID_FILE"
-    command_line="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
-    [[ "$command_line" == *main.py* ]] || die "PID $pid はComfyUIではありません。手動停止後に再実行してください。"
-    log "既存のComfyUIを停止: $pid"
-    kill "$pid"
-    for _ in $(seq 1 40); do
-        if ! api_ready; then return; fi
-        sleep 1
-    done
-    die "既存のComfyUIが停止しませんでした。ログを確認してください。"
-}
 
 need git
 need nvidia-smi
@@ -193,16 +173,29 @@ df -h "$WORKSPACE"
 
 check_download_speed
 
-TORCH_BEFORE="$("$PYTHON" -c 'import torch; print(torch.__version__)')"
-
 log "ComfyUIを準備"
 if [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
+    [ "$(git -C "$COMFY_DIR" rev-parse HEAD 2>/dev/null || true)" = "$COMFY_COMMIT" ] || die "専用ComfyUIコミットが異なります: $COMFY_DIR"
     log "既存ComfyUIを保持: $COMFY_DIR"
 else
     ensure_git_checkout "$COMFY_REPO" "$COMFY_DIR" "$COMFY_COMMIT" "requirements.txt"
     [ -f "$COMFY_DIR/main.py" ] || die "ComfyUIのmain.pyがありません。"
     log "ComfyUI依存パッケージをインストール"
+fi
+runtime_link_data
+# ComfyUI-QwenVL resolves downloads through folder_paths.models_dir directly.
+# Keep its hard-coded LLM directory on the shared volume as well.
+if [ -L "$COMFY_DIR/models/LLM" ]; then
+    [ "$(readlink -f "$COMFY_DIR/models/LLM")" = "$(readlink -f "$SHARED_COMFY_DIR/models/LLM")" ] || die "予期しないLLMリンク: $COMFY_DIR/models/LLM"
+elif [ -e "$COMFY_DIR/models/LLM" ]; then
+    die "専用ComfyUIのLLMパスが既に存在します: $COMFY_DIR/models/LLM"
+else
+    mkdir -p "$SHARED_COMFY_DIR/models/LLM"
+    ln -s "$SHARED_COMFY_DIR/models/LLM" "$COMFY_DIR/models/LLM"
+fi
+if [ ! -f "$RUNTIME_INSTANCE/.requirements-installed" ]; then
     install_pip -r "$COMFY_DIR/requirements.txt"
+    touch "$RUNTIME_INSTANCE/.requirements-installed"
 fi
 
 log "ComfyUI-QwenVLを導入"
@@ -222,8 +215,6 @@ install_pip \
     'opencv-python' \
     'Pillow' \
     'numpy'
-TORCH_AFTER="$("$PYTHON" -c 'import torch; print(torch.__version__)')"
-[ "$TORCH_BEFORE" = "$TORCH_AFTER" ] || die "PyTorchが変更されました: $TORCH_BEFORE -> $TORCH_AFTER。依存環境を確認してください。"
 "$PYTHON" - <<'PY'
 from transformers import AutoModelForImageTextToText, AutoProcessor
 from huggingface_hub import snapshot_download
@@ -231,19 +222,26 @@ print('Qwen3-VL Python imports: OK')
 PY
 
 log "Qwen3-VL-8B-Instruct公式モデルを取得（約17.5GB）"
-mkdir -p "$MODEL_PATH" "$COMFY_DIR/input" "$COMFY_DIR/output" "$(dirname "$WORKFLOW_PATH")"
+mkdir -p "$MODEL_PATH" "$SHARED_COMFY_DIR/input" "$SHARED_COMFY_DIR/output" "$(dirname "$WORKFLOW_PATH")"
 QWEN_MODEL_ID="$MODEL_ID" QWEN_MODEL_PATH="$MODEL_PATH" QWEN_MODEL_REVISION="$MODEL_REVISION" "$PYTHON" - <<'PY'
 import os
 from pathlib import Path
 from huggingface_hub import snapshot_download
 path = Path(os.environ['QWEN_MODEL_PATH'])
-snapshot_download(
-    repo_id=os.environ['QWEN_MODEL_ID'],
-    revision=os.environ['QWEN_MODEL_REVISION'],
-    local_dir=str(path),
-    ignore_patterns=['*.md', '.gitattributes'],
-    max_workers=4,
-)
+index = path / 'model.safetensors.index.json'
+complete = False
+if (path / 'config.json').is_file() and index.is_file():
+    import json
+    shards = set(json.loads(index.read_text(encoding='utf-8'))['weight_map'].values())
+    complete = bool(shards) and all((path / shard).is_file() and (path / shard).stat().st_size > 0 for shard in shards)
+if not complete:
+    snapshot_download(
+        repo_id=os.environ['QWEN_MODEL_ID'],
+        revision=os.environ['QWEN_MODEL_REVISION'],
+        local_dir=str(path),
+        ignore_patterns=['*.md', '.gitattributes'],
+        max_workers=4,
+    )
 if not (path / 'config.json').is_file() or not list(path.glob('*.safetensors')):
     raise SystemExit(f'Model download is incomplete: {path}')
 print(f'Model downloaded to: {path}')
@@ -252,6 +250,7 @@ PY
 # Self-contained GUI workflow: LoadImage -> QwenVL -> PreviewAny.
 # The custom prompt describes the *reference pose*, not the identity of the person.
 log "画像解析workflowを配置"
+if [ ! -e "$WORKFLOW_PATH" ]; then
 WORKFLOW_PATH="$WORKFLOW_PATH" MODEL_NAME="$MODEL_NAME" "$PYTHON" - <<'PY'
 import json, os
 from pathlib import Path
@@ -302,33 +301,20 @@ workflow = {
         },
     ],
     'links': [[1, 1, 0, 2, 0, 'IMAGE'], [2, 2, 0, 3, 0, 'STRING']],
-    'groups': [], 'config': {}, 'extra': {}, 'version': 0.4,
+    'groups': [], 'config': {}, 'extra': {'qwen_model_id': 'qwen3-vl-8b-instruct'}, 'version': 0.4,
 }
 tmp = out.with_suffix(out.suffix + '.tmp')
 tmp.write_text(json.dumps(workflow, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 tmp.replace(out)
 print(out)
 PY
-
-if api_ready && node_ready && [ -s "$PID_FILE" ]; then
-    log "ComfyUIは稼働中でQwenVLノードも認識済み。再起動を省略"
-else
-    stop_existing_comfy
-    log "ComfyUIをlocalhostで起動"
-    cd "$COMFY_DIR"
-    nohup "$PYTHON" main.py --listen 127.0.0.1 --port "$COMFY_PORT" > "$COMFY_LOG" 2>&1 &
-    echo "$!" > "$PID_FILE"
-    READY=0
-    for _ in $(seq 1 90); do
-        if api_ready; then READY=1; break; fi
-        if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-            tail -n 80 "$COMFY_LOG" || true
-            die "ComfyUI起動中に終了しました。"
-        fi
-        sleep 2
-    done
-    [ "$READY" = 1 ] || { tail -n 80 "$COMFY_LOG" || true; die "ComfyUI APIが起動しません。"; }
 fi
+
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+[ "$RUNTIME_PORT" = "$COMFY_PORT" ] || die "Runtime port mismatch"
+runtime_start "$COMFY_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
 node_ready || { tail -n 80 "$COMFY_LOG" || true; die "AILab_QwenVLノードが読み込まれていません。"; }
 
 printf '\n============================================================\n'

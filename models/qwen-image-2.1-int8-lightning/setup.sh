@@ -5,11 +5,14 @@ MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$MODEL_DIR/model.conf"
 
-WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY_PORT="${COMFY_PORT:-8188}"
-COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "qwen-image-2.1-int8-lightning"
+COMFY_PORT="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
+PY
+)"
 VERIFY_SHA256="${VERIFY_SHA256:-0}" # 1: optional full SHA-256 verification
 UPDATE_COMFYUI="${UPDATE_COMFYUI:-1}"
 
@@ -35,20 +38,7 @@ free_kb="$(df -Pk "$WORKSPACE" | awk 'NR == 2 { print $4 }')"
 
 # Ensure a recent ComfyUI to support the native Qwen Image 2.1 nodes.
 log 'ComfyUI の準備'
-if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ]; then
-    if [ "$UPDATE_COMFYUI" = 1 ]; then
-        # Never overwrite user changes to ComfyUI core files.
-        git -C "$COMFY_DIR" diff --quiet || die 'ComfyUI に未コミット変更があります。バックアップしてから更新してください。'
-        git -C "$COMFY_DIR" diff --cached --quiet || die 'ComfyUI にステージ済み変更があります。'
-        git -C "$COMFY_DIR" pull --ff-only || die 'ComfyUI の fast-forward 更新に失敗しました。'
-    else
-        log '既存の ComfyUI をそのまま使用します。'
-    fi
-elif [ -e "$COMFY_DIR" ]; then
-    die "不完全または Git 管理外の ComfyUI があります: $COMFY_DIR"
-else
-    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
-fi
+runtime_clone_comfy "$MODEL_DIR/runtime.json"
 
 log 'ComfyUI 依存パッケージを導入'
 "$PYTHON" -m pip install -r "$COMFY_DIR/requirements.txt"
@@ -89,11 +79,11 @@ fetch_model() {
     mv -n -- "$partial" "$dest"
 }
 
-DIFFUSION_PATH="$COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
-TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
-VAE_PATH="$COMFY_DIR/models/vae/$VAE_FILE"
-LORA_PATH="$COMFY_DIR/models/loras/$LORA_FILE"
-WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/$WORKFLOW_FILE"
+DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
+TEXT_ENCODER_PATH="$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
+VAE_PATH="$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
+LORA_PATH="$SHARED_COMFY_DIR/models/loras/$LORA_FILE"
+WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/$WORKFLOW_FILE"
 
 # Do not download the optional Qwen 3.5 Prompt Enhancer: one image + one prompt only.
 fetch_model "$HF_BASE/diffusion_models/$DIFFUSION_FILE" "$DIFFUSION_PATH" "$DIFFUSION_SHA256" 5000000000
@@ -101,42 +91,14 @@ fetch_model "$HF_BASE/text_encoders/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_PATH" "$T
 fetch_model "$HF_BASE/vae/$VAE_FILE" "$VAE_PATH" "$VAE_SHA256" 400000000
 fetch_model "$HF_LORA/$LORA_SOURCE_FILE" "$LORA_PATH" "$LORA_SHA256" 40000000
 
-mkdir -p "$(dirname "$WORKFLOW_PATH")" "$COMFY_DIR/input" "$COMFY_DIR/output"
-cp -- "$MODEL_DIR/workflows/$WORKFLOW_FILE" "${WORKFLOW_PATH}.tmp"
-mv -f -- "${WORKFLOW_PATH}.tmp" "$WORKFLOW_PATH"
+mkdir -p "$(dirname "$WORKFLOW_PATH")" "$SHARED_COMFY_DIR/input" "$SHARED_COMFY_DIR/output"
+[ -e "$WORKFLOW_PATH" ] || { cp -- "$MODEL_DIR/workflows/$WORKFLOW_FILE" "${WORKFLOW_PATH}.tmp"; mv -f -- "${WORKFLOW_PATH}.tmp" "$WORKFLOW_PATH"; }
 log "1画像入力の Lightning workflow を配置: $WORKFLOW_PATH"
 
-# Salad's select_model.sh expects a running ComfyUI PID in /workspace/comfyui.pid.
-# Keep the instance-local restart behavior consistent with the other model scripts.
-log 'ComfyUI を再起動'
-if pgrep -f 'python.*main.py' >/dev/null 2>&1; then
-    pkill -f 'python.*main.py' || true
-    sleep 2
-fi
-cd "$COMFY_DIR"
-nohup "$PYTHON" main.py --listen 127.0.0.1 --port "$COMFY_PORT" > "$COMFY_LOG" 2>&1 &
-COMFY_PID=$!
-echo "$COMFY_PID" > "$WORKSPACE/comfyui.pid"
-
-log 'ComfyUI API を確認'
-ready=0
-for _ in $(seq 1 90); do
-    if ! kill -0 "$COMFY_PID" 2>/dev/null; then
-        tail -n 100 "$COMFY_LOG" || true
-        die 'ComfyUI が起動中に終了しました。'
-    fi
-    if "$PYTHON" - "$COMFY_PORT" <<'PY' >/dev/null 2>&1
-import sys
-import urllib.request
-urllib.request.urlopen(f'http://127.0.0.1:{sys.argv[1]}/system_stats', timeout=2).read(1)
-PY
-    then
-        ready=1
-        break
-    fi
-    sleep 2
-done
-[ "$ready" -eq 1 ] || { tail -n 100 "$COMFY_LOG" || true; die 'ComfyUI API が応答しません。'; }
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+runtime_start "$RUNTIME_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
 
 cat <<EOF2
 

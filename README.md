@@ -2,6 +2,8 @@
 
 Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するためのリポジトリ。モデルごとにsetup、workflow、依存情報を分離している。
 
+複数モデルの導入時も各 `models/<model>/setup.sh` を順に実行する。モデル別のPython環境・ComfyUIインスタンスと、共有データ・8188 Gatewayの構成は [ランタイムの説明](scripts/runtime/README.md) を参照する。
+
 ## プロバイダを選ぶ
 
 - `models/`: Vast.ai用モデル設定。以下の手順を使用する。
@@ -74,13 +76,13 @@ qwen_vast_sh/
 
 1. GPUとDiskの確認
 2. Hugging Faceへの実ダウンロード速度の事前測定
-3. 固定コミットからComfyUIをcloneまたは修復
+3. 固定コミットからモデル専用ComfyUIを取得
 4. モデルディレクトリ内の固定依存をuvで導入
 5. 固定バージョンのcomfy-cliを導入
 6. Qwen Rapid AIO NSFW v19をダウンロード
 7. Phr00tのnodes_qwen.v2.pyを導入
 8. バッチ用workflowを配置
-9. ComfyUIをlocalhostで起動
+9. モデル専用ComfyUIと共通Gatewayをlocalhostで起動
 10. 認証付きプレビュー用cloudflaredを準備
 
 ComfyUI自体は外部公開せず、生成画像はモデル専用の `run_batch.sh` が提供する認証付きプレビューで確認する。

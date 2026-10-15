@@ -5,11 +5,14 @@ MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$MODEL_DIR/model.conf"
 
-WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY_PORT="${COMFY_PORT:-8188}"
-COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "ltx-2.3-uncensored-v1.4-q4"
+COMFY_PORT="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
+PY
+)"
 
 UV_VERSION="0.11.28"
 UV="${UV:-$WORKSPACE/bin/uv}"
@@ -65,25 +68,6 @@ install_uv() {
     rm -f -- "$archive"
 }
 
-git_clone_or_update() {
-    local url="$1"
-    local dest="$2"
-
-    if [ -d "$dest/.git" ]; then
-        if ! git -C "$dest" diff --quiet || ! git -C "$dest" diff --cached --quiet; then
-            git -C "$dest" status --short
-            die "tracked変更があるため自動更新しません: $dest"
-        fi
-        log "更新: $dest"
-        git -C "$dest" pull --ff-only
-    elif [ -e "$dest" ]; then
-        die "Git管理外の既存パスがあります: $dest"
-    else
-        log "clone: $url"
-        git clone --depth 1 "$url" "$dest"
-    fi
-}
-
 need_cmd git
 need_cmd wget
 need_cmd tar
@@ -95,34 +79,23 @@ log "[1/5] uvを準備"
 install_uv
 
 log "[2/5] ComfyUIと依存を準備"
-if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
-    if ! git -C "$COMFY_DIR" diff --quiet || ! git -C "$COMFY_DIR" diff --cached --quiet; then
-        git -C "$COMFY_DIR" status --short
-        die "ComfyUIにtracked変更があるため自動更新しません。"
-    fi
-    git -C "$COMFY_DIR" pull --ff-only
-elif [ -e "$COMFY_DIR" ]; then
-    die "不完全またはGit管理外のComfyUIがあります: $COMFY_DIR"
-else
-    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
-fi
-
+runtime_clone_comfy "$MODEL_DIR/runtime.json"
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
 
 log "[3/5] CCTech GGUF Loaderと依存を準備"
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
 GGUF_LOADER_DIR="$CUSTOM_NODES_DIR/ComfyUI-GGUF-Loader"
 mkdir -p "$CUSTOM_NODES_DIR"
-git_clone_or_update "$GGUF_LOADER_REPO" "$GGUF_LOADER_DIR"
+runtime_clone_node "$GGUF_LOADER_REPO" "d8b3e2509603cafa1e470298599acd6bd980fe06" "$GGUF_LOADER_DIR"
 if [ -f "$GGUF_LOADER_DIR/requirements.txt" ]; then
     "$UV" pip install --python "$PYTHON" -r "$GGUF_LOADER_DIR/requirements.txt"
 fi
 "$UV" pip install --python "$PYTHON" opencv-python-headless
 
 log "[4/5] LTX-2.3 v1.4 Q4_K_Mの5ファイルとx2 upscalerを配置"
-DIFFUSION_DIR="$COMFY_DIR/models/diffusion_models"
-TEXT_ENCODERS_DIR="$COMFY_DIR/models/text_encoders"
-VAE_DIR="$COMFY_DIR/models/vae"
+DIFFUSION_DIR="$SHARED_COMFY_DIR/models/diffusion_models"
+TEXT_ENCODERS_DIR="$SHARED_COMFY_DIR/models/text_encoders"
+VAE_DIR="$SHARED_COMFY_DIR/models/vae"
 
 "$PYTHON" "$MODEL_DIR/download_models.py" \
     --repo "$HF_REPO" --revision "$HF_REVISION" \
@@ -132,7 +105,7 @@ VAE_DIR="$COMFY_DIR/models/vae"
     --file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE" \
     --file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE"
 
-UPSCALER_PATH="$COMFY_DIR/models/latent_upscale_models/$UPSCALER_FILE"
+UPSCALER_PATH="$SHARED_COMFY_DIR/models/latent_upscale_models/$UPSCALER_FILE"
 if ! sha256_matches "$UPSCALER_PATH" "$UPSCALER_SHA256"; then
     mkdir -p -- "$(dirname -- "$UPSCALER_PATH")"
     wget -q --https-only --tries=3 --timeout=60 -c -O "$UPSCALER_PATH.part" "$UPSCALER_URL"
@@ -143,44 +116,10 @@ if ! sha256_matches "$UPSCALER_PATH" "$UPSCALER_SHA256"; then
     mv -f -- "$UPSCALER_PATH.part" "$UPSCALER_PATH"
 fi
 
-log "[5/5] ComfyUIを再起動"
-if pgrep -f "python.*main.py" >/dev/null 2>&1; then
-    pkill -f "python.*main.py" || true
-    sleep 2
-fi
-
-cd "$COMFY_DIR"
-nohup "$PYTHON" main.py \
-    --listen 127.0.0.1 \
-    --port "$COMFY_PORT" \
-    > "$COMFY_LOG" 2>&1 &
-
-COMFY_PID=$!
-echo "$COMFY_PID" > "$WORKSPACE/comfyui.pid"
-
-log "ComfyUI API起動待ち"
-READY=0
-for _ in $(seq 1 90); do
-    if ! kill -0 "$COMFY_PID" 2>/dev/null; then
-        tail -n 100 "$COMFY_LOG" || true
-        die "ComfyUIが起動途中で終了しました。"
-    fi
-
-    if "$PYTHON" - <<PY >/dev/null 2>&1
-import urllib.request
-urllib.request.urlopen("http://127.0.0.1:${COMFY_PORT}/system_stats", timeout=1).read(1)
-PY
-    then
-        READY=1
-        break
-    fi
-    sleep 2
-done
-
-if [ "$READY" -ne 1 ]; then
-    tail -n 100 "$COMFY_LOG" || true
-    die "ComfyUIが時間内に応答しませんでした。"
-fi
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+runtime_start "$RUNTIME_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
 
 echo
 echo "============================================================"

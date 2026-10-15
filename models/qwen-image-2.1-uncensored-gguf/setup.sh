@@ -5,11 +5,14 @@ MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$MODEL_DIR/model.conf"
 
-WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY_PORT="${COMFY_PORT:-8188}"
-COMFY_LOG="${COMFY_LOG:-$WORKSPACE/comfyui.log}"
+REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "qwen-image-2.1-uncensored-gguf"
+COMFY_PORT="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
+PY
+)"
 GGUF_NODE_DIR="$COMFY_DIR/custom_nodes/ComfyUI-GGUF"
 
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
@@ -30,29 +33,14 @@ FREE_KB="$(df -Pk "$WORKSPACE" | awk 'NR==2 {print $4}')"
 [ "$FREE_KB" -ge 25000000 ] || die '空きディスクが25GB未満です。追加ファイルを配置する余裕がありません。'
 
 log 'ComfyUIを準備（既存インストールは変更しない）'
-if [ -f "$COMFY_DIR/main.py" ] && [ -f "$COMFY_DIR/requirements.txt" ]; then
-    log '既存のComfyUIを使用'
-elif [ -e "$COMFY_DIR" ]; then
-    die "既存のComfyUIディレクトリが不完全です: $COMFY_DIR"
-else
-    git clone --depth 1 https://github.com/Comfy-Org/ComfyUI.git "$COMFY_DIR"
-fi
+runtime_clone_comfy "$MODEL_DIR/runtime.json"
 
 log 'ComfyUI依存を導入'
 "$PYTHON" -m pip install -r "$COMFY_DIR/requirements.txt"
 
 log 'GGUFノードを準備'
 mkdir -p "$COMFY_DIR/custom_nodes"
-if [ -d "$GGUF_NODE_DIR/.git" ]; then
-    if ! git -C "$GGUF_NODE_DIR" diff --quiet || ! git -C "$GGUF_NODE_DIR" diff --cached --quiet; then
-        die 'GGUFノードにtracked変更があるため、上書きしません。'
-    fi
-    git -C "$GGUF_NODE_DIR" pull --ff-only
-elif [ -e "$GGUF_NODE_DIR" ]; then
-    die "同名のGit管理外ノードが存在します: $GGUF_NODE_DIR"
-else
-    git clone --depth 1 "$GGUF_NODE_REPO" "$GGUF_NODE_DIR"
-fi
+runtime_clone_node "$GGUF_NODE_REPO" "373048b8403a7820620065210a691263d4da0a61" "$GGUF_NODE_DIR"
 if [ -f "$GGUF_NODE_DIR/requirements.txt" ]; then
     "$PYTHON" -m pip install -r "$GGUF_NODE_DIR/requirements.txt"
 fi
@@ -95,45 +83,14 @@ fetch_model() {
 }
 
 log 'モデル3ファイルを配置'
-fetch_model "$GGUF_REL" "$COMFY_DIR/models/diffusion_models/$GGUF_FILE" "$GGUF_SHA256"
-fetch_model "$TEXT_ENCODER_REL" "$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
-fetch_model "$VAE_REL" "$COMFY_DIR/models/vae/$VAE_FILE"
+fetch_model "$GGUF_REL" "$SHARED_COMFY_DIR/models/diffusion_models/$GGUF_FILE" "$GGUF_SHA256"
+fetch_model "$TEXT_ENCODER_REL" "$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
+fetch_model "$VAE_REL" "$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
 
-log 'ComfyUIを起動、または既存プロセスを確認'
-if "$PYTHON" - "$COMFY_PORT" <<'PY' >/dev/null 2>&1
-import sys, urllib.request
-urllib.request.urlopen(f'http://127.0.0.1:{sys.argv[1]}/system_stats', timeout=2)
-PY
-then
-    if command -v supervisorctl >/dev/null 2>&1 && supervisorctl status comfyui 2>/dev/null | grep -q 'RUNNING'; then
-        log 'SupervisorでComfyUIを再起動'
-        supervisorctl restart comfyui
-    else
-        log 'ComfyUIは既に起動中。ノードを反映するにはVast.aiの管理画面からComfyUIを再起動してください。'
-    fi
-else
-    cd "$COMFY_DIR"
-    nohup "$PYTHON" main.py --listen 127.0.0.1 --port "$COMFY_PORT" >"$COMFY_LOG" 2>&1 &
-    COMFY_PID=$!
-    echo "$COMFY_PID" > "$WORKSPACE/comfyui.pid"
-    READY=0
-    for _ in $(seq 1 90); do
-        if ! kill -0 "$COMFY_PID" 2>/dev/null; then
-            tail -n 80 "$COMFY_LOG" || true
-            die 'ComfyUI起動に失敗しました。'
-        fi
-        if "$PYTHON" - "$COMFY_PORT" <<'PY' >/dev/null 2>&1
-import sys, urllib.request
-urllib.request.urlopen(f'http://127.0.0.1:{sys.argv[1]}/system_stats', timeout=2)
-PY
-        then
-            READY=1
-            break
-        fi
-        sleep 2
-    done
-    [ "$READY" -eq 1 ] || { tail -n 80 "$COMFY_LOG" || true; die 'ComfyUI APIが応答しません。'; }
-fi
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+runtime_start "$RUNTIME_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
 
 cat <<EOF2
 
@@ -141,9 +98,9 @@ cat <<EOF2
  SETUP COMPLETE: $MODEL_NAME
 ============================================================
 ComfyUI : http://127.0.0.1:$COMFY_PORT
-GGUF    : $COMFY_DIR/models/diffusion_models/$GGUF_FILE
-Encoder : $COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE
-VAE     : $COMFY_DIR/models/vae/$VAE_FILE
+GGUF    : $SHARED_COMFY_DIR/models/diffusion_models/$GGUF_FILE
+Encoder : $SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE
+VAE     : $SHARED_COMFY_DIR/models/vae/$VAE_FILE
 Node    : $GGUF_NODE_DIR
 Log     : $COMFY_LOG
 

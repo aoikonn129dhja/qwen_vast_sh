@@ -9,9 +9,8 @@ REPO_ROOT="$(cd -- "$MODEL_DIR/../.." && pwd)"
 # Qwen Rapid AIO NSFW v23 + ComfyUI one-shot setup
 # ============================================================
 
-WORKSPACE="/workspace"
-COMFY_DIR="$WORKSPACE/ComfyUI"
-PYTHON="/venv/main/bin/python"
+source "$REPO_ROOT/scripts/runtime/bootstrap.sh"
+runtime_prepare "qwen-rapid-aio-nsfw-v23"
 
 COMFYUI_REPO="https://github.com/Comfy-Org/ComfyUI.git"
 COMFYUI_COMMIT="15eb748b3ec5f8a0a2d470b7fb280e2d7579f916"
@@ -32,16 +31,16 @@ QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$
 QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
 
 REPO_WORKFLOW="$MODEL_DIR/workflows/batch-save-image.json"
-WORKFLOW_FILE="$COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v23-Batch.json"
+WORKFLOW_FILE="$SHARED_COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v23-Batch.json"
 BATCH_ROOT="$WORKSPACE/qwen_batch"
 
-COMFY_LOG="$WORKSPACE/comfyui.log"
+COMFY_LOG="$RUNTIME_ROOT/logs/qwen-rapid-aio-nsfw-v23.log"
 CLOUDFLARED="$WORKSPACE/bin/cloudflared"
 CLOUDFLARED_VERSION="2026.8.3"
 CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-linux-amd64"
 CLOUDFLARED_SHA256="f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e"
-MODEL_PATH="$COMFY_DIR/models/checkpoints/$MODEL_FILE"
-COMFY_CLI="/venv/main/bin/comfy"
+MODEL_PATH="$SHARED_COMFY_DIR/models/checkpoints/$MODEL_FILE"
+COMFY_CLI="$RUNTIME_ENV/bin/comfy"
 
 # Vast.ai は毎回Destroyしてモデルを再DLする運用なので、実回線速度を事前測定する。
 # 10 MiB/s ≒ 84 Mbps。これ未満だと28.4GBのモデルだけで約45分以上かかる。
@@ -73,6 +72,9 @@ fetch_verified() {
     local label="$4"
     local temporary="${destination}.download.$$"
 
+    if [ -s "$destination" ] && verify_sha256 "$destination" "$expected"; then
+        return 0
+    fi
     rm -f -- "$temporary"
     wget -q -O "$temporary" "$url" || {
         rm -f -- "$temporary"
@@ -258,40 +260,19 @@ fi
 
 if [ "$COMFY_VALID" -eq 1 ]; then
     log "固定済みComfyUIコミットを確認: $COMFYUI_COMMIT"
+elif [ -e "$COMFY_DIR" ]; then
+    die "専用ComfyUIのコミットが異なります。既存インスタンスを保護するため停止: $COMFY_DIR"
 else
-    RECOVERED_MODEL="$WORKSPACE/.${MODEL_FILE}.recover"
-
-    if [ -e "$COMFY_DIR" ]; then
-        if [ -n "$COMFY_CURRENT_COMMIT" ]; then
-            log "ComfyUIを固定コミットへ置き換え: $COMFY_CURRENT_COMMIT -> $COMFYUI_COMMIT"
-        else
-            log "不完全なComfyUIを検出しました。固定コミットから再構築します。"
-        fi
-
-        # checkpointだけ既に取得済みなら再DLを避けるため一時退避。
-        if [ -s "$MODEL_PATH" ]; then
-            log "既存モデルを一時退避"
-            mv "$MODEL_PATH" "$RECOVERED_MODEL"
-        fi
-
-        rm -rf "$COMFY_DIR"
-    fi
-
-    log "ComfyUI固定コミットを取得: $COMFYUI_COMMIT"
+    log "モデル専用ComfyUI固定コミットを取得: $COMFYUI_COMMIT"
     git init -q "$COMFY_DIR"
     git -C "$COMFY_DIR" remote add origin "$COMFYUI_REPO"
     git -C "$COMFY_DIR" fetch -q --depth 1 origin "$COMFYUI_COMMIT"
     git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
     [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFYUI_COMMIT" ] \
         || die "ComfyUIの取得コミットが固定値と一致しません。"
-
-    if [ -s "$RECOVERED_MODEL" ]; then
-        log "退避したモデルを復元"
-        mkdir -p "$COMFY_DIR/models/checkpoints"
-        mv "$RECOVERED_MODEL" "$MODEL_PATH"
-    fi
 fi
 
+runtime_link_data
 cd "$COMFY_DIR"
 
 log "固定済みuvを準備"
@@ -310,13 +291,13 @@ installed_comfy_cli="$("$PYTHON" -c 'import importlib.metadata; print(importlib.
     || die "comfy-cliのバージョンが固定値と一致しません: $installed_comfy_cli"
 
 log "comfy-cli のデフォルト ComfyUI workspace を設定"
-"$COMFY_CLI" --skip-prompt --enable-telemetry set-default "$COMFY_DIR"
+HOME="$RUNTIME_INSTANCE" XDG_CONFIG_HOME="$RUNTIME_INSTANCE/.config" "$COMFY_CLI" --skip-prompt set-default "$COMFY_DIR"
 
 mkdir -p \
-    "$COMFY_DIR/models/checkpoints" \
-    "$COMFY_DIR/input" \
-    "$COMFY_DIR/output" \
-    "$COMFY_DIR/user/default/workflows" \
+    "$SHARED_COMFY_DIR/models/checkpoints" \
+    "$SHARED_COMFY_DIR/input" \
+    "$SHARED_COMFY_DIR/output" \
+    "$SHARED_COMFY_DIR/user/default/workflows" \
     "$BATCH_ROOT/input" \
     "$BATCH_ROOT/tmp" \
     "$WORKSPACE/bin"
@@ -364,6 +345,9 @@ if len(loaders) != 1:
 node = loaders[0]
 node["widgets_values"][0] = checkpoint
 node.setdefault("widgets_values_named", {})["ckpt_name"] = checkpoint
+data.setdefault("extra", {})["qwen_model_id"] = "qwen-rapid-aio-nsfw-v23"
+if destination.exists():
+    raise SystemExit(0)
 destination.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 WORKFLOW_PY
 
@@ -375,80 +359,17 @@ fi
 # Load Image With Filename custom node
 CUSTOM_NODE_DIR="$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
 CUSTOM_NODE_REPO="https://github.com/kymeraj/comfyui-load-image-with-filename.git"
-if [ -e "$CUSTOM_NODE_DIR" ] || [ -L "$CUSTOM_NODE_DIR" ]; then
-    if [ ! -d "$CUSTOM_NODE_DIR/.git" ] \
-        || [ ! -f "$CUSTOM_NODE_DIR/__init__.py" ] \
-        || [ ! -f "$CUSTOM_NODE_DIR/load_image_with_filename.py" ] \
-        || ! git -C "$CUSTOM_NODE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-        || [ "$(git -C "$CUSTOM_NODE_DIR" remote get-url origin 2>/dev/null || true)" != "$CUSTOM_NODE_REPO" ]; then
-        die "不完全なカスタムノードを検出しました: $CUSTOM_NODE_DIR"
-    fi
-    log "カスタムノードを確認: $CUSTOM_NODE_DIR"
-else
-    log "カスタムノードを取得: $CUSTOM_NODE_REPO"
-    mkdir -p "$COMFY_DIR/custom_nodes"
-    git clone "$CUSTOM_NODE_REPO" "$CUSTOM_NODE_DIR"
-fi
+runtime_clone_node "$CUSTOM_NODE_REPO" "5b57eb29573c173b8f013997adc7d14d94bcd90f" "$CUSTOM_NODE_DIR"
+[ -f "$CUSTOM_NODE_DIR/__init__.py" ] && [ -f "$CUSTOM_NODE_DIR/load_image_with_filename.py" ] \
+    || die "不完全なカスタムノードを検出しました: $CUSTOM_NODE_DIR"
 
-# Stop previous ComfyUI / tunnel if this script is re-run
+# Start the managed model process and Gateway.
 # ------------------------------------------------------------
-if pgrep -f "python main.py.*8188" >/dev/null 2>&1; then
-    log "既存ComfyUIを停止"
-    pkill -f "python main.py.*8188" || true
-    sleep 2
-fi
-
-if pgrep -f "cloudflared tunnel.*8188" >/dev/null 2>&1; then
-    log "旧ComfyUI公開Tunnelを停止"
-    pkill -f "cloudflared tunnel.*8188" || true
-    sleep 1
-fi
-rm -f -- "$WORKSPACE/cloudflared.pid"
-
-# ------------------------------------------------------------
-# Launch ComfyUI
-# ------------------------------------------------------------
-log "ComfyUIをバックグラウンド起動"
-cd "$COMFY_DIR"
-nohup "$PYTHON" main.py \
-    --listen 127.0.0.1 \
-    --port 8188 \
-    > "$COMFY_LOG" 2>&1 &
-
-COMFY_PID=$!
-echo "$COMFY_PID" > "$WORKSPACE/comfyui.pid"
-
-log "ComfyUI起動待ち"
-
-READY=0
-for _ in $(seq 1 90); do
-    if ! kill -0 "$COMFY_PID" 2>/dev/null; then
-        echo
-        echo "ComfyUIが起動途中で終了しました。ログ:"
-        tail -n 80 "$COMFY_LOG" || true
-        exit 1
-    fi
-
-    if "$PYTHON" - <<'PY' >/dev/null 2>&1
-import urllib.request
-urllib.request.urlopen("http://127.0.0.1:8188/", timeout=1)
-PY
-    then
-        READY=1
-        break
-    fi
-
-    sleep 2
-done
-
-if [ "$READY" -ne 1 ]; then
-    echo
-    echo "ComfyUIが時間内に応答しませんでした。ログ:"
-    tail -n 80 "$COMFY_LOG" || true
-    exit 1
-fi
-
-log "ComfyUI起動成功: http://127.0.0.1:8188"
+RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+runtime_start "$RUNTIME_PORT"
+runtime_register "$MODEL_DIR/runtime.json" >/dev/null
+runtime_gateway_start
+log "ComfyUI Gateway起動成功: http://127.0.0.1:8188"
 
 # ------------------------------------------------------------
 # cloudflared (authenticated batch preview only; do not expose ComfyUI itself)
@@ -493,8 +414,8 @@ echo "ComfyUI log:"
 echo "  $COMFY_LOG"
 echo
 echo "停止:"
-echo '  pkill -f "python main.py"'
-echo '  pkill -f "cloudflared tunnel"  # 認証付きPreviewのみ停止'
+echo "  モデル管理: $REPO_ROOT/scripts/runtime/bootstrap.sh"
+
 echo
 echo "利用終了後は必要な生成画像を回収してVast.aiインスタンスをDestroyする。"
 echo "============================================================"

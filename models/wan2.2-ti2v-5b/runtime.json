@@ -1,0 +1,23 @@
+{
+  "model_id": "wan2.2-ti2v-5b",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors"
+  ],
+  "custom_nodes": [],
+  "workflows": [
+    "Wan-2.2-TI2V-5B.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 14336
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18222,
+  "signatures": {
+    "model_files": [
+      "wan2.2_ti2v_5B_fp16.safetensors"
+    ]
+  }
+}

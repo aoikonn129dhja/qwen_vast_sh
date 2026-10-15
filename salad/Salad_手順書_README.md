@@ -18,7 +18,7 @@ SaladCloud で Run を押し、レプリカが起動したらコンテナのタ�
 bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
 ```
 
-利用できるモデル（次のうち1行だけ実行）:
+利用できるComfyUIモデル（必要なモデルの行を順に実行できる）:
 
 - Qwen Rapid AIO NSFW v19: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v19`
 - Qwen Rapid AIO NSFW v23: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23`
@@ -26,17 +26,19 @@ bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
 - Qwen Image Edit 2511: `bash /opt/salad/select_model.sh qwen-image-edit-2511`
 - LTX 2.3 Q4: `bash /opt/salad/select_model.sh ltx-2.3-uncensored-v1.4-q4`
 - Qwen Image 2.1 GGUF: `bash /opt/salad/select_model.sh qwen-image-2.1-uncensored-gguf`
+- Qwen Image 2.1 INT8 Lightning: `bash /opt/salad/select_model.sh qwen-image-2.1-int8-lightning`
+- Qwen3-VL 8B: `bash /opt/salad/select_model.sh qwen3-vl-8b-instruct`
+- Wan 2.2 TI2V 5B: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b`
 
-別のモデルへ切り替えるときは、生成中のジョブがないことを確認してから、同じコンテナで次を実行する。
+別のモデルを使う場合はワークフローを開いてQueueする。不要になったモデルの登録だけ解除するときは名前を指定する。
 
 ```bash
-bash /opt/salad/reset_model.sh
-bash /opt/salad/select_model.sh <モデル名>
+bash /opt/salad/reset_model.sh <モデル名>
 ```
 
 ## Gateway
 
-Container Group に `COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PASSWORD` を設定する。Container Gateway は HTTPS、port 8189、Gateway 側の認証は無効にする。コンテナ内の HTTP Basic 認証を経由して ComfyUI に接続する。`GET /healthz` は認証不要。モデル未選択・取得中・取得失敗時は Gateway を開かず、ComfyUI が停止した場合は Gateway を閉じる。
+Container Group に `COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PASSWORD` を設定する。Container Gateway は HTTPS、port 8189、Gateway 側の認証は無効にする。コンテナ内の HTTP Basic 認証を経由して 8188 の共通Gatewayに接続する。`GET /healthz` は認証不要。モデル未登録時は外部プロキシを開かない。登録済みモデルがあればコンテナ再起動後にGatewayを復旧する。
 
 ## 生成物の回収
 

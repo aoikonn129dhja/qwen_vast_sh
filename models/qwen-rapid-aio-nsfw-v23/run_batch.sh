@@ -58,10 +58,15 @@ set -Eeuo pipefail
 # as input/archive/ are ignored.
 
 MODEL_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_ROOT="${RUNTIME_ROOT:-/workspace/.qwen_runtime}"
+RUNTIME_INSTANCE="$RUNTIME_ROOT/instances/qwen-rapid-aio-nsfw-v23"
 COMFY_DIR="${COMFY_DIR:-/workspace/ComfyUI}"
 BATCH_ROOT="${BATCH_ROOT:-/workspace/qwen_batch}"
-PYTHON="${PYTHON:-/venv/main/bin/python}"
-COMFY="${COMFY_CLI:-/venv/main/bin/comfy}"
+PYTHON="${PYTHON:-$RUNTIME_ROOT/environments/qwen-rapid-aio-nsfw-v23/bin/python}"
+COMFY="${COMFY_CLI:-$RUNTIME_ROOT/environments/qwen-rapid-aio-nsfw-v23/bin/comfy}"
+export HOME="$RUNTIME_INSTANCE"
+export XDG_CONFIG_HOME="$RUNTIME_INSTANCE/.config"
+export COMFY_LOCAL_URL="http://127.0.0.1:8188"
 DEFAULT_WORKFLOW="$MODEL_DIR/workflows/batch-save-image.json"
 
 PREVIEW_ENABLED="${PREVIEW_ENABLED:-1}"
@@ -159,84 +164,21 @@ PY
 fi
 
 # ------------------------------------------------------------
-# Ensure ComfyUI is running
+# Ensure the managed Gateway is running and select this model
 # ------------------------------------------------------------
-COMFY_LOG="${COMFY_LOG:-/workspace/comfyui.log}"
-COMFY_PID_FILE="${COMFY_PID_FILE:-/workspace/comfyui.pid}"
-
-comfyui_ready() {
-    "$PYTHON" - <<'PY' >/dev/null 2>&1
-import urllib.request
-
-with urllib.request.urlopen(
-    "http://127.0.0.1:8188/system_stats",
-    timeout=3,
-) as response:
-    if response.status != 200:
-        raise SystemExit(1)
+source "$MODEL_DIR/../../scripts/runtime/bootstrap.sh"
+COMFY_LOG="$RUNTIME_ROOT/logs/qwen-rapid-aio-nsfw-v23.log"
+runtime_gateway_start
+"$PYTHON" - "qwen-rapid-aio-nsfw-v23" <<'PY'
+import json, sys, urllib.request
+data = json.dumps({'model_id': sys.argv[1]}).encode()
+request = urllib.request.Request(
+    'http://127.0.0.1:8188/runtime/select', data=data,
+    headers={'Content-Type': 'application/json'},
+)
+with urllib.request.urlopen(request, timeout=180) as response:
+    assert response.status == 200
 PY
-}
-
-start_comfyui() {
-    echo "ComfyUI: starting..."
-
-    (
-        cd "$COMFY_DIR"
-        nohup "$PYTHON" main.py \
-            --listen 127.0.0.1 \
-            --port 8188 \
-            > "$COMFY_LOG" 2>&1 &
-        echo $! > "$COMFY_PID_FILE"
-    )
-}
-
-if comfyui_ready; then
-    echo "ComfyUI: already running"
-else
-    # A process may already exist while ComfyUI is still starting. Give it a
-    # short grace period before treating it as stale.
-    if pgrep -f "main.py.*--port[ =]8188" >/dev/null 2>&1; then
-        echo "ComfyUI: process exists but API is not ready. Waiting..."
-
-        for _ in $(seq 1 10); do
-            sleep 1
-            if comfyui_ready; then
-                break
-            fi
-        done
-    fi
-
-    if ! comfyui_ready; then
-        # If a hung/stale ComfyUI process survived, remove it before restart.
-        if pgrep -f "main.py.*--port[ =]8188" >/dev/null 2>&1; then
-            echo "ComfyUI: stale process detected. Restarting..."
-            pkill -f "main.py.*--port[ =]8188" || true
-            sleep 2
-        fi
-
-        start_comfyui
-
-        echo "ComfyUI: waiting for API..."
-        COMFY_READY=0
-
-        for _ in $(seq 1 90); do
-            if comfyui_ready; then
-                COMFY_READY=1
-                break
-            fi
-            sleep 1
-        done
-
-        if [ "$COMFY_READY" -ne 1 ]; then
-            echo "ERROR: ComfyUI failed to start within 90 seconds." >&2
-            echo "----- $COMFY_LOG -----" >&2
-            tail -n 100 "$COMFY_LOG" >&2 || true
-            exit 1
-        fi
-    fi
-
-    echo "ComfyUI: ready"
-fi
 
 RUN_ID="$(TZ=Asia/Tokyo date '+%Y%m%d_%H%M%S')"
 STAGE_REL="batch/$RUN_ID"

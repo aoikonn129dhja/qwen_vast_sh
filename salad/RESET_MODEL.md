@@ -1,12 +1,18 @@
-# SaladCloud 共通イメージ内でモデルを切り替える
+# SaladCloud のモデル登録と個別リセット
 
-生成中のジョブがないことを確認してから、コンテナのターミナルで実行する。
+モデルの追加は既存のコマンドを繰り返す。登録済みの別モデル、共有モデルファイル、ワークフロー、Python環境は保持される。
 
 ```bash
-bash /opt/salad/reset_model.sh
-bash /opt/salad/select_model.sh qwen-image-edit-2511
+bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
+bash /opt/salad/select_model.sh qwen3-vl-8b-instruct
 ```
 
-リセットは現在の ComfyUI を停止し、`/workspace/ComfyUI/models` 内のダウンロード済みモデルと `custom_nodes` 内の追加ノードを削除する。ComfyUI 本体は保持し、`/venv/main` はイメージ内に保存した初期状態に戻す。Gateway はリセット中に閉じ、次のセットアップが成功すると再開する。別の Docker イメージやコンテナは不要。
+対象モデルの登録だけを解除する場合はモデル名を指定する。実行中または待機中のジョブがある場合は拒否される。
 
-`ComfyUI/input`、`output`、`user` はそのまま残る。リセット前に生成中のジョブを終了し、必要な生成物を回収する。モデルのダウンロード途中で失敗した場合もリセットできる。次のモデルの setup が異なる ComfyUI コミットを要求する場合は、その setup 自身が ComfyUI を更新する可能性がある。
+```bash
+bash /opt/salad/reset_model.sh qwen3-vl-8b-instruct
+```
+
+リセットは対象モデルの管理対象プロセスを停止し、登録を解除する。モデルファイル、ComfyUIデータ、専用Python環境、専用インスタンスは保持する。引数なしの一括削除はできない。
+
+8189 の認証付き公開ポートと 8190 の認証プロキシは従来どおり。内部では 8188 の共通Gatewayがモデル別ComfyUIへ転送する。コンテナ再起動時は登録情報からGatewayを復旧し、モデル別ComfyUIは次の要求時に起動する。

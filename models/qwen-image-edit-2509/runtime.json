@@ -1,0 +1,25 @@
+{
+  "model_id": "qwen-image-edit-2509",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors"
+  ],
+  "custom_nodes": [
+    "ComfyUI-LoadImageWithFilename@f6321875b3e8c5c200f558a76f6c49bbd0038387"
+  ],
+  "workflows": [
+    "Qwen-Image-Edit-2509-official.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 30720
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18509,
+  "signatures": {
+    "model_files": [
+      "qwen_image_edit_2509_fp8_e4m3fn.safetensors"
+    ]
+  }
+}

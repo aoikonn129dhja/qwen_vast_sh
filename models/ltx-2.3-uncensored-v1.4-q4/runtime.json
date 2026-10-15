@@ -1,0 +1,25 @@
+{
+  "model_id": "ltx-2.3-uncensored-v1.4-q4",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/ltxv23_uncensored_v1.4_Q4_K_M.gguf"
+  ],
+  "custom_nodes": [
+    "ComfyUI-GGUF-Loader@d8b3e2509603cafa1e470298599acd6bd980fe06"
+  ],
+  "workflows": [
+    "LTX-2.3_Uncensored_v1.4_Q4_I2V.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 20480
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18234,
+  "signatures": {
+    "model_files": [
+      "ltxv23_uncensored_v1.4_Q4_K_M.gguf"
+    ]
+  }
+}

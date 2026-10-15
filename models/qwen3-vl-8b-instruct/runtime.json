@@ -1,0 +1,14 @@
+{
+  "model_id": "qwen3-vl-8b-instruct",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "transformers==4.57.6",
+  "model_paths": ["models/LLM/Qwen-VL/Qwen3-VL-8B-Instruct"],
+  "model_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+  "custom_nodes": ["ComfyUI-QwenVL@1b67b443918801f571714bab636edc1845b7002a"],
+  "workflows": ["Qwen3-VL-8B-Pose-Analysis.json"],
+  "gpu_policy": {"reserve_mb": 20480},
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18308,
+  "signatures": {"node_types": ["AILab_QwenVL"], "model_files": ["Qwen3-VL-8B-Instruct"]}
+}

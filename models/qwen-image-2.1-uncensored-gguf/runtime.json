@@ -1,0 +1,25 @@
+{
+  "model_id": "qwen-image-2.1-uncensored-gguf",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/qwen-image-2.1-UC-Q4_K_M.gguf"
+  ],
+  "custom_nodes": [
+    "ComfyUI-GGUF@373048b8403a7820620065210a691263d4da0a61"
+  ],
+  "workflows": [
+    "edit.json"
+  ],
+  "gpu_policy": {
+    "reserve_mb": 20480
+  },
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18212,
+  "signatures": {
+    "model_files": [
+      "qwen-image-2.1-UC-Q4_K_M.gguf"
+    ]
+  }
+}

@@ -2,55 +2,61 @@
 set -Eeuo pipefail
 
 WORKSPACE="${WORKSPACE:-/workspace}"
-COMFY_DIR="${COMFY_DIR:-$WORKSPACE/ComfyUI}"
-VENV_DIR="${SALAD_VENV_DIR:-/venv/main}"
-BASE_VENV="${SALAD_BASE_VENV:-/opt/salad/base-venv}"
 READY_FILE="${SALAD_READY_FILE:-$WORKSPACE/.salad-setup-ready}"
-LOCK="$WORKSPACE/.salad-setup-lock"
-
+ROOT="$WORKSPACE/.qwen_runtime"
+MODEL="${1:-}"
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
-[[ "$WORKSPACE" == /* && "$WORKSPACE" != / && "$COMFY_DIR" == "$WORKSPACE/ComfyUI" ]] || fail 'Unsafe workspace path.'
-[[ "$VENV_DIR" == /* && "$VENV_DIR" != / && "$BASE_VENV" == /* && "$BASE_VENV" != / && "$VENV_DIR" != "$BASE_VENV" ]] || fail 'Unsafe Python path.'
-[ -x "$BASE_VENV/bin/python" ] || fail 'Base Python environment is missing.'
+[[ "$MODEL" =~ ^[a-z0-9][a-z0-9.-]*$ ]] && [ "$#" -eq 1 ] || fail 'Specify exactly one model ID.'
+LOCK="$WORKSPACE/.salad-setup-lock"
 mkdir "$LOCK" 2>/dev/null || fail 'Another model setup or reset is running.'
 trap 'rmdir "$LOCK"' EXIT
-[ ! -s "$READY_FILE" ] || [ -s "$WORKSPACE/comfyui.pid" ] || fail 'ComfyUI PID file is missing.'
+REGISTRY="$ROOT/state/registered/$MODEL.json"
+[ -f "$REGISTRY" ] || fail "Model is not registered: $MODEL"
 
-# Withdraw readiness before stopping ComfyUI so the gateway closes during reset.
-rm -f -- "$READY_FILE" "$READY_FILE.part"
-PID_FILE="$WORKSPACE/comfyui.pid"
-if [ -s "$PID_FILE" ]; then
-    read -r pid < "$PID_FILE" || true
-    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-        [ -d "/proc/$pid" ] || fail 'Cannot verify the ComfyUI process.'
-        cwd="$(readlink -f -- "/proc/$pid/cwd")"
-        command_line="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
-        [[ "$cwd" == "$COMFY_DIR" && "$command_line" == *main.py* ]] || fail 'PID file does not identify this ComfyUI process.'
-        kill "$pid"
-        for _ in {1..30}; do
-            kill -0 "$pid" 2>/dev/null || break
-            [ "$(sed -E 's/^.*\) ([A-Z]) .*/\1/' "/proc/$pid/stat" 2>/dev/null || true)" == Z ] && break
-            sleep 1
-        done
-        if kill -0 "$pid" 2>/dev/null; then
-            state="$(sed -E 's/^.*\) ([A-Z]) .*/\1/' "/proc/$pid/stat" 2>/dev/null || true)"
-            [[ "$state" == Z || "$state" == X ]] || fail 'ComfyUI did not stop.'
-        fi
-    fi
+"${PYTHON:-/venv/main/bin/python}" - "$REGISTRY" <<'PY'
+import json, os, pathlib, signal, sys, time, urllib.request
+registry = pathlib.Path(sys.argv[1])
+data = json.loads(registry.read_text(encoding='utf-8'))
+if data['model_id'] != registry.stem:
+    raise SystemExit('Registry model ID mismatch')
+pid_file = pathlib.Path(data['pid_file'])
+if pid_file.exists():
+    pid = int(pid_file.read_text().strip())
+    try:
+        cmdline = pathlib.Path(f'/proc/{pid}/cmdline').read_bytes().replace(b'\0', b' ')
+        cwd = pathlib.Path(f'/proc/{pid}/cwd').resolve()
+    except OSError:
+        pid = None
+    if pid is not None:
+        if data['runtime_type'] == 'cli':
+            if cwd == pathlib.Path(data['engine_dir']).resolve():
+                raise SystemExit('CLI inference is still running; reset refused')
+            raise SystemExit('CLI PID does not identify the managed engine')
+        port_arg = f"--port {data['port']}".encode('ascii')
+        if b'main.py' not in cmdline or port_arg not in cmdline or cwd != pathlib.Path(data['comfy_dir']).resolve():
+            raise SystemExit('PID does not identify the managed model process')
+        with urllib.request.urlopen(f"http://127.0.0.1:{data['port']}/queue", timeout=5) as response:
+            queue = json.load(response)
+        if queue.get('queue_running') or queue.get('queue_pending'):
+            raise SystemExit('Model has running or queued jobs; reset refused')
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(30):
+            if not pathlib.Path(f'/proc/{pid}').exists():
+                break
+            try:
+                state = pathlib.Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
+                if state in {'Z', 'X'}:
+                    break
+            except OSError:
+                break
+            time.sleep(1)
+        else:
+            raise SystemExit('Managed process did not stop')
+pid_file.unlink(missing_ok=True)
+PY
+rm -f -- "$REGISTRY"
+if [ -f "$READY_FILE" ]; then
+    grep -Fxv "$MODEL" "$READY_FILE" > "$READY_FILE.part" || true
+    mv -- "$READY_FILE.part" "$READY_FILE"
 fi
-
-# Keep ComfyUI itself and user data. Remove downloaded models and model-specific nodes.
-if [ -d "$COMFY_DIR" ]; then
-    [ ! -L "$COMFY_DIR" ] || fail 'ComfyUI path is a symlink.'
-    if [ -d "$COMFY_DIR/models" ] && [ ! -L "$COMFY_DIR/models" ]; then
-        find "$COMFY_DIR/models" -mindepth 2 -maxdepth 2 ! -name 'README*' ! -name 'put_*_here' -exec rm -rf -- {} +
-    fi
-    if [ -d "$COMFY_DIR/custom_nodes" ] && [ ! -L "$COMFY_DIR/custom_nodes" ]; then
-        find "$COMFY_DIR/custom_nodes" -mindepth 1 -maxdepth 1 ! -name 'example_node.py.example' -exec rm -rf -- {} +
-    fi
-fi
-
-rm -rf -- "$VENV_DIR"
-cp -a -- "$BASE_VENV" "$VENV_DIR"
-rm -f -- "$PID_FILE" "$WORKSPACE/cloudflared.pid"
-printf 'Model reset complete; ComfyUI and user data remain. Run bash /opt/salad/select_model.sh <model-name>\n'
+printf 'Model unregistered; disk data and environment were preserved: %s\n' "$MODEL"
