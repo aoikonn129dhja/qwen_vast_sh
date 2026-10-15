@@ -8,6 +8,12 @@ bash /workspace/qwen_vast_sh/models/qwen-image-edit-2511/setup.sh
 
 ワークフローは `workflows/official.json` を `ComfyUI/user/default/workflows/Qwen-Image-Edit-2511-official.json` に配置します。Comfy-Org `workflow_templates` のコミット `0e5c5efb32ba6f3365d6da07da64aaf668157042` を基に、Lightning LoRAなしで使用できるよう変更しています。ワークフロー内のモデル名は導入するFP8 mixedファイル名に合わせています。
 
+## 2画像入力ワークフローの視覚的なトリミング
+
+`2511-2input-visual-crop-filename.json` もセットアップ時に ComfyUI のワークフローディレクトリへ配置します。元の2画像入力ワークフローにある2つの画像読み込みノードを `Visual Crop (Keep Filename)` に置き換えたものです。各ノードで画像を選ぶと、実行前にプレビュー上をドラッグして新しい切り抜き枠を作り、枠の移動や端の調整ができます。`cropped_out` が画像処理へ、`filename` が既存のファイル名結合・保存処理へ接続されています。ワークフローに画像ファイルは同梱していないため、最初に2つのノードで画像を選んでください。
+
+このノードは [ComfyUI Visual Image Crop](https://github.com/Pitpe12/ComfyUI-Visual-Image-Crop) のコミット `ab778fdc907601d8ac13126f2e2ac1476f2f1d83`（MIT ライセンス）を基に、元のファイル名の出力と、画像全体が選択されているときにドラッグで新しい範囲を作る操作を追加したものです。ライセンスは `custom_nodes/ComfyUI-QwenCropWithFilename/LICENSE` に含めています。画像データの処理には ComfyUI 既存の依存ライブラリを使います。
+
 ## 自動導入: Qwen Image Edit 2511 Lightning
 
 2511専用の4ステップ高速化LoRAです。セットアップ時に既存ファイルのSHA-256を確認し、不足時だけ取得します。バニラワークフローで使用するときはComfyUIでノードを追加します。配布元: https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning

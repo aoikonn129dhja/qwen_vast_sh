@@ -326,6 +326,19 @@ if [ "${INSTALL_PEPE_UTILS:-0}" = "1" ]; then
     fi
 fi
 
+if [ "${INSTALL_QWEN_CROP_NODE:-0}" = "1" ]; then
+    CROP_NODE_SOURCE="$MODEL_DIR/custom_nodes/ComfyUI-QwenCropWithFilename"
+    CROP_NODE_DIR="$CUSTOM_NODES_DIR/ComfyUI-QwenCropWithFilename"
+    [ -s "$CROP_NODE_SOURCE/__init__.py" ] && [ -s "$CROP_NODE_SOURCE/nodes.py" ] \
+        && [ -s "$CROP_NODE_SOURCE/web/image_crop_gui.js" ] \
+        || die "同梱のトリミングノードが見つかりません: $CROP_NODE_SOURCE"
+    mkdir -p "$CROP_NODE_DIR/web"
+    cp "$CROP_NODE_SOURCE/__init__.py" "$CROP_NODE_SOURCE/nodes.py" \
+        "$CROP_NODE_SOURCE/LICENSE" "$CROP_NODE_DIR/"
+    cp "$CROP_NODE_SOURCE/web/image_crop_gui.js" "$CROP_NODE_DIR/web/"
+    log "ファイル名保持トリミングノードを導入: $CROP_NODE_DIR"
+fi
+
 mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
     "$COMFY_DIR/models/text_encoders" \
@@ -351,6 +364,14 @@ log "同梱のComfy-Org公式workflow templateを配置"
 [ -s "$WORKFLOW_SOURCE_PATH" ] || die "同梱workflowが見つかりません: $WORKFLOW_SOURCE_PATH"
 cp -f "$WORKFLOW_SOURCE_PATH" "$WORKFLOW_PATH.tmp"
 mv -f "$WORKFLOW_PATH.tmp" "$WORKFLOW_PATH"
+
+if [ "${INSTALL_QWEN_CROP_NODE:-0}" = "1" ]; then
+    CROP_WORKFLOW_SOURCE="$MODEL_DIR/workflows/2511-2input-visual-crop-filename.json"
+    CROP_WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/2511-2input-visual-crop-filename.json"
+    [ -s "$CROP_WORKFLOW_SOURCE" ] || die "同梱のトリミングワークフローが見つかりません: $CROP_WORKFLOW_SOURCE"
+    cp "$CROP_WORKFLOW_SOURCE" "$CROP_WORKFLOW_PATH"
+    log "2画像入力トリミングワークフローを配置: $CROP_WORKFLOW_PATH"
+fi
 
 # The official 2511 template points to BF16 by default. For a 32 GB GPU this
 # setup downloads fp8mixed instead, so rewrite only that model filename.
