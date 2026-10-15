@@ -76,8 +76,14 @@ zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip
 ```
 
 ### タスクマネージャーの開き方
-```
+```bash
 watch -n 1 nvidia-smi
+```
+
+見やすい版（GPU・VRAM・温度のバーと詳細情報を同時表示）:
+
+```bash
+bash /workspace/qwen_vast_sh/scripts/gpu_task_manager.sh
 ```
 
 ### ComfyUIの再起動
