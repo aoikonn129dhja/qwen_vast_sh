@@ -58,11 +58,10 @@ qwen_vast_sh/
 │  │  └─ model.conf
 │  └─ qwen-rapid-aio-v1-reference/
 │     └─ workflows/two-input-preview.json
-├─ tools/                      # Vast出力同期ツール
 ├─ scripts/
 │  ├─ setup_qwen_edit_model.sh
 │  └─ flatten_output.sh
-├─ local_tools/
+├─ local_tools/                # Windows側のComfyUI出力同期ツール
 ├─ comfyui_vast_手順書.md
 └─ README.md
 ```
@@ -457,10 +456,10 @@ bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
 
 # Windows自動同期のダウンロード履歴
 
-Windows側では次を実行すると、Vast.aiの出力を10秒間隔で確認する。
+Rapid v19のバッチ出力をWindowsへ自動同期する場合は次を実行する。Vast.aiの出力を10秒間隔で確認する。
 
 ```powershell
-python local_tools\vast_output_sync.py
+python models\qwen-rapid-aio-nsfw-v19\vast_output_sync.py
 ```
 
 正常終了したSCP転送についてローカルのファイルサイズを確認してから、次のJSON Lines形式の履歴へ記録する。

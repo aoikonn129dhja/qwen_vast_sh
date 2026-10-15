@@ -9,7 +9,7 @@ Vast側の取得元はRapid v19バッチの固定出力先を使用する。
     vastai set api-key YOUR_API_KEY
 
 実行:
-    python local_tools/vast_output_sync.py
+    python models/qwen-rapid-aio-nsfw-v19/vast_output_sync.py
 """
 
 from __future__ import annotations
