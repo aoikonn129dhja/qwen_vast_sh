@@ -1,9 +1,0 @@
-name: Build Qwen 2.1 Salad image
-on:
-  workflow_dispatch:
-permissions:
-  contents: read
-  packages: write
-jobs:
-  build:
-    uses: ./.github/workflows/build-salad-images.yml

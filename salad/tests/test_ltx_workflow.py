@@ -11,14 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = 'ltx-2.3-uncensored-v1.4-q4'
 VAST = ROOT / 'models' / MODEL
-SALAD = ROOT / 'salad/models' / MODEL
 WORKFLOW = 'LTX-2.3_T2V_I2V_Two_Stage_Distilled.json'
 
 
 class LtxWorkflowTests(unittest.TestCase):
     def setUp(self):
         (ROOT / "tmp").mkdir(exist_ok=True)
-        self.graph = json.loads((SALAD / 'workflows' / WORKFLOW).read_text(encoding='utf-8'))
+        self.graph = json.loads((VAST / WORKFLOW).read_text(encoding='utf-8'))
 
     def check_links(self, graph):
         nodes = {n['id']: n for n in graph['nodes']}
@@ -69,11 +68,9 @@ class LtxWorkflowTests(unittest.TestCase):
                 self.assertEqual((w[2]*2, w[3]*2), (768,512))
                 self.assertEqual((w[4]-1)%8, 0)
         self.assertEqual(json.loads((VAST / WORKFLOW).read_text(encoding='utf-8')), self.graph)
-        for path in [VAST / 'setup.sh', SALAD / 'prepare_models.sh']:
-            text = path.read_text(encoding='utf-8')
-            self.assertIn('models/latent_upscale_models/', text)
-            self.assertIn('$UPSCALER_SHA256', text)
-        self.assertEqual((SALAD / 'prepare_models.sh').read_text(encoding='utf-8').count('download_resume_verified'), 1)
+        text = (VAST / 'setup.sh').read_text(encoding='utf-8')
+        self.assertIn('models/latent_upscale_models/', text)
+        self.assertIn('$UPSCALER_SHA256', text)
 
 
     def test_vast_upscaler_skip_and_hash_failure(self):

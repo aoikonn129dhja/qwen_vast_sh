@@ -34,6 +34,13 @@ class SharedStartTests(unittest.TestCase):
                                 capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 2)
 
+    def test_start_rejects_invalid_ports(self):
+        for port in ('0', '65536', 'bad', '8189', '8190'):
+            env = dict(self.env, COMFY_PORT=port)
+            result = subprocess.run(['bash', str(SALAD / 'start.sh')], env=env,
+                                    capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 2, port)
+
     def test_failed_setup_does_not_mark_ready(self):
         self.setup.write_text('exit 17\n', encoding='utf-8')
         self.assertEqual(self.select().returncode, 17)

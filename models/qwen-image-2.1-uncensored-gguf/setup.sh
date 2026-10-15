@@ -58,7 +58,7 @@ if [ -f "$GGUF_NODE_DIR/requirements.txt" ]; then
 fi
 
 # 固定コミットと既知のSHA-256でモデルを検証する。
-# ハッシュはsalad/models/qwen-image-21-uncensored-gguf/prepare_models.shと共通。
+# 取得元の固定リビジョンと各ファイルのSHA-256を検証する。
 fetch_model() {
     local relative="$1" dest="$2" pinned="${3:-}" url expected actual
     local revision="6b34e59458d3eb7ba6a6f86a116aed5253dc02c3"
