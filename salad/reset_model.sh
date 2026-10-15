@@ -39,21 +39,18 @@ if [ -s "$PID_FILE" ]; then
     fi
 fi
 
-# Preserve user files outside the ComfyUI tree. This is a same-filesystem move.
+# Keep ComfyUI itself and user data. Remove downloaded models and model-specific nodes.
 if [ -d "$COMFY_DIR" ]; then
     [ ! -L "$COMFY_DIR" ] || fail 'ComfyUI path is a symlink.'
-    archive="$WORKSPACE/salad-user-data/$(date -u '+%Y%m%dT%H%M%SZ')-$$"
-    for name in input output user; do
-        if [ -e "$COMFY_DIR/$name" ] && [ ! -L "$COMFY_DIR/$name" ]; then
-            mkdir -p -- "$archive"
-            mv -- "$COMFY_DIR/$name" "$archive/$name"
-        fi
-    done
-    rm -rf -- "$COMFY_DIR"
-    [ ! -d "$archive" ] || printf 'Saved input, output and user data: %s\n' "$archive"
+    if [ -d "$COMFY_DIR/models" ] && [ ! -L "$COMFY_DIR/models" ]; then
+        find "$COMFY_DIR/models" -mindepth 2 -maxdepth 2 ! -name 'README*' ! -name 'put_*_here' -exec rm -rf -- {} +
+    fi
+    if [ -d "$COMFY_DIR/custom_nodes" ] && [ ! -L "$COMFY_DIR/custom_nodes" ]; then
+        find "$COMFY_DIR/custom_nodes" -mindepth 1 -maxdepth 1 ! -name 'example_node.py.example' -exec rm -rf -- {} +
+    fi
 fi
 
 rm -rf -- "$VENV_DIR"
 cp -a -- "$BASE_VENV" "$VENV_DIR"
 rm -f -- "$PID_FILE" "$WORKSPACE/cloudflared.pid"
-printf 'Reset complete. Run bash /opt/salad/select_model.sh <model-name>\n'
+printf 'Model reset complete; ComfyUI and user data remain. Run bash /opt/salad/select_model.sh <model-name>\n'

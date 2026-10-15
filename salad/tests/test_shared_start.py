@@ -53,8 +53,10 @@ class SharedStartTests(unittest.TestCase):
 
     def test_reset_restores_base_environment_and_preserves_user_data(self):
         comfy = self.root / 'ComfyUI'
-        (comfy / 'models').mkdir(parents=True)
-        (comfy / 'models' / 'checkpoint').write_text('model')
+        (comfy / 'models' / 'checkpoints').mkdir(parents=True)
+        (comfy / 'models' / 'checkpoints' / 'checkpoint').write_text('model')
+        (comfy / 'main.py').write_text('core')
+        (comfy / 'custom_nodes' / 'old-node').mkdir(parents=True)
         (comfy / 'output').mkdir()
         (comfy / 'output' / 'result.txt').write_text('result')
         venv = self.root / 'venv'
@@ -70,12 +72,13 @@ class SharedStartTests(unittest.TestCase):
         result = subprocess.run(['bash', str(SALAD / 'reset_model.sh')], env=env,
                                 capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertFalse(comfy.exists())
+        self.assertTrue(comfy.exists())
+        self.assertFalse((comfy / 'models' / 'checkpoints' / 'checkpoint').exists())
+        self.assertEqual((comfy / 'main.py').read_text(), 'core')
+        self.assertFalse((comfy / 'custom_nodes' / 'old-node').exists())
         self.assertFalse((self.root / '.salad-setup-ready').exists())
         self.assertEqual((venv / 'bin' / 'python').read_text(), 'base')
-        archives = list((self.root / 'salad-user-data').glob('*/output/result.txt'))
-        self.assertEqual(len(archives), 1)
-        self.assertEqual(archives[0].read_text(), 'result')
+        self.assertEqual((comfy / 'output' / 'result.txt').read_text(), 'result')
         self.setup.write_text('exit 17\n', encoding='utf-8')
         self.assertEqual(self.select().returncode, 17)
 
@@ -110,7 +113,7 @@ class SharedStartTests(unittest.TestCase):
                                 capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         proc.wait(timeout=5)
-        self.assertFalse(comfy.exists())
+        self.assertTrue(comfy.exists())
 
     def test_manual_selection_keeps_container_alive_during_comfy_restart(self):
         self.setup.write_text('sleep 1000 >/dev/null 2>&1 &\necho $! > "$WORKSPACE/comfyui.pid"\n', encoding='utf-8')

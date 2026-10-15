@@ -49,7 +49,7 @@ bash /workspace/qwen_vast_sh/scripts/comfy_diagnose.sh
 
 ## 環境と注意点
 
-初期環境は PyTorch 2.11 / CUDA 13.0。`/workspace/qwen_vast_sh` に Vast 側の `models/` と `scripts/` を配置し、`/venv/main/bin/python` を用意する。setup.sh が依存を更新した後の環境はモデルごとのスクリプトに従う。別モデルに切り替える際はコンテナを再作成し、再度ターミナルから選ぶ。
+初期環境は PyTorch 2.11 / CUDA 13.0。`/workspace/qwen_vast_sh` に Vast 側の `models/` と `scripts/` を配置し、`/venv/main/bin/python` を用意する。setup.sh が依存を更新した後の環境はモデルごとのスクリプトに従う。別モデルに切り替える際は、生成中のジョブがないことを確認してから `bash /opt/salad/reset_model.sh` を実行し、再度 `select_model.sh` で選ぶ。詳細は `salad/RESET_MODEL.md` を参照。
 
 モデル取得には数十 GB の空き容量と GPU が必要な場合がある。入力・生成物・取得済みモデルはコンテナのローカルストレージに置かれる。永続ボリュームを使わない場合、再配置時に失われる可能性がある。Rapid 系 setup.sh は cloudflared 実行ファイルも用意するが、ComfyUI の公開経路は Salad の認証付き Gateway を使用する。
 
