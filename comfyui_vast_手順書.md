@@ -89,6 +89,11 @@ bash /workspace/qwen_vast_sh/scripts/gpu_task_manager.sh
 ### ComfyUIの再起動
 #### 再起動コマンド
 ```sh
+bash /workspace/qwen_vast_sh/scripts/restart_comfyui.sh
+```
+
+中身は
+```sh
 pkill -f '[p]ython.*main.py' || true
 sleep 2
 
@@ -113,16 +118,14 @@ qwen_vast_sh/
 │  ├─ gpu_task_manager.sh           # GPU監視
 │  ├─ comfy_diagnose.sh             # ComfyUIの接続診断
 │  └─ setup_qwen_edit_model.sh      # Qwen Image Editのセットアップ共通処理
-├─ models/qwen-rapid-aio-nsfw-v19/
-│  └─ flatten_output.sh             # Rapid v19のバッチ出力をまとめる
 └─ local_tools/                     # Windows側で使う
    └─ vast_comfy_output_sync_and_log.py  # ComfyUIの生成物とログを回収
 ```
 
 - `gpu_task_manager.sh`: GPU・VRAM・温度のバー、GPUプロセス、CPU・RAMなどを1秒ごとに表示する。Vast.aiのターミナルで `bash /workspace/qwen_vast_sh/scripts/gpu_task_manager.sh` を実行し、`Ctrl+C` で終了する。
 - `comfy_diagnose.sh`: ComfyUIのプロセス、ポート、ローカルHTTP応答、ログのエラー分類を読み取り専用で確認する。Vast.aiまたはSaladCloudのターミナルで `bash /workspace/qwen_vast_sh/scripts/comfy_diagnose.sh` を実行する。外部からの到達性は確認しない。
-- `flatten_output.sh`: Rapid v19の `/workspace/qwen_batch/output/` にあるバッチ出力を、日時付きの1フォルダにまとめる。ファイルを移動するため、出力を確認してから `bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/flatten_output.sh` を実行する。
 - `setup_qwen_edit_model.sh`: Qwen Image Editモデルのセットアップ共通処理。直接実行せず、対象モデルの `models/<モデル名>/setup.sh` から利用する。
+
 - `vast_comfy_output_sync_and_log.py`: Windows側からComfyUIの生成物を回収し、生成条件をCSVに記録する。Windowsでリポジトリのルートに移動して `python local_tools\vast_comfy_output_sync_and_log.py` を実行し、接続先URLと必要な認証情報を入力する。保存先はスクリプト内で指定された `D:\po\NSFW_cos\tmp`。
 
 ### Qwen Rapid v19のバッチ生成

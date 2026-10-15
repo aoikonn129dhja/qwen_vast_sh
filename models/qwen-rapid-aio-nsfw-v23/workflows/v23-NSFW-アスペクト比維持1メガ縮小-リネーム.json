@@ -1,15 +1,15 @@
 {
   "id": "b058853e-412f-4f02-95e2-abe2a40ebc2e",
   "revision": 0,
-  "last_node_id": 15,
-  "last_link_id": 29,
+  "last_node_id": 16,
+  "last_link_id": 32,
   "nodes": [
     {
       "id": 1,
       "type": "CheckpointLoaderSimple",
       "pos": [
-        -288.3841781946265,
-        -27.627064711492768
+        -521.9583846649234,
+        163.21486015426538
       ],
       "size": [
         369.6529235839844,
@@ -24,7 +24,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            1
+            32
           ]
         },
         {
@@ -56,11 +56,96 @@
       }
     },
     {
+      "id": 5,
+      "type": "VAEDecode",
+      "pos": [
+        -341.40272475008305,
+        305.56141991983407
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 5
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            28
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 10,
+      "type": "GetImageSize",
+      "pos": [
+        -502.4203831310119,
+        823.3458764541075
+      ],
+      "size": [
+        140,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            20
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            21
+          ]
+        },
+        {
+          "name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GetImageSize"
+      }
+    },
+    {
       "id": 9,
       "type": "EmptyLatentImage",
       "pos": [
-        -312.38514046096617,
-        788.3310259574284
+        -489.7270325623434,
+        658.8788957072205
       ],
       "size": [
         270,
@@ -112,121 +197,65 @@
       }
     },
     {
-      "id": 2,
-      "type": "KSampler",
+      "id": 14,
+      "type": "LoadImageWithFilename",
       "pos": [
-        86.44099716147605,
-        28.57916837357959
+        -531.157582586922,
+        848.7568843341201
       ],
       "size": [
-        270,
-        262
+        294.4919987272741,
+        473.2348036796121
       ],
       "flags": {},
-      "order": 7,
+      "order": 1,
       "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 1
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 3
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 4
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 13
-        }
-      ],
+      "inputs": [],
       "outputs": [
         {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            5
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KSampler"
-      },
-      "widgets_values": [
-        65454653,
-        "fixed",
-        4,
-        1,
-        "sa_solver",
-        "beta",
-        1
-      ],
-      "widgets_values_named": {
-        "seed": 65454653,
-        "control_after_generate": "fixed",
-        "steps": 4,
-        "cfg": 1,
-        "sampler_name": "sa_solver",
-        "scheduler": "beta",
-        "denoise": 1
-      }
-    },
-    {
-      "id": 5,
-      "type": "VAEDecode",
-      "pos": [
-        106.06760148978469,
-        334.74425425209637
-      ],
-      "size": [
-        140,
-        46
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 5
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 6
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
+          "name": "image",
           "type": "IMAGE",
           "links": [
-            28
+            27
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            29
           ]
         }
       ],
       "properties": {
-        "Node name for S&R": "VAEDecode"
+        "Node name for S&R": "LoadImageWithFilename"
+      },
+      "widgets_values": [
+        "pasted/image.png",
+        "name_only",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "pasted/image.png",
+        "filename_mode": "name_only",
+        "upload": "image"
       }
     },
     {
       "id": 15,
       "type": "SaveImage",
       "pos": [
-        59.75484096593948,
-        676.2631256995447
+        -183.27507407139322,
+        654.9340923105311
       ],
       "size": [
-        374.3569863044054,
-        557.3675991965623
+        440.2053232161136,
+        623.9643742002869
       ],
       "flags": {},
       "order": 9,
@@ -262,106 +291,15 @@
       }
     },
     {
-      "id": 10,
-      "type": "GetImageSize",
-      "pos": [
-        70.76073923547234,
-        505.327594830799
-      ],
-      "size": [
-        140,
-        124
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 25
-        }
-      ],
-      "outputs": [
-        {
-          "name": "width",
-          "type": "INT",
-          "links": [
-            20
-          ]
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": [
-            21
-          ]
-        },
-        {
-          "name": "batch_size",
-          "type": "INT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "GetImageSize"
-      }
-    },
-    {
-      "id": 12,
-      "type": "ImageScaleToTotalPixels",
-      "pos": [
-        -292.9179871501734,
-        568.9256857145955
-      ],
-      "size": [
-        276.4927734375,
-        106
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 27
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            25,
-            26
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ImageScaleToTotalPixels"
-      },
-      "widgets_values": [
-        "lanczos",
-        1,
-        8
-      ],
-      "widgets_values_named": {
-        "upscale_method": "lanczos",
-        "megapixels": 1,
-        "resolution_steps": 8
-      }
-    },
-    {
       "id": 4,
       "type": "TextEncodeQwenImageEditPlus",
       "pos": [
-        -359.46881996529714,
-        527.7155709758999
+        -542.255953427249,
+        172.68768547511127
       ],
       "size": [
         401.726171875,
-        208
+        210.2448004741551
       ],
       "flags": {},
       "order": 2,
@@ -423,18 +361,130 @@
         "Node name for S&R": "TextEncodeQwenImageEditPlus"
       },
       "widgets_values": [
-        "clothe"
+        ""
       ],
       "widgets_values_named": {
-        "prompt": "clothe"
+        "prompt": ""
+      }
+    },
+    {
+      "id": 2,
+      "type": "KSampler",
+      "pos": [
+        -110.91903498384345,
+        169.8955636180194
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 32
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 3
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        65454653,
+        "fixed",
+        4,
+        1,
+        "sa_solver",
+        "beta",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 65454653,
+        "control_after_generate": "fixed",
+        "steps": 4,
+        "cfg": 1,
+        "sampler_name": "sa_solver",
+        "scheduler": "beta",
+        "denoise": 1
+      }
+    },
+    {
+      "id": 12,
+      "type": "ImageScaleToTotalPixels",
+      "pos": [
+        -118.09286020720964,
+        483.2137286629279
+      ],
+      "size": [
+        276.4927734375,
+        106
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            25,
+            26
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleToTotalPixels"
+      },
+      "widgets_values": [
+        "lanczos",
+        1,
+        8
+      ],
+      "widgets_values_named": {
+        "upscale_method": "lanczos",
+        "megapixels": 1,
+        "resolution_steps": 8
       }
     },
     {
       "id": 3,
       "type": "TextEncodeQwenImageEditPlus",
       "pos": [
-        -339.88342355744953,
-        64.7503739482665
+        -558.7253157762067,
+        419.1701172083704
       ],
       "size": [
         414.90743272326495,
@@ -500,72 +550,14 @@
         "Node name for S&R": "TextEncodeQwenImageEditPlus"
       },
       "widgets_values": [
-        "Edit this image while fully preserving the subject's face.\n"
+        ""
       ],
       "widgets_values_named": {
-        "prompt": "Edit this image while fully preserving the subject's face.\n"
-      }
-    },
-    {
-      "id": 14,
-      "type": "LoadImageWithFilename",
-      "pos": [
-        -347.20485204910085,
-        820.8169006895176
-      ],
-      "size": [
-        275.03671875,
-        358.0000000000001
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": [
-            27
-          ]
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": null
-        },
-        {
-          "name": "filename",
-          "type": "STRING",
-          "links": [
-            29
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "LoadImageWithFilename"
-      },
-      "widgets_values": [
-        "example.png",
-        "name_only",
-        "image"
-      ],
-      "widgets_values_named": {
-        "image": "example.png",
-        "filename_mode": "name_only",
-        "upload": "image"
+        "prompt": ""
       }
     }
   ],
   "links": [
-    [
-      1,
-      1,
-      0,
-      2,
-      0,
-      "MODEL"
-    ],
     [
       2,
       1,
@@ -693,16 +685,24 @@
       15,
       1,
       "STRING"
+    ],
+    [
+      32,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8624242917237307,
+      "scale": 0.948666720896104,
       "offset": [
-        741.3660594871253,
-        213.04108716370595
+        1046.8927787865102,
+        -48.5914603290809
       ]
     },
     "frontendVersion": "1.51.9",
