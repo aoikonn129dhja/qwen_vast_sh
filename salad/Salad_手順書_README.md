@@ -18,6 +18,15 @@ SaladCloud で Run を押し、レプリカが起動したらコンテナのタ�
 bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
 ```
 
+利用できるモデル（次のうち1行だけ実行）:
+
+- Qwen Rapid AIO NSFW v19: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v19`
+- Qwen Rapid AIO NSFW v23: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23`
+- Qwen Image Edit 2509: `bash /opt/salad/select_model.sh qwen-image-edit-2509`
+- Qwen Image Edit 2511: `bash /opt/salad/select_model.sh qwen-image-edit-2511`
+- LTX 2.3 Q4: `bash /opt/salad/select_model.sh ltx-2.3-uncensored-v1.4-q4`
+- Qwen Image 2.1 GGUF: `bash /opt/salad/select_model.sh qwen-image-2.1-uncensored-gguf`
+
 別のモデルへ切り替えるときは、生成中のジョブがないことを確認してから、同じコンテナで次を実行する。
 
 ```bash
