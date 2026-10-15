@@ -136,13 +136,39 @@ def image_entries(history: dict):
                 yield str(node_id), item
 
 
-def candidate_name(prompt_id: str, image: dict) -> Path:
+def model_label(workflow: object) -> str:
+    """Identify an actual model filename in the API workflow, if present."""
+    if isinstance(workflow, dict):
+        for node in workflow.values():
+            if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict):
+                continue
+            for key in ("unet_name", "ckpt_name", "model_name"):
+                value = node["inputs"].get(key)
+                if isinstance(value, str) and value.strip():
+                    return safe_filename(Path(value.replace("\\", "/")).stem)[:70]
+    return "ComfyUI_model_unknown"
+
+
+def image_directory(workflow: object, now: datetime) -> Path:
+    """Reuse an existing folder for this calendar day and model across sessions."""
+    label = model_label(workflow)
+    day = now.strftime("%Y%m%d")
+    existing = sorted(
+        item for item in OUTPUT_DIR.glob(f"{day}????_{label}")
+        if item.is_dir() and re.fullmatch(r"\d{12}_" + re.escape(label), item.name)
+    )
+    destination = existing[0] if existing else OUTPUT_DIR / f"{now:%Y%m%d%H%M}_{label}"
+    destination.mkdir(parents=True, exist_ok=True)
+    return destination
+
+
+def candidate_name(prompt_id: str, image: dict, directory: Path) -> Path:
     base = safe_filename(prompt_id)[:36] + "__" + safe_filename(Path(image["filename"]).name)
-    dest = OUTPUT_DIR / base
+    dest = directory / base
     index = 2
     while dest.exists():
         stem, suffix = os.path.splitext(base)
-        dest = OUTPUT_DIR / f"{stem}_{index}{suffix}"
+        dest = directory / f"{stem}_{index}{suffix}"
         index += 1
     return dest
 
@@ -198,12 +224,9 @@ def main() -> int:
         if not isinstance(state, dict) or state.get("server_key") != server_key or not isinstance(state.get("done"), dict):
             print("保存先に別サーバーの同期履歴があります。OUTPUT_DIR を変更してください。")
             return 2
-    session_csv = OUTPUT_DIR / f"vast_comfy_sync_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
-    with session_csv.open("x", encoding="utf-8-sig", newline="") as out:
-        csv.DictWriter(out, fieldnames=CSV_FIELDS).writeheader()
-        out.flush()
-        os.fsync(out.fileno())
-    print(f"接続先: {url}\n保存先: {OUTPUT_DIR}\nセッションログ: {session_csv.name}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
+    session_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    session_csvs: dict[Path, Path] = {}
+    print(f"接続先: {url}\n保存先の親ディレクトリ: {OUTPUT_DIR}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
     try:
         while True:
             try:
@@ -227,9 +250,18 @@ def main() -> int:
                         data = fetch(f"{url}/view?{qs}", authorization)
                         if not data:
                             raise ValueError("Empty image response")
-                        dest = candidate_name(str(prompt_id), item)
+                        directory = image_directory(workflow, datetime.now())
+                        dest = candidate_name(str(prompt_id), item, directory)
+                        session_csv = session_csvs.get(directory)
+                        if session_csv is None:
+                            session_csv = directory / f"vast_comfy_sync_{session_id}.csv"
+                            with session_csv.open("x", encoding="utf-8-sig", newline="") as out:
+                                csv.DictWriter(out, fieldnames=CSV_FIELDS).writeheader()
+                                out.flush()
+                                os.fsync(out.fileno())
+                            session_csvs[directory] = session_csv
                         metadata = {"source": "Vast.ai ComfyUI", "prompt_id": prompt_id, "node_id": node_id,
-                                    "filename": item["filename"], "subfolder": item.get("subfolder", ""), "local_image": dest.name,
+                                    "filename": item["filename"], "subfolder": item.get("subfolder", ""), "local_image": str(dest.relative_to(OUTPUT_DIR)),
                                     "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                                     "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                                     **time_fields(history), "status": history.get("status"),
@@ -239,9 +271,9 @@ def main() -> int:
                             out.flush()
                             os.fsync(out.fileno())
                         write_csv_row(session_csv, metadata)
-                        state["done"][identity] = {"image": dest.name}
+                        state["done"][identity] = {"image": str(dest.relative_to(OUTPUT_DIR))}
                         atomic_json(state_file, state)
-                        print(f"保存: {dest.name} / {session_csv.name}")
+                        print(f"保存: {dest.relative_to(OUTPUT_DIR)} / {session_csv.name}")
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 print(f"再試行: {exc}")
             time.sleep(POLL_SECONDS)
