@@ -314,6 +314,18 @@ fi
 [ -s "$FILENAME_NODE_DIR/__init__.py" ] && [ -s "$FILENAME_NODE_DIR/nodes.py" ] \
     || die "LoadImageWithFilenameノードの必須ファイルが見つかりません: $FILENAME_NODE_DIR"
 
+if [ "${INSTALL_PEPE_UTILS:-0}" = "1" ]; then
+    PEPE_UTILS_DIR="$CUSTOM_NODES_DIR/ComfyUI-PepeUtils"
+    if [ -d "$PEPE_UTILS_DIR/.git" ]; then
+        log "既存のComfyUI-PepeUtilsノードを使用"
+    elif [ -e "$PEPE_UTILS_DIR" ]; then
+        die "Git管理外の既存ノードがあります: $PEPE_UTILS_DIR"
+    else
+        log "ComfyUI-PepeUtilsノードを導入"
+        git clone https://github.com/Pepehoschi/ComfyUI-PepeUtils.git "$PEPE_UTILS_DIR"
+    fi
+fi
+
 mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
     "$COMFY_DIR/models/text_encoders" \
