@@ -1,6 +1,6 @@
 # Qwen Image Edit 2509
 
-公式ベースモデルのFP8 diffusion model、共通Text Encoder、VAE、ComfyUIと標準ノード、LoRA不要の公式系ワークフローをセットアップします。Lightning 4steps LoRAも毎回導入します。DWPoseとAnimePoseは導入しません。
+公式ベースモデルのFP8 diffusion model、共通Text Encoder、VAE、ComfyUIと標準ノード、LoRA不要の公式系ワークフローをセットアップします。Lightning 4steps LoRAと `ComfyUI-LoadImageWithFilename`（Load Image With Filename / Save Image With Filename）も毎回導入します。DWPoseとAnimePoseは導入しません。
 
 ```bash
 bash /workspace/qwen_vast_sh/models/qwen-image-edit-2509/setup.sh

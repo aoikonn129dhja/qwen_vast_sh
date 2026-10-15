@@ -299,6 +299,21 @@ cd "$COMFY_DIR"
 log "ComfyUI依存パッケージをインストール"
 "$UV" pip install --python "$PYTHON" -r requirements.txt
 
+# Filename-aware image input/output nodes used by Qwen Edit workflows.
+CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
+FILENAME_NODE_DIR="$CUSTOM_NODES_DIR/ComfyUI-LoadImageWithFilename"
+mkdir -p "$CUSTOM_NODES_DIR"
+if [ -d "$FILENAME_NODE_DIR/.git" ]; then
+    log "既存のLoadImageWithFilenameノードを使用"
+elif [ -e "$FILENAME_NODE_DIR" ]; then
+    die "Git管理外の既存ノードがあります: $FILENAME_NODE_DIR"
+else
+    log "LoadImageWithFilenameノードを導入"
+    git clone https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git "$FILENAME_NODE_DIR"
+fi
+[ -s "$FILENAME_NODE_DIR/__init__.py" ] && [ -s "$FILENAME_NODE_DIR/nodes.py" ] \
+    || die "LoadImageWithFilenameノードの必須ファイルが見つかりません: $FILENAME_NODE_DIR"
+
 mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
     "$COMFY_DIR/models/text_encoders" \
@@ -408,6 +423,8 @@ echo "VAE:"
 echo "  $VAE_PATH"
 echo "Lightning LoRA:"
 echo "  $LORA_PATH"
+echo "Filename image nodes:"
+echo "  $FILENAME_NODE_DIR"
 echo "Workflow:"
 echo "  $WORKFLOW_PATH"
 echo
