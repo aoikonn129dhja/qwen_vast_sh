@@ -40,6 +40,7 @@ qwen_vast_sh/
 │  ├─ qwen-rapid-aio-nsfw-v19/
 │  │  ├─ setup.sh
 │  │  ├─ run_batch.sh
+│  │  ├─ flatten_output.sh
 │  │  ├─ restart_preview_tunnel.sh
 │  │  ├─ requirements.in
 │  │  ├─ requirements.lock
@@ -59,8 +60,7 @@ qwen_vast_sh/
 │  └─ qwen-rapid-aio-v1-reference/
 │     └─ workflows/two-input-preview.json
 ├─ scripts/
-│  ├─ setup_qwen_edit_model.sh
-│  └─ flatten_output.sh
+│  └─ setup_qwen_edit_model.sh
 ├─ local_tools/                # Windows側のComfyUI出力同期ツール
 ├─ comfyui_vast_手順書.md
 └─ README.md
@@ -421,7 +421,7 @@ ComfyUI の `SaveImage` は一度、以下へ生成する。
 **バッチ生成が走っていない状態で実行する。**
 
 ```bash
-bash /workspace/qwen_vast_sh/scripts/flatten_output.sh
+bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/flatten_output.sh
 ```
 
 出力先:
