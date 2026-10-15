@@ -55,7 +55,7 @@ ensure_git_checkout() {
     log "Gitコミットを取得: $url @ $sha"
     git init -q "$target"
     git -C "$target" remote add origin "$url"
-    git -C "$target" fetch -q --depth 1 origin "$sha"
+    git -C "$target" fetch --progress --depth 1 origin "$sha"
     git -C "$target" checkout -q --detach FETCH_HEAD
     [ "$(git -C "$target" rev-parse HEAD)" = "$sha" ] || die "Git commitの検証に失敗しました: $target"
 }
