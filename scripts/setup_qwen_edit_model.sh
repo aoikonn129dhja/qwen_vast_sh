@@ -24,6 +24,9 @@ MODEL_DIR="$(cd -- "$(dirname -- "$MODEL_CONFIG")" && pwd)"
 : "${DIFFUSION_FILE:?DIFFUSION_FILE is required}"
 : "${DIFFUSION_URL:?DIFFUSION_URL is required}"
 : "${DIFFUSION_SHA256:?DIFFUSION_SHA256 is required}"
+: "${LORA_FILE:?LORA_FILE is required}"
+: "${LORA_URL:?LORA_URL is required}"
+: "${LORA_SHA256:?LORA_SHA256 is required}"
 : "${WORKFLOW_FILE_NAME:?WORKFLOW_FILE_NAME is required}"
 : "${WORKFLOW_SOURCE:?WORKFLOW_SOURCE is required}"
 : "${APPROX_TOTAL_BYTES:?APPROX_TOTAL_BYTES is required}"
@@ -55,6 +58,7 @@ VAE_SHA256="a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
 DIFFUSION_PATH="$COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
 TEXT_ENCODER_PATH="$COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
 VAE_PATH="$COMFY_DIR/models/vae/$VAE_FILE"
+LORA_PATH="$COMFY_DIR/models/loras/$LORA_FILE"
 WORKFLOW_PATH="$COMFY_DIR/user/default/workflows/$WORKFLOW_FILE_NAME"
 WORKFLOW_SOURCE_PATH="$MODEL_DIR/$WORKFLOW_SOURCE"
 
@@ -163,6 +167,7 @@ echo "ComfyUI      : $COMFY_DIR"
 echo "Diffusion    : $DIFFUSION_FILE"
 echo "Text encoder : $TEXT_ENCODER_FILE"
 echo "VAE          : $VAE_FILE"
+echo "Lightning    : $LORA_FILE"
 echo "Workflow     : $WORKFLOW_FILE_NAME"
 
 log "GPU確認"
@@ -176,7 +181,7 @@ df -h "$WORKSPACE" || true
 # ------------------------------------------------------------
 log "不足モデルの回線速度を事前確認。Hugging Faceから最大8 MiBだけ試験DL"
 
-if [ -s "$DIFFUSION_PATH" ] && [ -s "$TEXT_ENCODER_PATH" ] && [ -s "$VAE_PATH" ]; then
+if [ -s "$DIFFUSION_PATH" ] && [ -s "$TEXT_ENCODER_PATH" ] && [ -s "$VAE_PATH" ] && [ -s "$LORA_PATH" ]; then
     SPEED_RESULT="SKIP|既存モデルを再利用"
 else
 SPEED_RESULT="$(
@@ -298,6 +303,7 @@ mkdir -p \
     "$COMFY_DIR/models/diffusion_models" \
     "$COMFY_DIR/models/text_encoders" \
     "$COMFY_DIR/models/vae" \
+    "$COMFY_DIR/models/loras" \
     "$COMFY_DIR/input" \
     "$COMFY_DIR/output" \
     "$COMFY_DIR/user/default/workflows"
@@ -309,6 +315,7 @@ log "Qwen-Image-Editモデルを準備"
 download_file "$DIFFUSION_URL" "$DIFFUSION_PATH" "$DIFFUSION_SHA256"
 download_file "$TEXT_ENCODER_URL" "$TEXT_ENCODER_PATH" "$TEXT_ENCODER_SHA256"
 download_file "$VAE_URL" "$VAE_PATH" "$VAE_SHA256"
+download_file "$LORA_URL" "$LORA_PATH" "$LORA_SHA256"
 
 # ------------------------------------------------------------
 # Bundled official ComfyUI workflow template
@@ -399,6 +406,8 @@ echo "Text encoder:"
 echo "  $TEXT_ENCODER_PATH"
 echo "VAE:"
 echo "  $VAE_PATH"
+echo "Lightning LoRA:"
+echo "  $LORA_PATH"
 echo "Workflow:"
 echo "  $WORKFLOW_PATH"
 echo
