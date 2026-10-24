@@ -48,16 +48,3 @@ test('random integer covers endpoints and rejects the biased tail', () => {
   assert.equal(core.randomNumber({ getRandomValues: a => { a[0] = calls++ ? 42 : 0xffffffff; } }), 142);
   assert.equal(calls, 2);
 });
-
-test('download directories accept relative nested folders and normalize Windows separators', () => {
-  assert.deepEqual(core.downloadSettings(), { directory: '', saveAs: false });
-  assert.deepEqual(core.downloadSettings({ directory: ' X画像\\お気に入り ', saveAs: true }),
-    { directory: 'X画像/お気に入り', saveAs: true });
-  for (const directory of ['C:\\images', '/images', '\\\\server\\images', '../images', 'a/../b',
-    'a//b', 'a/', './images', 'a/CON.txt', 'aux', 'a/b.', 'a/ b', 'a?b', 'a\u0000b']) {
-    assert.throws(() => core.downloadSettings({ directory }), undefined, directory);
-  }
-  for (const value of [null, [], { directory: 123 }, { saveAs: 'true' }]) {
-    assert.throws(() => core.downloadSettings(value));
-  }
-});

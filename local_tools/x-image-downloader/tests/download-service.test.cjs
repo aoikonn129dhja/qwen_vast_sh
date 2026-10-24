@@ -47,7 +47,7 @@ test('original endpoint is checked and download uses explicit name without overw
   assert.equal(f.requests[0].init.method, 'HEAD');
   assert.equal(f.requests[0].init.credentials, 'omit');
   assert.match(f.requests[0].url, /name=orig$/);
-  assert.deepEqual(f.downloads[0], { url: f.requests[0].url, filename: result.filename, conflictAction: 'uniquify', saveAs: false });
+  assert.deepEqual(f.downloads[0], { url: f.requests[0].url, filename: result.filename, conflictAction: 'uniquify' });
   assert.equal(f.messages.length, 0, 'must not report complete while still in progress');
   f.items.get(result.id).state = 'complete';
   await f.service.finish(result.id);
@@ -113,22 +113,15 @@ test('download initiation failure propagates without recording a completed save'
   assert.deepEqual(f.api.storage.session.data, {});
 });
 
-test('saved destination settings apply to each new download without changing shared random numbers', async () => {
+test('old destination settings are ignored and Chrome controls the destination and save dialog', async () => {
   const f = fixture();
-  await f.api.storage.local.set({ downloadSettings: { directory: 'X画像\\お気に入り', saveAs: false } });
-  await f.service.start(image, sender);
-  assert.equal(f.downloads[0].filename, 'X画像/お気に入り/ouran_sakura583 (1).jpg');
-  await f.api.storage.local.set({ downloadSettings: { directory: '別のフォルダ', saveAs: true } });
-  await f.service.start({ ...image, index: 2 }, sender);
-  assert.equal(f.downloads[1].filename, '別のフォルダ/ouran_sakura583 (2).jpg');
-  assert.equal(f.downloads[1].saveAs, true);
-  assert.equal(f.downloads[1].conflictAction, 'uniquify');
-});
-
-test('invalid saved paths cause no external request or download', async () => {
-  const f = fixture();
-  await f.api.storage.local.set({ downloadSettings: { directory: '../escape' } });
-  await assert.rejects(f.service.start(image, sender), /相対フォルダ/);
-  assert.equal(f.requests.length, 0);
-  assert.equal(f.downloads.length, 0);
+  for (const old of [{ directory: 'old-folder', saveAs: true }, { directory: 'D:\\po\\NSFW_cos', saveAs: false }, null]) {
+    await f.api.storage.local.set({ downloadSettings: old });
+    const result = await f.service.start(image, sender);
+    const download = f.downloads.at(-1);
+    assert.equal(download.filename, 'ouran_sakura583 (1).jpg');
+    assert.equal(Object.hasOwn(download, 'saveAs'), false);
+    assert.equal(download.conflictAction, 'uniquify');
+    assert.equal(result.filename, download.filename);
+  }
 });

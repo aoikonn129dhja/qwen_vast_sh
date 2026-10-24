@@ -37,7 +37,6 @@
 
     async function run(image, tabId) {
       const key = core.imageKey(image);
-      const settings = core.downloadSettings((await api.storage.local.get('downloadSettings')).downloadSettings);
       // Check the original-size endpoint without decoding or re-encoding the image.
       const response = await fetcher(image.url, {
         method: 'HEAD', credentials: 'omit', redirect: 'error',
@@ -47,10 +46,9 @@
       const extension = core.extensionForMime(response.headers.get('content-type'));
       if (!extension) throw new Error('原寸URLが画像を返しませんでした。');
       const number = await numberFor(image);
-      const basename = core.filename(image, number, extension);
-      const name = settings.directory ? `${settings.directory}/${basename}` : basename;
+      const name = core.filename(image, number, extension);
       const id = await api.downloads.download({
-        url: image.url, filename: name, conflictAction: 'uniquify', saveAs: settings.saveAs
+        url: image.url, filename: name, conflictAction: 'uniquify'
       });
       await api.storage.session.set({
         [`pending:${id}`]: { tabId, key }

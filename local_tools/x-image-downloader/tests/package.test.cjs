@@ -11,9 +11,11 @@ test('manifest and package JSON are valid and all runtime files exist', () => {
   JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.options_ui, undefined);
+  assert.equal(manifest.action, undefined);
   const files = [manifest.background.service_worker,
     ...manifest.content_scripts.flatMap(entry => [...entry.js, ...entry.css]),
-    'core.js', 'download-service.js', manifest.options_ui.page, manifest.action.default_popup];
+    'core.js', 'download-service.js'];
   for (const file of files) assert.ok(fs.existsSync(path.join(root, file)), file);
   assert.deepEqual(manifest.permissions, ['downloads', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['https://pbs.twimg.com/*']);
