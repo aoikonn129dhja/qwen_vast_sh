@@ -1,0 +1,105 @@
+diff --git a/js/canvas2d.js b/js/canvas2d.js
+index 7d07034..008c54f 100644
+--- a/js/canvas2d.js
++++ b/js/canvas2d.js
+@@ -152,0 +153 @@ export class OpenPoseCanvas2D {
++		this.backgroundScale = 1;
+@@ -2220,0 +2222,6 @@ export class OpenPoseCanvas2D {
++		const referenceScale = Math.max(0.1, Math.min(1, this.backgroundScale || 1));
++		drawWidth *= referenceScale;
++		drawHeight *= referenceScale;
++		drawX = (this.logicalWidth - drawWidth) / 2;
++		drawY = (this.logicalHeight - drawHeight) / 2;
++
+diff --git a/js/main.js b/js/main.js
+index 6c5cfac..712fb4e 100644
+--- a/js/main.js
++++ b/js/main.js
+@@ -2423,0 +2424,18 @@ class OpenPosePanel {
++    setNodeReference() {
++        if (this.node.comfyClass !== "OpenPoseStudioReference") return;
++        const descriptor = this.node.referenceImageDescriptor;
++        if (!descriptor?.filename) return;
++        const scale = Number(this.node.widgets?.find(w => w.name === "reference_scale")?.value ?? 0.8);
++        const params = new URLSearchParams(descriptor);
++        const image = new Image();
++        image.onload = () => {
++            if (this.node.openPosePanel !== this) return;
++            this.backgroundImage = image;
++            this.backgroundMode = "contain";
++            this.renderer.backgroundScale = Math.max(0.1, Math.min(1, scale));
++            this.setBackgroundControlsEnabled(true);
++            this.applyBackground();
++        };
++        image.src = app.api.apiURL(`/view?${params}`);
++    }
++
+@@ -2454 +2472,5 @@ app.registerExtension({
+-            if (!node || node.comfyClass !== "OpenPoseStudio") return;
++            if (!node || !["OpenPoseStudio", "OpenPoseStudioReference"].includes(node.comfyClass)) return;
++            if (node.comfyClass === "OpenPoseStudioReference") {
++                node.referenceImageDescriptor = detail.output?.reference_image?.[0] || null;
++                node.openPosePanel?.setNodeReference();
++            }
+@@ -2474 +2496 @@ app.registerExtension({
+-		if (nodeData.name === "OpenPoseStudio") {
++		if (["OpenPoseStudio", "OpenPoseStudioReference"].includes(nodeData.name)) {
+@@ -2539,0 +2562 @@ app.registerExtension({
++                    this.openPosePanel.setNodeReference();
+diff --git a/js/modules/editor.js b/js/modules/editor.js
+index f8c6cea..f4fed53 100644
+--- a/js/modules/editor.js
++++ b/js/modules/editor.js
+@@ -645 +645,3 @@ export const poseEditorCanvasWorkflow = {
+-		this.restoreSessionBackground();
++		if (this.node.comfyClass !== "OpenPoseStudioReference") {
++			this.restoreSessionBackground();
++		}
+diff --git a/nodes.py b/nodes.py
+index d54d484..09b5bf9 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -7,0 +8 @@ import os.path
++import hashlib
+@@ -9,0 +11,2 @@ from nodes import LoadImage
++from PIL import Image
++from .pose_reference import center_scale_pose
+@@ -1067,0 +1071,34 @@ class OpenPoseStudio:
++class OpenPoseStudioReference(OpenPoseStudio):
++    """OpenPose editor with a workflow-supplied, centered photo backdrop."""
++
++    @classmethod
++    def INPUT_TYPES(cls):
++        inputs = super().INPUT_TYPES()
++        inputs["required"]["reference_scale"] = (
++            "FLOAT", {"default": 0.8, "min": 0.1, "max": 1.0, "step": 0.05}
++        )
++        inputs["optional"]["reference_image"] = ("IMAGE", {})
++        return inputs
++
++    def render(self, pose_json, render_body, render_hand, render_face,
++               reference_scale=0.8, reference_image=None, **kwargs):
++        if kwargs.get("pose_keypoint") is not None:
++            kwargs["pose_keypoint"] = center_scale_pose(
++                kwargs["pose_keypoint"], reference_scale
++            )
++        result = super().render(
++            pose_json, render_body, render_hand, render_face, **kwargs
++        )
++        if reference_image is not None:
++            pixels = (reference_image[0].clamp(0, 1).cpu().numpy() * 255).astype(np.uint8)
++            digest = hashlib.sha256(pixels.tobytes()).hexdigest()[:24]
++            filename = f"openpose_reference_{digest}.png"
++            path = os.path.join(folder_paths.get_temp_directory(), filename)
++            if not os.path.exists(path):
++                Image.fromarray(pixels).save(path)
++            result["ui"]["reference_image"] = [{
++                "filename": filename, "subfolder": "", "type": "temp"
++            }]
++        return result
++
++
+@@ -1088,0 +1126 @@ NODE_CLASS_MAPPINGS = {
++    "OpenPoseStudioReference": OpenPoseStudioReference,
+@@ -1093,0 +1132 @@ NODE_DISPLAY_NAME_MAPPINGS = {
++    "OpenPoseStudioReference": "OpenPose Studio Reference",
