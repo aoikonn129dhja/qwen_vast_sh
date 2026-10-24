@@ -5,9 +5,9 @@
   const states = new Map();
   const styles = `
     :host { color-scheme: dark; }
-    button { box-sizing: border-box; display: block; min-width: 44px; height: 36px;
-      padding: 0 12px; border: 1px solid #fff; border-radius: 999px;
-      background: #111; color: #fff; font: 600 13px/1 system-ui, sans-serif;
+    button { box-sizing: border-box; display: block; min-width: 132px; height: 108px;
+      padding: 0 36px; border: 1px solid #fff; border-radius: 999px;
+      background: #111; color: #fff; font: 600 39px/1 system-ui, sans-serif;
       cursor: pointer; white-space: nowrap; }
     button:hover { background: #333; }
     button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }

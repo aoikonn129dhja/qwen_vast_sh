@@ -62,7 +62,23 @@
     ] || null;
   }
 
-  const api = { parsePostLink, normalizeAccount, originalUrl, validateRequest, imageKey, randomNumber, filename, extensionForMime };
+  function downloadSettings(value = {}) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        (value.directory !== undefined && typeof value.directory !== 'string') ||
+        (value.saveAs !== undefined && typeof value.saveAs !== 'boolean')) {
+      throw new Error('保存先の設定が不正です。設定画面で保存し直してください。');
+    }
+    const directory = (value.directory || '').trim().replace(/\\/g, '/');
+    if (directory && (directory.length > 180 || directory.split('/').some(part =>
+      !part || part === '.' || part === '..' || /^[. ]|[. ]$/.test(part) ||
+      /[<>:"|?*\u0000-\u001f\u007f]/.test(part) ||
+      /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part)))) {
+      throw new Error('Chromeのダウンロード先からの相対フォルダ名を入力してください。絶対パスや「..」、使用できない文字は指定できません。');
+    }
+    return { directory, saveAs: value.saveAs === true };
+  }
+
+  const api = { parsePostLink, normalizeAccount, originalUrl, validateRequest, imageKey, randomNumber, filename, extensionForMime, downloadSettings };
   root.XImageDownloader = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

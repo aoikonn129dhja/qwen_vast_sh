@@ -112,3 +112,23 @@ test('download initiation failure propagates without recording a completed save'
   assert.equal(f.messages.length, 0);
   assert.deepEqual(f.api.storage.session.data, {});
 });
+
+test('saved destination settings apply to each new download without changing shared random numbers', async () => {
+  const f = fixture();
+  await f.api.storage.local.set({ downloadSettings: { directory: 'X画像\\お気に入り', saveAs: false } });
+  await f.service.start(image, sender);
+  assert.equal(f.downloads[0].filename, 'X画像/お気に入り/ouran_sakura583 (1).jpg');
+  await f.api.storage.local.set({ downloadSettings: { directory: '別のフォルダ', saveAs: true } });
+  await f.service.start({ ...image, index: 2 }, sender);
+  assert.equal(f.downloads[1].filename, '別のフォルダ/ouran_sakura583 (2).jpg');
+  assert.equal(f.downloads[1].saveAs, true);
+  assert.equal(f.downloads[1].conflictAction, 'uniquify');
+});
+
+test('invalid saved paths cause no external request or download', async () => {
+  const f = fixture();
+  await f.api.storage.local.set({ downloadSettings: { directory: '../escape' } });
+  await assert.rejects(f.service.start(image, sender), /相対フォルダ/);
+  assert.equal(f.requests.length, 0);
+  assert.equal(f.downloads.length, 0);
+});

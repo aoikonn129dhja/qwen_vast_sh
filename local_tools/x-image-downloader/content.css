@@ -1,10 +1,10 @@
 .xid-download-host {
   position: absolute !important;
   right: 8px !important;
-  bottom: 8px !important;
+  top: 8px !important;
   z-index: 10 !important;
   display: block !important;
   width: max-content !important;
-  height: 36px !important;
+  height: 108px !important;
   pointer-events: auto !important;
 }

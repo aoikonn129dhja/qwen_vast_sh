@@ -13,7 +13,7 @@ test('manifest and package JSON are valid and all runtime files exist', () => {
   assert.equal(manifest.manifest_version, 3);
   const files = [manifest.background.service_worker,
     ...manifest.content_scripts.flatMap(entry => [...entry.js, ...entry.css]),
-    'core.js', 'download-service.js'];
+    'core.js', 'download-service.js', manifest.options_ui.page, manifest.action.default_popup];
   for (const file of files) assert.ok(fs.existsSync(path.join(root, file)), file);
   assert.deepEqual(manifest.permissions, ['downloads', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['https://pbs.twimg.com/*']);
@@ -28,4 +28,10 @@ test('overlay stylesheet parses and does not hide or resize X images', () => {
   const buttonCss = source.match(/const styles = `([\s\S]*?)`;/)[1];
   assert.ok(cssom.parse(buttonCss).cssRules.length >= 6);
   assert.ok(!css.includes('url('), 'overlay has no external asset dependencies');
+  assert.equal(sheet.cssRules[0].style.top, '8px');
+  assert.equal(sheet.cssRules[0].style.bottom, undefined);
+  assert.equal(sheet.cssRules[0].style.height, '108px');
+  const buttonRule = cssom.parse(buttonCss).cssRules.find(rule => rule.selectorText === 'button');
+  assert.equal(buttonRule.style['min-width'], '132px');
+  assert.equal(buttonRule.style.height, '108px');
 });
