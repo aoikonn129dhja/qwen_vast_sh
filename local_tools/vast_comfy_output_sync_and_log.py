@@ -184,6 +184,40 @@ def write_csv_row(path: Path, metadata: dict) -> None:
         os.fsync(out.fileno())
 
 
+def select_sync_state(output_dir: Path, server_key: str) -> tuple[Path, dict]:
+    """Reuse this server's history, or reserve an unused numbered history."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pattern = re.compile(r"\.vast_comfy_sync_state(?:_([1-9][0-9]*))?\.json")
+    while True:
+        histories = {}
+        for path in output_dir.glob(".vast_comfy_sync_state*.json"):
+            match = pattern.fullmatch(path.name)
+            if match:
+                histories[int(match.group(1) or 0)] = path
+        for number, path in sorted(histories.items()):
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, UnicodeError):
+                continue
+            if (isinstance(state, dict) and state.get("server_key") == server_key
+                    and isinstance(state.get("done"), dict)):
+                return path, state
+        number = 0
+        while number in histories:
+            number += 1
+        suffix = f"_{number}" if number else ""
+        path = output_dir / f".vast_comfy_sync_state{suffix}.json"
+        state = {"server_key": server_key, "done": {}}
+        try:
+            with path.open("x", encoding="utf-8") as out:
+                json.dump(state, out, ensure_ascii=False, indent=2)
+                out.flush()
+                os.fsync(out.fileno())
+        except FileExistsError:
+            continue
+        return path, state
+
+
 def main() -> int:
     try:
         url = input("ComfyUI の Gateway ドメインまたは SSH 転送 URL: ").strip()
@@ -215,18 +249,12 @@ def main() -> int:
         print("認証情報の入力が完了しませんでした。")
         return 2
     authorization = ("Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")) if username else None
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    state_file = OUTPUT_DIR / ".vast_comfy_sync_state.json"
     server_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
-    state = {"server_key": server_key, "done": {}}
-    if state_file.exists():
-        state = json.loads(state_file.read_text(encoding="utf-8"))
-        if not isinstance(state, dict) or state.get("server_key") != server_key or not isinstance(state.get("done"), dict):
-            print("保存先に別サーバーの同期履歴があります。OUTPUT_DIR を変更してください。")
-            return 2
+    state_file, state = select_sync_state(OUTPUT_DIR, server_key)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     session_csvs: dict[Path, Path] = {}
     print(f"接続先: {url}\n保存先の親ディレクトリ: {OUTPUT_DIR}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
+    print(f"同期履歴: {state_file.name}")
     try:
         while True:
             try:
