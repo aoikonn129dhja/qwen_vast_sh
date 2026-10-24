@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ComfyUI HTTP and WebSocket gateway with per-session model selection."""
+"""ComfyUI gateway for the model explicitly selected by the CLI."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from scheduler import Scheduler
 
 SCHEDULER_KEY = web.AppKey("scheduler", Scheduler)
 SESSION_KEY = web.AppKey("session", ClientSession)
-DEFAULT_MODEL_KEY = web.AppKey("default_model", dict)
 
 HOP_HEADERS = {"authorization", "connection", "content-length", "host", "keep-alive", "origin", "proxy-authenticate",
                "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
@@ -40,35 +39,15 @@ def headers_for_upstream(headers) -> dict[str, str]:
     return {k: v for k, v in headers.items() if k.lower() not in HOP_HEADERS}
 
 
-async def select_model(request: web.Request) -> web.Response:
-    data = await request.json()
-    model_id = data.get("model_id")
-    scheduler: Scheduler = request.app[SCHEDULER_KEY]
-    if model_id not in scheduler.models:
-        raise web.HTTPBadRequest(text="Unknown model")
-    if scheduler.models[model_id]["runtime_type"] != "comfyui":
-        raise web.HTTPBadRequest(text="Model has no ComfyUI backend")
-    try:
-        await scheduler.ensure(model_id, reserve=True)
-    except RuntimeError as exc:
-        raise web.HTTPServiceUnavailable(text=str(exc)) from exc
-    response = web.json_response({"model_id": model_id, "port": scheduler.models[model_id]["port"]})
-    request.app[DEFAULT_MODEL_KEY]["value"] = model_id
-    response.set_cookie("qwen_runtime_model", model_id, httponly=True, samesite="Strict", path="/")
-    return response
-
-
 async def selected_model(request: web.Request) -> str:
     scheduler: Scheduler = request.app[SCHEDULER_KEY]
-    model_id = request.cookies.get("qwen_runtime_model")
-    if model_id in scheduler.models:
-        return model_id
-    model_id = request.app[DEFAULT_MODEL_KEY]["value"]
-    if model_id in scheduler.models:
-        return model_id
-    if len(scheduler.models) == 1:
-        return next(iter(scheduler.models))
-    raise web.HTTPConflict(text="Select a model at /runtime/select before using ComfyUI")
+    model_id = scheduler.active_model()
+    if model_id is None:
+        raise web.HTTPConflict(text="No active model. Run runtime_control.py load MODEL_ID")
+    state = scheduler.status(model_id)["state"]
+    if state not in ("BACKEND_READY", "RUNNING"):
+        raise web.HTTPServiceUnavailable(text=f"Backend is {state}; run runtime_control.py load {model_id}")
+    return model_id
 
 
 async def relay_websocket(request: web.Request, port: int) -> web.WebSocketResponse:
@@ -138,68 +117,35 @@ async def handle(request: web.Request) -> web.StreamResponse:
     scheduler.load_registry()
     if request.path == "/runtime/healthz":
         return web.json_response({"registered": list(scheduler.models)})
-    if request.path == "/runtime/select" and request.method == "POST":
-        return await select_model(request)
+    if request.path == "/runtime/select":
+        raise web.HTTPGone(text="Browser switching is disabled. Use runtime_control.py load MODEL_ID")
     if request.path == "/runtime/models":
-        await scheduler.refresh()
-        return web.json_response({name: {"state": model["state"], "port": model["port"],
+        return web.json_response({name: {**scheduler.status(name),
                                         "signatures": model.get("signatures", {})}
                                   for name, model in scheduler.models.items()
                                   if model["runtime_type"] == "comfyui"})
-    if request.path.startswith("/runtime/cli/") and request.method == "POST":
-        data = await request.json()
-        model_id, token = data.get("model_id"), data.get("token")
-        if model_id not in scheduler.models or scheduler.models[model_id]["runtime_type"] != "cli":
-            raise web.HTTPBadRequest(text="Unknown CLI model")
-        if not isinstance(token, str) or len(token) < 32:
-            raise web.HTTPBadRequest(text="Invalid reservation token")
-        try:
-            if request.path == "/runtime/cli/admit":
-                await scheduler.ensure(model_id, reserve=True, cli_token=token)
-            elif request.path == "/runtime/cli/heartbeat":
-                await scheduler.heartbeat_cli(model_id, token)
-            elif request.path == "/runtime/cli/release":
-                await scheduler.release_cli(model_id, token)
-            else:
-                raise web.HTTPNotFound()
-        except RuntimeError as exc:
-            raise web.HTTPServiceUnavailable(text=str(exc)) from exc
-        return web.json_response({"ok": True})
     if request.path == "/runtime/current":
-        return web.json_response({"model_id": request.cookies.get("qwen_runtime_model") or request.app[DEFAULT_MODEL_KEY]["value"]})
+        return web.json_response({"model_id": scheduler.active_model()})
     if request.path == "/prompt" and request.method == "POST":
+        model_id = await selected_model(request)
         body = await request.read()
         try:
             payload = json.loads(body)
         except ValueError as exc:
             raise web.HTTPBadRequest(text="Invalid prompt JSON") from exc
-        model_id = identify_prompt(payload, scheduler.models)
-        if model_id is None:
-            selected = request.cookies.get("qwen_runtime_model")
-            if selected in scheduler.models and scheduler.models[selected]["runtime_type"] == "comfyui":
-                model_id = selected
-            else:
-                raise web.HTTPConflict(text="Workflow model is ambiguous; select a model")
-        try:
-            target = await scheduler.ensure(model_id, reserve=True)
-        except RuntimeError as exc:
-            raise web.HTTPServiceUnavailable(text=str(exc)) from exc
+        inferred = identify_prompt(payload, scheduler.models)
+        if inferred is not None and inferred != model_id:
+            raise web.HTTPConflict(text=f"Workflow requires {inferred}; run runtime_control.py load {inferred}")
+        target = scheduler.models[model_id]
         async with request.app[SESSION_KEY].post(
             f"http://127.0.0.1:{target['port']}/prompt", data=body,
             headers={"Content-Type": "application/json"},
         ) as upstream:
             response = web.Response(body=await upstream.read(), status=upstream.status,
                                     content_type=upstream.content_type)
-            if upstream.status < 400:
-                target["loaded"] = True
-                target["state"] = "LOADING"
-            response.set_cookie("qwen_runtime_model", model_id, httponly=True, samesite="Strict", path="/")
             return response
     model_id = await selected_model(request)
-    try:
-        target = await scheduler.ensure(model_id)
-    except RuntimeError as exc:
-        raise web.HTTPServiceUnavailable(text=str(exc)) from exc
+    target = scheduler.models[model_id]
     if request.headers.get("Upgrade", "").lower() == "websocket":
         return await relay_websocket(request, target["port"])
     return await relay_http(request, target["port"])
@@ -215,12 +161,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8188)
-    parser.add_argument("--free-limit-mb", type=int)
     args = parser.parse_args()
     app = web.Application(client_max_size=100 * 1024 * 1024)
-    app[SCHEDULER_KEY] = Scheduler(args.root, args.free_limit_mb)
-    app[DEFAULT_MODEL_KEY] = {"value": next((name for name, model in app[SCHEDULER_KEY].models.items()
-                                             if model["runtime_type"] == "comfyui"), None)}
+    app[SCHEDULER_KEY] = Scheduler(args.root)
     app.cleanup_ctx.append(app_context)
     app.router.add_route("*", "/{tail:.*}", handle)
     web.run_app(app, host="0.0.0.0", port=args.port)

@@ -164,20 +164,17 @@ PY
 fi
 
 # ------------------------------------------------------------
-# Ensure the managed Gateway is running and select this model
+# Require the model selected explicitly by runtime_control.py
 # ------------------------------------------------------------
 source "$MODEL_DIR/../../scripts/runtime/bootstrap.sh"
 COMFY_LOG="$RUNTIME_ROOT/logs/qwen-rapid-aio-nsfw-v19.log"
 runtime_gateway_start
 "$PYTHON" - "qwen-rapid-aio-nsfw-v19" <<'PY'
 import json, sys, urllib.request
-data = json.dumps({'model_id': sys.argv[1]}).encode()
-request = urllib.request.Request(
-    'http://127.0.0.1:8188/runtime/select', data=data,
-    headers={'Content-Type': 'application/json'},
-)
-with urllib.request.urlopen(request, timeout=180) as response:
-    assert response.status == 200
+with urllib.request.urlopen('http://127.0.0.1:8188/runtime/current', timeout=5) as response:
+    active = json.load(response)['model_id']
+if active != sys.argv[1]:
+    raise SystemExit(f"Select {sys.argv[1]} first: python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py load {sys.argv[1]}")
 PY
 
 RUN_ID="$(TZ=Asia/Tokyo date '+%Y%m%d_%H%M%S')"

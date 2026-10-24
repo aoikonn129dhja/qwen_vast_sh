@@ -1,4 +1,3 @@
-"""Frontend connection switching for model-specific ComfyUI instances."""
+"""Compatibility marker for already-installed runtime custom nodes."""
 
 NODE_CLASS_MAPPINGS = {}
-WEB_DIRECTORY = "./web"
