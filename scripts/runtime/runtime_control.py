@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explicitly select or unload one installed ComfyUI model."""
+"""Inspect or manually unload installed models; workflow selection is automatic."""
 
 from __future__ import annotations
 
@@ -99,7 +99,8 @@ def main() -> int:
                     info = scheduler.status(model_id)
                     marker = "*" if info["active"] else " "
                     print(f"{marker} {model_id}: {info['state']}")
-                print("BACKEND_READY means ComfyUI is running; weights load on the first Queue.")
+                print("Workflows select their backend automatically; weights load on the first Queue.")
+                print("BACKEND_READY means ComfyUI is running, not that weights are in VRAM.")
             elif args.action == "restart-gateway":
                 restart_gateway(scheduler)
                 print("Gateway restarted")

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -15,6 +16,7 @@ except ImportError:
 @unittest.skipIf(web is None, "aiohttp is not installed in this test environment")
 class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.directory = tempfile.TemporaryDirectory()
         backend = web.Application()
 
         async def echo(request):
@@ -39,6 +41,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
         class FakeScheduler:
             def __init__(self, port):
+                self.root = Path(self_directory)
                 self.models = {
                     "model-a": {"model_id": "model-a", "runtime_type": "comfyui", "port": port,
                                 "signatures": {"model_files": ["a.safetensors"]}},
@@ -46,6 +49,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                                 "signatures": {"node_types": ["SpecialNode"]}},
                 }
                 self.active = "model-a"
+                self.started = []
+                self.busy = False
 
             def load_registry(self):
                 pass
@@ -54,9 +59,15 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 return self.active
 
             def status(self, model_id):
-                return {"state": "BACKEND_READY", "active": model_id == self.active,
+                return {"state": "RUNNING" if self.busy else "BACKEND_READY", "active": model_id == self.active,
                         "port": self.models[model_id]["port"], "vram_loaded": None}
 
+            async def start(self, model_id):
+                self.started.append(model_id)
+                self.active = model_id
+                return self.models[model_id]
+
+        self_directory = self.directory.name
         app = web.Application()
         self.scheduler = FakeScheduler(self.backend.port)
         app[gateway.SCHEDULER_KEY] = self.scheduler
@@ -69,29 +80,46 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.client.close()
         await self.backend.close()
+        self.directory.cleanup()
 
-    async def test_selected_backend_proxy_and_no_browser_switch(self):
+    async def test_workflow_can_select_backend_without_manual_load(self):
         response = await self.client.post("/runtime/select", json={"model_id": "model-b"})
-        self.assertEqual(response.status, 410)
+        self.assertEqual(response.status, 200)
         response = await self.client.get("/object_info")
         self.assertEqual((await response.json())["path"], "/object_info")
-        self.assertEqual(self.scheduler.active, "model-a")
+        self.assertEqual(self.scheduler.active, "model-b")
 
-    async def test_prompt_cannot_switch_model_automatically(self):
+    async def test_prompt_selects_required_backend_automatically(self):
         payload = {"prompt": {"1": {"class_type": "SpecialNode", "inputs": {}}}}
         response = await self.client.post("/prompt", json=payload)
-        self.assertEqual(response.status, 409)
-        self.assertEqual(self.scheduler.active, "model-a")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(self.scheduler.active, "model-b")
+        self.assertEqual(self.scheduler.started, ["model-b"])
 
-    async def test_selected_model_accepts_workflow_without_signature(self):
-        response = await self.client.post("/prompt", json={"prompt": {}})
+    async def test_metadata_identifies_workflow_without_signature(self):
+        response = await self.client.post("/prompt", json={"prompt": {}, "extra_data": {
+            "extra_pnginfo": {"workflow": {"extra": {"qwen_model_id": "model-a"}}}}})
         self.assertEqual(response.status, 200)
         self.assertEqual((await response.json())["prompt_id"], "accepted")
 
-    async def test_no_active_model_is_rejected(self):
+    async def test_editor_starts_backend_when_no_model_is_active(self):
         self.scheduler.active = None
         response = await self.client.get("/object_info")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(self.scheduler.started, ["model-a"])
+
+    async def test_running_model_is_not_switched_or_unloaded(self):
+        self.scheduler.busy = True
+        response = await self.client.post("/prompt", json={"prompt": {
+            "1": {"class_type": "SpecialNode", "inputs": {}}}})
         self.assertEqual(response.status, 409)
+        self.assertEqual(self.scheduler.active, "model-a")
+        self.assertEqual(self.scheduler.started, [])
+
+    async def test_ambiguous_prompt_is_rejected_instead_of_using_previous_model(self):
+        response = await self.client.post("/prompt", json={"prompt": {}})
+        self.assertEqual(response.status, 409)
+        self.assertEqual(self.scheduler.started, [])
 
     async def test_websocket_progress_reaches_selected_backend(self):
         socket = await self.client.ws_connect("/ws")

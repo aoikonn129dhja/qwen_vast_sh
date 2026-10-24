@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""ComfyUI gateway for the model explicitly selected by the CLI."""
+"""Select isolated ComfyUI backends from workflows; unload only on request."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import asynccontextmanager
+import fcntl
 import json
 from pathlib import Path
 
@@ -14,25 +16,69 @@ from scheduler import Scheduler
 
 SCHEDULER_KEY = web.AppKey("scheduler", Scheduler)
 SESSION_KEY = web.AppKey("session", ClientSession)
+CONTROL_KEY = web.AppKey("control", asyncio.Lock)
 
 HOP_HEADERS = {"authorization", "connection", "content-length", "host", "keep-alive", "origin", "proxy-authenticate",
                "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
 
 
+@asynccontextmanager
+async def runtime_lock(request: web.Request):
+    async with request.app[CONTROL_KEY]:
+        directory = request.app[SCHEDULER_KEY].root / "locks"
+        directory.mkdir(parents=True, exist_ok=True)
+        with (directory / "manual-control.lock").open("a") as lock:
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    await asyncio.sleep(0.1)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def identify_prompt(prompt: dict, models: dict[str, dict]) -> str | None:
-    explicit = prompt.get("extra_data", {}).get("qwen_model_id")
-    if explicit in models:
-        return explicit
+    if not isinstance(prompt, dict) or not isinstance(prompt.get("prompt"), dict):
+        raise ValueError("Expected a prompt object")
+    extra = prompt.get("extra_data", {})
+    workflow = extra.get("extra_pnginfo", {}).get("workflow", {})
+    explicit = extra.get("qwen_model_id") or workflow.get("extra", {}).get("qwen_model_id")
     nodes = prompt.get("prompt", {})
-    matches = set()
+    files, types = set(), set()
     serialized = json.dumps(nodes, ensure_ascii=False)
     for model_id, config in models.items():
+        if config["runtime_type"] != "comfyui":
+            continue
         signatures = config.get("signatures", {})
         if any(node.get("class_type") in signatures.get("node_types", []) for node in nodes.values()):
-            matches.add(model_id)
+            types.add(model_id)
         if any(name in serialized for name in signatures.get("model_files", [])):
-            matches.add(model_id)
-    return next(iter(matches)) if len(matches) == 1 else None
+            files.add(model_id)
+    if files:
+        if len(files) != 1:
+            raise ValueError("Workflow references multiple isolated models")
+        return next(iter(files))
+    if explicit:
+        if explicit not in models or models[explicit]["runtime_type"] != "comfyui":
+            raise ValueError(f"Workflow model is not installed: {explicit}")
+        return explicit
+    return next(iter(types)) if len(types) == 1 else None
+
+
+async def activate(request: web.Request, model_id: str) -> dict:
+    scheduler: Scheduler = request.app[SCHEDULER_KEY]
+    current = scheduler.active_model()
+    if current and current != model_id and scheduler.status(current)["state"] == "RUNNING":
+        raise web.HTTPConflict(text=f"Queue is busy: {current}")
+    try:
+        return await scheduler.start(model_id)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        raise web.HTTPServiceUnavailable(text=str(exc)) from exc
 
 
 def headers_for_upstream(headers) -> dict[str, str]:
@@ -42,11 +88,16 @@ def headers_for_upstream(headers) -> dict[str, str]:
 async def selected_model(request: web.Request) -> str:
     scheduler: Scheduler = request.app[SCHEDULER_KEY]
     model_id = scheduler.active_model()
-    if model_id is None:
-        raise web.HTTPConflict(text="No active model. Run runtime_control.py load MODEL_ID")
-    state = scheduler.status(model_id)["state"]
-    if state not in ("BACKEND_READY", "RUNNING"):
-        raise web.HTTPServiceUnavailable(text=f"Backend is {state}; run runtime_control.py load {model_id}")
+    if model_id and scheduler.status(model_id)["state"] in ("BACKEND_READY", "RUNNING"):
+        return model_id
+    # A backend is needed to display the editor even before a workflow is opened.
+    # Starting it does not queue inference or load model weights.
+    async with runtime_lock(request):
+        model_id = scheduler.active_model() or next(
+            (name for name, model in scheduler.models.items() if model["runtime_type"] == "comfyui"), None)
+        if model_id is None:
+            raise web.HTTPConflict(text="No installed ComfyUI model; run the model setup first")
+        await activate(request, model_id)
     return model_id
 
 
@@ -117,8 +168,16 @@ async def handle(request: web.Request) -> web.StreamResponse:
     scheduler.load_registry()
     if request.path == "/runtime/healthz":
         return web.json_response({"registered": list(scheduler.models)})
-    if request.path == "/runtime/select":
-        raise web.HTTPGone(text="Browser switching is disabled. Use runtime_control.py load MODEL_ID")
+    if request.path == "/runtime/frontend.js":
+        return web.FileResponse(Path(__file__).with_name("frontend.js"),
+                                headers={"Cache-Control": "no-store"})
+    if request.path == "/runtime/select" and request.method == "POST":
+        data = await request.json()
+        if not isinstance(data, dict) or not isinstance(data.get("model_id"), str):
+            raise web.HTTPBadRequest(text="Expected a model_id string")
+        async with runtime_lock(request):
+            target = await activate(request, data.get("model_id"))
+        return web.json_response({"model_id": target["model_id"], "port": target["port"]})
     if request.path == "/runtime/models":
         return web.json_response({name: {**scheduler.status(name),
                                         "signatures": model.get("signatures", {})}
@@ -127,31 +186,40 @@ async def handle(request: web.Request) -> web.StreamResponse:
     if request.path == "/runtime/current":
         return web.json_response({"model_id": scheduler.active_model()})
     if request.path == "/prompt" and request.method == "POST":
-        model_id = await selected_model(request)
         body = await request.read()
         try:
             payload = json.loads(body)
+            model_id = identify_prompt(payload, scheduler.models)
         except ValueError as exc:
-            raise web.HTTPBadRequest(text="Invalid prompt JSON") from exc
-        inferred = identify_prompt(payload, scheduler.models)
-        if inferred is not None and inferred != model_id:
-            raise web.HTTPConflict(text=f"Workflow requires {inferred}; run runtime_control.py load {inferred}")
-        target = scheduler.models[model_id]
-        async with request.app[SESSION_KEY].post(
-            f"http://127.0.0.1:{target['port']}/prompt", data=body,
-            headers={"Content-Type": "application/json"},
-        ) as upstream:
-            response = web.Response(body=await upstream.read(), status=upstream.status,
+            raise web.HTTPBadRequest(text=str(exc)) from exc
+        if model_id is None:
+            raise web.HTTPConflict(text="Cannot identify workflow model; set extra.qwen_model_id")
+        async with runtime_lock(request):
+            target = await activate(request, model_id)
+            async with request.app[SESSION_KEY].post(
+                f"http://127.0.0.1:{target['port']}/prompt", data=body,
+                headers={"Content-Type": "application/json"},
+            ) as upstream:
+                return web.Response(body=await upstream.read(), status=upstream.status,
                                     content_type=upstream.content_type)
-            return response
     model_id = await selected_model(request)
     target = scheduler.models[model_id]
+    if request.path == "/extensions":
+        async with request.app[SESSION_KEY].get(
+            f"http://127.0.0.1:{target['port']}{request.rel_url}"
+        ) as upstream:
+            if upstream.status != 200:
+                raise web.HTTPBadGateway(text="Backend extension list unavailable")
+            extensions = await upstream.json()
+        return web.json_response([*extensions, "/runtime/frontend.js"],
+                                 headers={"Cache-Control": "no-store"})
     if request.headers.get("Upgrade", "").lower() == "websocket":
         return await relay_websocket(request, target["port"])
     return await relay_http(request, target["port"])
 
 
 async def app_context(app: web.Application):
+    app[CONTROL_KEY] = asyncio.Lock()
     app[SESSION_KEY] = ClientSession(auto_decompress=False)
     yield
     await app[SESSION_KEY].close()

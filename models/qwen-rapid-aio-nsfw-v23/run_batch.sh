@@ -164,17 +164,20 @@ PY
 fi
 
 # ------------------------------------------------------------
-# Require the model selected explicitly by runtime_control.py
+# Select this batch workflow's backend without loading weights or evicting models
 # ------------------------------------------------------------
 source "$MODEL_DIR/../../scripts/runtime/bootstrap.sh"
 COMFY_LOG="$RUNTIME_ROOT/logs/qwen-rapid-aio-nsfw-v23.log"
 runtime_gateway_start
 "$PYTHON" - "qwen-rapid-aio-nsfw-v23" <<'PY'
 import json, sys, urllib.request
-with urllib.request.urlopen('http://127.0.0.1:8188/runtime/current', timeout=5) as response:
-    active = json.load(response)['model_id']
-if active != sys.argv[1]:
-    raise SystemExit(f"Select {sys.argv[1]} first: python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py load {sys.argv[1]}")
+request = urllib.request.Request(
+    'http://127.0.0.1:8188/runtime/select',
+    data=json.dumps({'model_id': sys.argv[1]}).encode(),
+    headers={'Content-Type': 'application/json'},
+)
+with urllib.request.urlopen(request, timeout=240) as response:
+    json.load(response)
 PY
 
 RUN_ID="$(TZ=Asia/Tokyo date '+%Y%m%d_%H%M%S')"
