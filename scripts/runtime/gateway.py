@@ -166,26 +166,29 @@ async def relay_http(request: web.Request, port: int) -> web.StreamResponse:
 async def handle(request: web.Request) -> web.StreamResponse:
     scheduler: Scheduler = request.app[SCHEDULER_KEY]
     scheduler.load_registry()
-    if request.path == "/runtime/healthz":
+    # ComfyUI's browser client prefixes API requests with /api. Match both
+    # forms here, but retain the original URL when proxying to the backend.
+    path = request.path[4:] if request.path.startswith("/api/") else request.path
+    if path == "/runtime/healthz":
         return web.json_response({"registered": list(scheduler.models)})
-    if request.path == "/runtime/frontend.js":
+    if path == "/runtime/frontend.js":
         return web.FileResponse(Path(__file__).with_name("frontend.js"),
                                 headers={"Cache-Control": "no-store"})
-    if request.path == "/runtime/select" and request.method == "POST":
+    if path == "/runtime/select" and request.method == "POST":
         data = await request.json()
         if not isinstance(data, dict) or not isinstance(data.get("model_id"), str):
             raise web.HTTPBadRequest(text="Expected a model_id string")
         async with runtime_lock(request):
             target = await activate(request, data.get("model_id"))
         return web.json_response({"model_id": target["model_id"], "port": target["port"]})
-    if request.path == "/runtime/models":
+    if path == "/runtime/models":
         return web.json_response({name: {**scheduler.status(name),
                                         "signatures": model.get("signatures", {})}
                                   for name, model in scheduler.models.items()
                                   if model["runtime_type"] == "comfyui"})
-    if request.path == "/runtime/current":
+    if path == "/runtime/current":
         return web.json_response({"model_id": scheduler.active_model()})
-    if request.path == "/prompt" and request.method == "POST":
+    if path == "/prompt" and request.method == "POST":
         body = await request.read()
         try:
             payload = json.loads(body)
@@ -204,7 +207,7 @@ async def handle(request: web.Request) -> web.StreamResponse:
                                     content_type=upstream.content_type)
     model_id = await selected_model(request)
     target = scheduler.models[model_id]
-    if request.path == "/extensions":
+    if path == "/extensions":
         async with request.app[SESSION_KEY].get(
             f"http://127.0.0.1:{target['port']}{request.rel_url}"
         ) as upstream:

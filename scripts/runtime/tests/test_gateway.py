@@ -25,6 +25,9 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         async def prompt(request):
             return web.json_response({"prompt_id": "accepted", "request": await request.json()})
 
+        async def extensions(request):
+            return web.json_response(["/extensions/example/widget.js"])
+
         async def websocket(request):
             socket = web.WebSocketResponse()
             await socket.prepare(request)
@@ -34,6 +37,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             return socket
 
         backend.router.add_post("/prompt", prompt)
+        backend.router.add_get("/extensions", extensions)
+        backend.router.add_get("/api/extensions", extensions)
         backend.router.add_get("/ws", websocket)
         backend.router.add_route("*", "/{tail:.*}", echo)
         self.backend = TestServer(backend)
@@ -101,6 +106,28 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             "extra_pnginfo": {"workflow": {"extra": {"qwen_model_id": "model-a"}}}}})
         self.assertEqual(response.status, 200)
         self.assertEqual((await response.json())["prompt_id"], "accepted")
+
+    async def test_browser_api_extension_list_contains_automatic_switcher(self):
+        for path in ("/extensions", "/api/extensions"):
+            with self.subTest(path=path):
+                response = await self.client.get(path)
+                self.assertEqual(response.status, 200)
+                self.assertEqual(await response.json(), [
+                    "/extensions/example/widget.js", "/runtime/frontend.js"])
+
+    async def test_browser_api_prompt_selects_backend_before_forwarding(self):
+        response = await self.client.post("/api/prompt", json={"prompt": {
+            "1": {"class_type": "SpecialNode", "inputs": {}}}})
+        self.assertEqual(response.status, 200)
+        self.assertEqual((await response.json())["prompt_id"], "accepted")
+        self.assertEqual(self.scheduler.started, ["model-b"])
+
+    async def test_browser_api_prompt_rejects_switch_while_running(self):
+        self.scheduler.busy = True
+        response = await self.client.post("/api/prompt", json={"prompt": {
+            "1": {"class_type": "SpecialNode", "inputs": {}}}})
+        self.assertEqual(response.status, 409)
+        self.assertEqual(self.scheduler.started, [])
 
     async def test_editor_starts_backend_when_no_model_is_active(self):
         self.scheduler.active = None
