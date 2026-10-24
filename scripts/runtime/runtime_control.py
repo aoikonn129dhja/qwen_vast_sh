@@ -83,8 +83,10 @@ def main() -> int:
                         default=Path(os.environ.get("RUNTIME_ROOT", "/workspace/.qwen_runtime")))
     subcommands = parser.add_subparsers(dest="action", required=True)
     subcommands.add_parser("list", help="List installed models and global GPU memory")
-    for name in ("load", "unload"):
-        subcommands.add_parser(name).add_argument("model_id")
+    subcommands.add_parser("load").add_argument("model_id")
+    subcommands.add_parser("unload", help="Unload all managed ComfyUI models, or one named model").add_argument(
+        "model_id", nargs="?",
+    )
     subcommands.add_parser("restart-gateway", help="Restart the Gateway after a code update")
     args = parser.parse_args()
     root = args.root.resolve()
@@ -110,10 +112,23 @@ def main() -> int:
                     raise RuntimeError(f"Queue is busy: {current}")
                 asyncio.run(scheduler.start(args.model_id))
                 print(f"Selected {args.model_id}. Reload the browser; weights load on the first Queue.")
-                print("Other backends were not unloaded. Use unload MODEL_ID if VRAM is insufficient.")
+                print("Other backends were not unloaded. Use unload if VRAM is insufficient.")
             else:
-                asyncio.run(scheduler.unload(args.model_id))
-                print(f"Stopped {args.model_id}; its files remain on SSD")
+                targets = [args.model_id] if args.model_id else [
+                    name for name, model in scheduler.models.items() if model["runtime_type"] == "comfyui"
+                ]
+                if not args.model_id:
+                    # Check every backend before stopping any of them. The same
+                    # lock also excludes automatic selection and Queue submission.
+                    for model_id in targets:
+                        state = scheduler.status(model_id)["state"]
+                        if state in ("RUNNING", "ERROR"):
+                            raise RuntimeError(f"Cannot unload all models: {model_id} is {state}")
+                for model_id in targets:
+                    asyncio.run(scheduler.unload(model_id))
+                    print(f"Stopped {model_id}; its files remain on SSD")
+                if not targets:
+                    print("No registered ComfyUI models to unload")
         return 0
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
