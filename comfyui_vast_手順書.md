@@ -128,6 +128,34 @@ qwen_vast_sh/
 
 - `vast_comfy_output_sync_and_log.py`: Windows側からComfyUIの生成物を回収し、生成条件をCSVに記録する。Windowsでリポジトリのルートに移動して `python local_tools\vast_comfy_output_sync_and_log.py` を実行し、接続先URLと必要な認証情報を入力する。保存先はスクリプト内で指定された `D:\po\NSFW_cos\tmp`。
 
+#### Vast.aiの画像同期に入力するURL
+
+`http://127.0.0.1:18188` はVast.ai共通の固定URLではなく、Windows側のSSH転送先URLです。ローカルポート `18188` を対象のComfyUIへ転送している間は、このURLを使用できます。同じ設定でSSH転送を張り直せば、Vast.aiのインスタンスが変わっても入力するURLは同じです。
+
+2511専用ComfyUI（内部ポート `18511`）を同期する例です。WindowsのPowerShellで、`<SSHポート>` と `<SSHホスト>` を現在のVast.aiインスタンスの接続情報に置き換えて実行し、このウィンドウは開いたままにします。
+
+```powershell
+ssh -N -o ExitOnForwardFailure=yes -p <SSHポート> root@<SSHホスト> -L 18188:127.0.0.1:18511
+```
+
+別のPowerShellで同期ツールを起動します。
+
+```powershell
+cd C:\Users\amami\myapps\vast_image
+python local_tools\vast_comfy_output_sync_and_log.py
+```
+
+「ComfyUI の Gateway ドメインまたは SSH 転送 URL:」には、SSHコマンドではなく次のURLだけを入力します。上のSSH転送経由では、Gateway認証ユーザーは空欄でEnterを押します。
+
+```text
+http://127.0.0.1:18188
+```
+
+- `18188` はWindows側のポート、`18511` はVast.ai側の2511専用ComfyUIのポートです。別モデルを同期する場合は、そのモデルの `runtime.json` にある内部ポートへ転送先を変更します。
+- Windows側のポートを変えた場合は、入力URLのポートも合わせます。SSH転送が切れている間は同期できません。`-L 8080:localhost:8080` だけでは上のURLは使えません。
+- このツールは接続先ComfyUIの実行履歴にある保存画像を回収します。出力ディレクトリ全体を走査するものではなく、再起動などで履歴から消えた画像は回収対象になりません。
+- 「保存先に別サーバーの同期履歴があります」と出た場合は、既存の `.vast_comfy_sync_state.json` を削除・上書きせず、保存先と接続先の組み合わせを確認してください。同じローカルURLを別インスタンスへ転送し直す場合、URLが同じでも実際の接続先は変わることに注意してください。
+
 ### Qwen Rapid v19のバッチ生成
 
 ```bash
