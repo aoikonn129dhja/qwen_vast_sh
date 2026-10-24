@@ -29,6 +29,26 @@ def gpu_memory() -> str:
         return "GPU memory unavailable"
 
 
+def print_reloadable_models(scheduler: Scheduler) -> None:
+    print("Available models (on SSD, managed backend stopped):")
+    available = []
+    for model_id, model in sorted(scheduler.models.items()):
+        if model["runtime_type"] != "comfyui":
+            continue
+        paths = model.get("model_paths", [])
+        base = model.get("shared_comfy_dir")
+        if not base or not paths:
+            continue
+        if scheduler.status(model_id)["state"] != "STOPPED":
+            continue
+        if all((Path(base) / path).exists() for path in paths):
+            available.append(model_id)
+    for model_id in available:
+        print(f"  {model_id}")
+    if not available:
+        print("  None")
+
+
 def gateway_pid(root: Path) -> int | None:
     try:
         pid = int((root / "state" / "gateway.pid").read_text(encoding="ascii").strip())
@@ -129,6 +149,7 @@ def main() -> int:
                     print(f"Stopped {model_id}; its files remain on SSD")
                 if not targets:
                     print("No registered ComfyUI models to unload")
+                print_reloadable_models(scheduler)
         return 0
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

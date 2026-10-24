@@ -12,6 +12,8 @@ ComfyUIの起動・接続先選択と、モデル本体のVRAMへの読み込み
 python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py unload
 ```
 
+アンロード後は、登録されたComfyUIモデルのうち、専用プロセスが停止済みで、登録上のモデル保存先がすべてSSDに存在するものを一覧表示する。モデルファイルの内容・完全性の検証や、管理対象外プロセスのVRAM確認は行わない。
+
 更新を既存環境へ反映するときは、リポジトリ更新後にGatewayを再起動してブラウザを再読み込みする。
 
 ```bash
