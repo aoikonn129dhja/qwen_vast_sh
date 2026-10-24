@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "X Image Downloader",
+  "version": "1.0.0",
+  "description": "Xの投稿画像を原寸指定で、投稿者IDを使ったファイル名で保存します。",
+  "minimum_chrome_version": "120",
+  "permissions": ["downloads", "storage"],
+  "host_permissions": ["https://pbs.twimg.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["https://x.com/*", "https://twitter.com/*"],
+    "js": ["core.js", "content.js"],
+    "css": ["content.css"],
+    "run_at": "document_idle"
+  }]
+}

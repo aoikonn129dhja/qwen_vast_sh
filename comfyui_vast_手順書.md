@@ -75,6 +75,15 @@ cd /workspace/ComfyUI
 zip -r "output/videos_$(date +%Y%m%d_%H%M%S).zip" output -x "output/videos_*.zip"
 ```
 
+### 自動画像回収スクリプト (Vast.ai)
+Windowsでリポジトリのルートに移動して
+```sh
+python local_tools\vast_comfy_output_sync_and_log.py
+```
+
+を実行,comfy UIのURLを入力.例えば`https://but-fig-leading-sperm.trycloudflare.com/`
+保存先はスクリプト内で指定された `D:\po\NSFW_cos\tmp`。
+
 ### タスクマネージャーの開き方
 ```bash
 watch -n 1 nvidia-smi
@@ -110,6 +119,13 @@ nohup /venv/main/bin/python main.py \
 tail -f /workspace/comfyui.log
 ```
 
+### モデルをVRAMにロード/アンロード
+モデルはワークフロー実行時に自動でVRAMへ読み込まれるため、ロードコマンドは不要。
+別モデルへ切り替えるときは以下のアンロードコマンドを使用
+```sh
+python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py unload
+```
+
 ### 補助ツールの配置と使い方
 
 ```text
@@ -125,37 +141,7 @@ qwen_vast_sh/
 - `gpu_task_manager.sh`: GPU・VRAM・温度のバー、GPUプロセス、CPU・RAMなどを1秒ごとに表示する。Vast.aiのターミナルで `bash /workspace/qwen_vast_sh/scripts/gpu_task_manager.sh` を実行し、`Ctrl+C` で終了する。
 - `comfy_diagnose.sh`: ComfyUIのプロセス、ポート、ローカルHTTP応答、ログのエラー分類を読み取り専用で確認する。Vast.aiまたはSaladCloudのターミナルで `bash /workspace/qwen_vast_sh/scripts/comfy_diagnose.sh` を実行する。外部からの到達性は確認しない。
 - `setup_qwen_edit_model.sh`: Qwen Image Editモデルのセットアップ共通処理。直接実行せず、対象モデルの `models/<モデル名>/setup.sh` から利用する。
-
-- `vast_comfy_output_sync_and_log.py`: Windows側からComfyUIの生成物を回収し、生成条件をCSVに記録する。Windowsでリポジトリのルートに移動して `python local_tools\vast_comfy_output_sync_and_log.py` を実行し、接続先URLと必要な認証情報を入力する。保存先はスクリプト内で指定された `D:\po\NSFW_cos\tmp`。
-
-#### Vast.aiの画像同期に入力するURL
-
-`http://127.0.0.1:18188` はVast.ai共通の固定URLではなく、Windows側のSSH転送先URLです。ローカルポート `18188` を対象のComfyUIへ転送している間は、このURLを使用できます。同じ設定でSSH転送を張り直せば、Vast.aiのインスタンスが変わっても入力するURLは同じです。
-
-2511専用ComfyUI（内部ポート `18511`）を同期する例です。WindowsのPowerShellで、`<SSHポート>` と `<SSHホスト>` を現在のVast.aiインスタンスの接続情報に置き換えて実行し、このウィンドウは開いたままにします。
-
-```powershell
-ssh -N -o ExitOnForwardFailure=yes -p <SSHポート> root@<SSHホスト> -L 18188:127.0.0.1:18511
-```
-
-別のPowerShellで同期ツールを起動します。
-
-```powershell
-cd C:\Users\amami\myapps\vast_image
-python local_tools\vast_comfy_output_sync_and_log.py
-```
-
-「ComfyUI の Gateway ドメインまたは SSH 転送 URL:」には、SSHコマンドではなく次のURLだけを入力します。上のSSH転送経由では、Gateway認証ユーザーは空欄でEnterを押します。
-
-```text
-http://127.0.0.1:18188
-```
-
-- `18188` はWindows側のポート、`18511` はVast.ai側の2511専用ComfyUIのポートです。別モデルを同期する場合は、そのモデルの `runtime.json` にある内部ポートへ転送先を変更します。
-- Windows側のポートを変えた場合は、入力URLのポートも合わせます。SSH転送が切れている間は同期できません。`-L 8080:localhost:8080` だけでは上のURLは使えません。
-- このツールは接続先ComfyUIの実行履歴にある保存画像を回収します。出力ディレクトリ全体を走査するものではなく、再起動などで履歴から消えた画像は回収対象になりません。
-- 別URL用の同期履歴がある場合も停止しません。同じ接続URLの有効な履歴を探して再利用し、なければ `.vast_comfy_sync_state_1.json`、`_2.json` のように空いている番号で履歴を自動作成して同期を続行します。読み込めない履歴も残したまま別番号を使います。保存先の変更や、画像・既存履歴の削除は不要です。起動時の「同期履歴:」で使用中のファイルを確認できます。
-- 同じローカルURLを別インスタンスへ転送し直す場合、URLが同じでも実際の接続先は変わります。履歴は接続URL単位で再利用します。別URLでの初回同期では既に回収した画像が再ダウンロードされる場合があります。
+- `vast_comfy_output_sync_and_log.py`: Windows側からComfyUIの生成物を回収し、生成条件をCSVに記録する。別途解説.
 
 ### Qwen Rapid v19のバッチ生成
 
