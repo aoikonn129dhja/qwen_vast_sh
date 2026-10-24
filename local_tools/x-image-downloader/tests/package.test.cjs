@@ -30,8 +30,8 @@ test('overlay stylesheet parses and does not hide or resize X images', () => {
   assert.ok(!css.includes('url('), 'overlay has no external asset dependencies');
   assert.equal(sheet.cssRules[0].style.top, '8px');
   assert.equal(sheet.cssRules[0].style.bottom, undefined);
-  assert.equal(sheet.cssRules[0].style.height, '108px');
+  assert.equal(sheet.cssRules[0].style.height, '54px');
   const buttonRule = cssom.parse(buttonCss).cssRules.find(rule => rule.selectorText === 'button');
-  assert.equal(buttonRule.style['min-width'], '132px');
-  assert.equal(buttonRule.style.height, '108px');
+  assert.equal(buttonRule.style['min-width'], '66px');
+  assert.equal(buttonRule.style.height, '54px');
 });
