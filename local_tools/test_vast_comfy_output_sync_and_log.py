@@ -1,9 +1,11 @@
 """Offline checks for Vast ComfyUI output folder selection."""
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
 from datetime import datetime
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +14,32 @@ SCRIPT = Path(__file__).with_name("vast_comfy_output_sync_and_log.py")
 spec = importlib.util.spec_from_file_location("vast_comfy_sync", SCRIPT)
 sync = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sync)
+
+
+class TerminalLogTests(unittest.TestCase):
+    def test_every_line_has_local_timestamp_and_is_flushed(self):
+        with patch.object(sync, "datetime") as clock, patch("builtins.print") as output:
+            clock.now.return_value = datetime(2026, 10, 25, 9, 8, 7)
+            sync.log("接続先: localhost\n監視開始")
+        self.assertEqual(output.call_args_list, [
+            unittest.mock.call("[2026-10-25 09:08:07] 接続先: localhost", flush=True),
+            unittest.mock.call("[2026-10-25 09:08:07] 監視開始", flush=True),
+        ])
+
+    def test_retry_uses_time_at_each_occurrence(self):
+        output = io.StringIO()
+        with patch.object(sync, "datetime") as clock, \
+                patch("builtins.input", side_effect=["http://127.0.0.1:18188", ""]), \
+                patch.object(sync, "select_sync_state", return_value=(Path("state.json"), {"done": {}})), \
+                patch.object(sync, "fetch", side_effect=[OSError("offline"), OSError("offline"), KeyboardInterrupt]), \
+                patch.object(sync.time, "sleep"), redirect_stdout(output):
+            clock.now.side_effect = [datetime(2026, 10, 25, 9, 0, second) for second in range(6)]
+            self.assertEqual(sync.main(), 0)
+        retries = [line for line in output.getvalue().splitlines() if "再試行:" in line]
+        self.assertEqual(retries, [
+            "[2026-10-25 09:00:03] 再試行: offline",
+            "[2026-10-25 09:00:04] 再試行: offline",
+        ])
 
 
 class SyncHistoryTests(unittest.TestCase):

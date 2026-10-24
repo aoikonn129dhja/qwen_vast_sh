@@ -31,6 +31,13 @@ CSV_FIELDS = ("source", "filename", "subfolder", "local_image", "saved_at", "byt
               "scheduler", "denoise")
 
 
+def log(message: str) -> None:
+    """Print each terminal log line with the current local date and time."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for line in message.splitlines():
+        print(f"[{timestamp}] {line}", flush=True)
+
+
 def workflow_fields(workflow: object) -> dict:
     """Extract the effective scalar settings from the current ComfyUI workflow."""
     if not isinstance(workflow, dict):
@@ -222,7 +229,7 @@ def main() -> int:
     try:
         url = input("ComfyUI の Gateway ドメインまたは SSH 転送 URL: ").strip()
     except EOFError:
-        print("接続先が入力されませんでした。")
+        log("接続先が入力されませんでした。")
         return 2
     if url and "://" not in url:
         url = "https://" + url
@@ -239,22 +246,22 @@ def main() -> int:
     valid_ssh = parsed.scheme == "http" and loopback and port is not None and port > 0
     if (not (valid_gateway or valid_ssh) or not parsed.hostname or parsed.username
             or parsed.password or parsed.path not in ("", "/") or parsed.query):
-        print("HTTPS Gateway ドメイン、または http://127.0.0.1:ポート の SSH 転送 URL を入力してください。")
+        log("HTTPS Gateway ドメイン、または http://127.0.0.1:ポート の SSH 転送 URL を入力してください。")
         return 2
     url = f"{parsed.scheme}://{parsed.netloc}"
     try:
         username = input("Gateway認証ユーザー (不要なら空欄): ").strip()
         password = getpass.getpass("Gateway認証パスワード: ") if username else ""
     except EOFError:
-        print("認証情報の入力が完了しませんでした。")
+        log("認証情報の入力が完了しませんでした。")
         return 2
     authorization = ("Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")) if username else None
     server_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
     state_file, state = select_sync_state(OUTPUT_DIR, server_key)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     session_csvs: dict[Path, Path] = {}
-    print(f"接続先: {url}\n保存先の親ディレクトリ: {OUTPUT_DIR}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
-    print(f"同期履歴: {state_file.name}")
+    log(f"接続先: {url}\n保存先の親ディレクトリ: {OUTPUT_DIR}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
+    log(f"同期履歴: {state_file.name}")
     try:
         while True:
             try:
@@ -301,12 +308,12 @@ def main() -> int:
                         write_csv_row(session_csv, metadata)
                         state["done"][identity] = {"image": str(dest.relative_to(OUTPUT_DIR))}
                         atomic_json(state_file, state)
-                        print(f"保存: {dest.relative_to(OUTPUT_DIR)} / {session_csv.name}")
+                        log(f"保存: {dest.relative_to(OUTPUT_DIR)} / {session_csv.name}")
             except (OSError, ValueError, json.JSONDecodeError) as exc:
-                print(f"再試行: {exc}")
+                log(f"再試行: {exc}")
             time.sleep(POLL_SECONDS)
     except KeyboardInterrupt:
-        print("同期を終了しました。")
+        log("同期を終了しました。")
     return 0
 
 
