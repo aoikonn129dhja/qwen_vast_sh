@@ -145,10 +145,26 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(batch.main(["vast-v23"]), 0)
         stage = f"{batch.REMOTE_INPUT_ROOT}/{'a' * 32}"
         upload.assert_called_once_with(["ssh", "-T", "vast-v23"], stage, [image], "A prompt")
-        run.assert_called_once_with(
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[0].args[0],
+                         ["ssh", "-T", "vast-v23",
+                          f"test -f {batch.REMOTE_RUNNER} && grep -Fq '{batch.REMOTE_RUNNER_MARKER}' {batch.REMOTE_RUNNER}"])
+        self.assertEqual(run.call_args_list[1], unittest.mock.call(
             ["ssh", "-T", "vast-v23", f"bash {batch.REMOTE_RUNNER} {stage}"],
             check=False,
-        )
+        ))
+
+    def test_outdated_remote_runner_stops_before_image_input(self):
+        with patch.object(batch, "ssh_executable", return_value="ssh"), \
+                patch.object(batch.subprocess, "run") as run, \
+                patch.object(batch, "upload_images") as upload, \
+                patch("builtins.input") as read_input, \
+                patch("builtins.print"):
+            run.return_value.returncode = 1
+            self.assertEqual(batch.main(["vast-v23"]), 1)
+        read_input.assert_not_called()
+        upload.assert_not_called()
+        run.assert_called_once()
 
     def test_accepts_usual_ssh_command_with_local_forward(self):
         image = Path("input/example.png")
@@ -169,7 +185,8 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(result, 0)
         expected_ssh = ["ssh", "-T", "-p", "40455", "root@174.94.107.156"]
         upload.assert_called_once_with(expected_ssh, f"{batch.REMOTE_INPUT_ROOT}/{'b' * 32}", [image], "A prompt")
-        self.assertEqual(run.call_args.args[0][:5], expected_ssh)
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args_list[1].args[0][:5], expected_ssh)
 
 
 if __name__ == "__main__":

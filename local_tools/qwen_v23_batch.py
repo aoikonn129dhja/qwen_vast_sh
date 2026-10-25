@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 REMOTE_INPUT_ROOT = "/workspace/ComfyUI/input/v23_batch"
 REMOTE_RUNNER = "/workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v23/run_batch.sh"
+REMOTE_RUNNER_MARKER = "Called by local_tools/qwen_v23_batch.py"
 
 
 def ssh_executable() -> str:
@@ -83,6 +84,16 @@ def ssh_command(executable: str, target: str, port: int | None, identity: str | 
         command.extend(["-i", identity])
     command.append(target)
     return command
+
+
+def check_remote_runner(command: list[str]) -> None:
+    remote = f"test -f {REMOTE_RUNNER} && grep -Fq '{REMOTE_RUNNER_MARKER}' {REMOTE_RUNNER}"
+    result = subprocess.run([*command, remote], check=False)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Vast 側の V23 バッチが旧版か、SSH 接続に失敗しました。"
+            "Vast 側のリポジトリを更新してから再実行してください。画像は転送していません。"
+        )
 
 
 def read_prompt() -> str:
@@ -149,10 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         target_raw = (connection[0] if connection else None) or os.environ.get("QWEN_V23_SSH_TARGET") or input("SSH 接続先: ")
         target, port = parse_target(target_raw, args.port)
+        command = ssh_command(ssh_executable(), target, port, args.identity)
+        check_remote_runner(command)
         source = image_directory(input("編集する画像ディレクトリの Windows フルパス: "))
         images = list_images(source)
         prompt = read_prompt()
-        command = ssh_command(ssh_executable(), target, port, args.identity)
         run_id = uuid.uuid4().hex
         stage = f"{REMOTE_INPUT_ROOT}/{run_id}"
         print(f"{len(images)} 枚を転送します。", flush=True)
