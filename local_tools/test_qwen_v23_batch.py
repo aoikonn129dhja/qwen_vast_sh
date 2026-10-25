@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import json
 import tarfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).with_name("qwen_v23_batch.py")
+WORKFLOW = SCRIPT.resolve().parents[1] / "models/qwen-rapid-aio-nsfw-v23/workflows/v23-NSFW-アスペクト比維持or指定_1メガ縮小-名前保持.json"
 spec = importlib.util.spec_from_file_location("qwen_v23_batch", SCRIPT)
 batch = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(batch)
@@ -59,6 +61,36 @@ class PromptTests(unittest.TestCase):
         with patch("builtins.input", side_effect=["", "."]), patch("builtins.print"):
             with self.assertRaises(ValueError):
                 batch.read_prompt()
+
+
+class AspectTests(unittest.TestCase):
+    def test_keep_uses_each_input_ratio(self):
+        with patch("builtins.input", return_value="1"):
+            self.assertEqual(batch.read_aspect_choice(), ("keep", None))
+
+    def test_custom_ratio_is_normalized(self):
+        with patch("builtins.input", side_effect=["2", "03:04"]):
+            self.assertEqual(batch.read_aspect_choice(), ("custom", "3:4"))
+
+    def test_invalid_ratio_is_rejected(self):
+        with patch("builtins.input", side_effect=["2", "3:0"]):
+            with self.assertRaises(ValueError):
+                batch.read_aspect_choice()
+
+
+class WorkflowContractTests(unittest.TestCase):
+    def test_input_and_both_output_aspects_target_one_megapixel(self):
+        workflow = json.loads(WORKFLOW.read_text(encoding="utf-8"))
+        nodes = {node["id"]: node for node in workflow["nodes"]}
+        links = {link[0]: link for link in workflow["links"]}
+        self.assertEqual(nodes[12]["widgets_values_named"]["megapixels"], 1)
+        self.assertEqual(nodes[18]["widgets_values_named"]["megapixels"], 1)
+        switch_inputs = {item["name"]: item["link"] for item in nodes[19]["inputs"]}
+        self.assertEqual(links[switch_inputs["on_false"]][1], 12)
+        self.assertEqual(links[switch_inputs["on_true"]][1], 18)
+        self.assertEqual(nodes[14]["type"], "LoadImageWithFilename")
+        self.assertEqual(nodes[17]["type"], "EmptyImage")
+        self.assertEqual(nodes[15]["type"], "SaveImage")
 
 
 class LaunchTests(unittest.TestCase):
@@ -132,7 +164,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_prompts_once_then_uploads_and_runs(self):
         image = Path("input/example.png")
-        with patch("builtins.input", side_effect=["input", "A prompt", "."]), \
+        with patch("builtins.input", side_effect=["1", "input", "A prompt", "."]), \
                 patch.object(batch, "image_directory", return_value=Path("input")), \
                 patch.object(batch, "list_images", return_value=[image]), \
                 patch.object(batch, "ssh_executable", return_value="ssh"), \
@@ -150,7 +182,7 @@ class LaunchTests(unittest.TestCase):
                          ["ssh", "-T", "vast-v23",
                           f"test -f {batch.REMOTE_RUNNER} && grep -Fq '{batch.REMOTE_RUNNER_MARKER}' {batch.REMOTE_RUNNER}"])
         self.assertEqual(run.call_args_list[1], unittest.mock.call(
-            ["ssh", "-T", "vast-v23", f"bash {batch.REMOTE_RUNNER} {stage}"],
+            ["ssh", "-T", "vast-v23", f"bash {batch.REMOTE_RUNNER} {stage} keep"],
             check=False,
         ))
 
@@ -168,7 +200,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_accepts_usual_ssh_command_with_local_forward(self):
         image = Path("input/example.png")
-        with patch("builtins.input", side_effect=["input", "A prompt", "."]), \
+        with patch("builtins.input", side_effect=["2", "3:4", "input", "A prompt", "."]), \
                 patch.object(batch, "image_directory", return_value=Path("input")), \
                 patch.object(batch, "list_images", return_value=[image]), \
                 patch.object(batch, "ssh_executable", return_value="ssh"), \
@@ -187,6 +219,8 @@ class LaunchTests(unittest.TestCase):
         upload.assert_called_once_with(expected_ssh, f"{batch.REMOTE_INPUT_ROOT}/{'b' * 32}", [image], "A prompt")
         self.assertEqual(run.call_count, 2)
         self.assertEqual(run.call_args_list[1].args[0][:5], expected_ssh)
+        self.assertEqual(run.call_args_list[1].args[0][-1],
+                         f"bash {batch.REMOTE_RUNNER} {batch.REMOTE_INPUT_ROOT}/{'b' * 32} custom 3:4")
 
 
 if __name__ == "__main__":

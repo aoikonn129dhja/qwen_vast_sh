@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 REMOTE_INPUT_ROOT = "/workspace/ComfyUI/input/v23_batch"
 REMOTE_RUNNER = "/workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v23/run_batch.sh"
-REMOTE_RUNNER_MARKER = "Called by local_tools/qwen_v23_batch.py"
+REMOTE_RUNNER_MARKER = "V23_BATCH_PROTOCOL=2"
 
 
 def ssh_executable() -> str:
@@ -110,6 +110,19 @@ def read_prompt() -> str:
     return prompt
 
 
+def read_aspect_choice() -> tuple[str, str | None]:
+    choice = input("出力比率 [1: 入力画像の比率を維持 / 2: 比率を指定]: ").strip()
+    if choice == "1":
+        return "keep", None
+    if choice != "2":
+        raise ValueError("出力比率は 1 または 2 を選択してください。")
+    ratio = input("出力比率を幅:高さで入力 (例 3:4、16:9): ").strip()
+    match = re.fullmatch(r"([0-9]{1,5}):([0-9]{1,5})", ratio)
+    if not match or int(match.group(1)) == 0 or int(match.group(2)) == 0:
+        raise ValueError("出力比率は 3:4 のように、正の整数を幅:高さで指定してください。")
+    return "custom", f"{int(match.group(1))}:{int(match.group(2))}"
+
+
 def upload_images(command: list[str], stage: str, images: list[Path], prompt: str) -> None:
     remote = (f"mkdir -p {stage}/images && "
               f"trap 'rm -rf -- {stage}' EXIT && "
@@ -162,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         target, port = parse_target(target_raw, args.port)
         command = ssh_command(ssh_executable(), target, port, args.identity)
         check_remote_runner(command)
+        aspect_mode, ratio = read_aspect_choice()
         source = image_directory(input("編集する画像ディレクトリの Windows フルパス: "))
         images = list_images(source)
         prompt = read_prompt()
@@ -170,7 +184,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(images)} 枚を転送します。", flush=True)
         upload_images(command, stage, images, prompt)
         print("V23 の生成を開始します。", flush=True)
-        return subprocess.run([*command, f"bash {REMOTE_RUNNER} {stage}"], check=False).returncode
+        remote_run = f"bash {REMOTE_RUNNER} {stage} {aspect_mode}"
+        if ratio is not None:
+            remote_run += f" {ratio}"
+        return subprocess.run([*command, remote_run], check=False).returncode
     except (EOFError, KeyboardInterrupt):
         print("\n中断しました。", file=sys.stderr)
         return 130
