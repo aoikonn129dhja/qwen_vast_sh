@@ -52,6 +52,22 @@ def workflow_fields(workflow: object) -> dict:
         value = inputs(node_id).get(key)
         return value if not isinstance(value, (list, dict)) else None
 
+    checkpoint = workflow.get("1")
+    if isinstance(checkpoint, dict) and checkpoint.get("class_type") == "CheckpointLoaderSimple":
+        return {
+            "positive_prompt": setting("3", "prompt"),
+            "negative_prompt": setting("4", "prompt"),
+            "image_1": setting("8", "image"),
+            "filename_prefix": setting("10", "filename_prefix"),
+            "model": setting("1", "ckpt_name"),
+            "seed": setting("2", "seed"),
+            "steps": setting("2", "steps"),
+            "cfg": setting("2", "cfg"),
+            "sampler": setting("2", "sampler_name"),
+            "scheduler": setting("2", "scheduler"),
+            "denoise": setting("2", "denoise"),
+        }
+
     lora_enabled = setting("170:168", "value")
     sampler = inputs("170:169")
     return {

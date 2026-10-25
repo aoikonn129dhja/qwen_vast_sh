@@ -35,10 +35,6 @@ WORKFLOW_FILE="$SHARED_COMFY_DIR/user/default/workflows/Qwen-Rapid-AIO-NSFW-v23-
 BATCH_ROOT="$WORKSPACE/qwen_batch"
 
 COMFY_LOG="$RUNTIME_ROOT/logs/qwen-rapid-aio-nsfw-v23.log"
-CLOUDFLARED="$WORKSPACE/bin/cloudflared"
-CLOUDFLARED_VERSION="2026.8.3"
-CLOUDFLARED_URL="https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-linux-amd64"
-CLOUDFLARED_SHA256="f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e"
 MODEL_PATH="$SHARED_COMFY_DIR/models/checkpoints/$MODEL_FILE"
 COMFY_CLI="$RUNTIME_ENV/bin/comfy"
 
@@ -298,7 +294,6 @@ mkdir -p \
     "$SHARED_COMFY_DIR/input" \
     "$SHARED_COMFY_DIR/output" \
     "$SHARED_COMFY_DIR/user/default/workflows" \
-    "$BATCH_ROOT/input" \
     "$BATCH_ROOT/tmp" \
     "$WORKSPACE/bin"
 
@@ -372,16 +367,6 @@ runtime_gateway_start
 log "ComfyUI Gateway起動成功: http://127.0.0.1:8188"
 
 # ------------------------------------------------------------
-# cloudflared (authenticated batch preview only; do not expose ComfyUI itself)
-# ------------------------------------------------------------
-if [ ! -x "$CLOUDFLARED" ] || ! verify_sha256 "$CLOUDFLARED" "$CLOUDFLARED_SHA256"; then
-    log "cloudflared $CLOUDFLARED_VERSION 固定版を導入"
-    fetch_verified "$CLOUDFLARED_URL" "$CLOUDFLARED" "$CLOUDFLARED_SHA256" "cloudflared"
-    chmod 0755 "$CLOUDFLARED"
-fi
-verify_sha256 "$CLOUDFLARED" "$CLOUDFLARED_SHA256" \
-    || die "cloudflaredのSHA-256が固定値と一致しません。"
-
 echo
 echo "============================================================"
 echo " SETUP COMPLETE"
@@ -396,18 +381,14 @@ echo
 echo "comfy-cli:"
 "$COMFY_CLI" --version || true
 echo
-echo "Batch input:"
-echo "  $BATCH_ROOT/input"
-echo "Prompts Markdown:"
-echo "  $BATCH_ROOT/prompts.md"
-echo "Batch command:"
-echo "  bash $MODEL_DIR/run_batch.sh $BATCH_ROOT/input $BATCH_ROOT/prompts.md $WORKFLOW_FILE"
+echo "Windows batch launcher (run in local checkout, not in this SSH terminal):"
+echo "  python local_tools/qwen_v23_batch.py <SSH target>"
 echo
 echo "ComfyUI local:"
 echo "  http://127.0.0.1:8188"
 echo
 echo "ComfyUI public tunnel: disabled"
-echo "生成画像の確認にはrun_batch.shの認証付きPreview URLを使用する。"
+echo "生成画像は ComfyUI/output に保存される。Windows側の同期ツールで回収する。"
 
 echo
 echo "ComfyUI log:"

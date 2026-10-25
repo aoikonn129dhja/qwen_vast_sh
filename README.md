@@ -23,6 +23,7 @@ bash setup.sh
 | ディレクトリ | 用途 | バッチ |
 |---|---|---|
 | `qwen-rapid-aio-nsfw-v19` | 入力画像とプロンプトのバッチ生成 | 対応 |
+| `qwen-rapid-aio-nsfw-v23` | Windowsから画像を転送する対話式バッチ生成 | 対応 |
 | `qwen-image-edit-2509` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
 | `qwen-image-edit-2511` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
 | `ltx-2.3-uncensored-v1.4-q4` | ComfyUIでの画像から動画の生成 | 非対応 |
@@ -31,6 +32,12 @@ Rapid v19のバッチ実行:
 
 ```bash
 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
+```
+
+Rapid v23はVast側で `models/qwen-rapid-aio-nsfw-v23/setup.sh` を実行した後、Windows側のターミナルから次を実行する。画像ディレクトリのWindowsフルパスとプロンプトを入力すると、SSH転送と生成を続けて行う。生成物はComfyUIの `output/` に残り、`local_tools/vast_comfy_output_sync_and_log.py` で回収できる。
+
+```powershell
+python local_tools\qwen_v23_batch.py ssh://root@ホスト:ポート
 ```
 
 ## リポジトリ構成
@@ -46,6 +53,10 @@ qwen_vast_sh/
 │  │  ├─ restart_preview_tunnel.sh
 │  │  ├─ requirements.in
 │  │  ├─ requirements.lock
+│  │  └─ workflows/batch-save-image.json
+│  ├─ qwen-rapid-aio-nsfw-v23/
+│  │  ├─ setup.sh
+│  │  ├─ run_batch.sh
 │  │  └─ workflows/batch-save-image.json
 │  ├─ qwen-image-edit-2509/
 │  │  ├─ model.conf
@@ -63,7 +74,7 @@ qwen_vast_sh/
 │     └─ workflows/two-input-preview.json
 ├─ scripts/
 │  └─ setup_qwen_edit_model.sh
-├─ local_tools/                # Windows側のComfyUI出力同期ツール
+├─ local_tools/                # Windows側のバッチ起動・ComfyUI出力同期ツール
 ├─ comfyui_vast_手順書.md
 └─ README.md
 ```

@@ -156,6 +156,18 @@ WIDTH=1536 HEIGHT=2048 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v
 bash /workspace/qwen_vast_sh/models/qwen-rapid-aio-nsfw-v19/run_batch.sh
 ```
 
+### Qwen Rapid v23の対話式バッチ生成
+
+Windows側のターミナルでリポジトリのルートに移動し、VastのSSH接続先を指定して起動します。SSH設定のホスト名、`ユーザー@ホスト`、またはVast CLIの `ssh-url` が返す `ssh://ユーザー@ホスト:ポート` を指定できます。
+
+```powershell
+python local_tools\qwen_v23_batch.py ssh://root@ホスト:ポート
+```
+
+起動後、画像が入ったWindowsディレクトリのフルパス、適用するプロンプトの順に入力します。PNG、JPG、JPEG、WebPの画像をディレクトリ直下から読み取り、SSH経由でVastへ転送します。1つのプロンプトを各画像へ順番に適用します。サブディレクトリは対象外です。
+
+生成画像は `/workspace/ComfyUI/output/` に残ります。Windowsへの回収は、従来どおり `python local_tools\vast_comfy_output_sync_and_log.py` を別のターミナルで起動し、ComfyUIのGateway URLまたはSSHポート転送URLを入力します。V23バッチの実行前から同期ツールを起動しても構いません。
+
 ### よく使う確認コマンド
 
 ```bash
@@ -249,7 +261,7 @@ setupが完了したら、Vast.aiのインスタンス画面で `Tunnels (Open N
 qwen-rapid-aio-nsfw-v19
 ```
 
-入力画像と複数のプロンプトの全組み合わせを、コマンド1つで順番に生成するモデルです。このリポジトリでバッチ生成に対応しているのはこのモデルだけです。
+入力画像と複数のプロンプトの全組み合わせを、コマンド1つで順番に生成するモデルです。V23には別途、Windows側から起動する対話式バッチがあります。
 
 #### セットアップ
 

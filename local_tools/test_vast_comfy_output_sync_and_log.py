@@ -98,6 +98,22 @@ class SyncHistoryTests(unittest.TestCase):
 
 
 class OutputDirectoryTests(unittest.TestCase):
+    def test_qwen_v23_workflow_fields(self):
+        workflow = {
+            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "v23.safetensors"}},
+            "2": {"inputs": {"steps": 4, "cfg": 1, "sampler_name": "sa_solver"}},
+            "3": {"inputs": {"prompt": "edit"}},
+            "4": {"inputs": {"prompt": "avoid"}},
+            "8": {"inputs": {"image": "v23_batch/image.png"}},
+            "10": {"inputs": {"filename_prefix": "v23_result"}},
+        }
+        fields = sync.workflow_fields(workflow)
+        self.assertEqual(fields["positive_prompt"], "edit")
+        self.assertEqual(fields["image_1"], "v23_batch/image.png")
+        self.assertEqual(fields["filename_prefix"], "v23_result")
+        self.assertEqual(fields["model"], "v23.safetensors")
+        self.assertEqual(fields["steps"], 4)
+
     def test_reuses_day_and_model_folder(self):
         workflow = {"1": {"inputs": {"unet_name": "models/qwen-v23.safetensors"}}}
         with tempfile.TemporaryDirectory() as temporary:
