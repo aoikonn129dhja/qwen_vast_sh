@@ -295,7 +295,8 @@ runtime_link_data
 cd "$COMFY_DIR"
 
 log "ComfyUI依存パッケージをインストール"
-"$UV" pip install --python "$PYTHON" -r requirements.txt
+runtime_uv_install_requirements "$UV" "$PYTHON" requirements.txt \
+    "${QWEN_TORCH_BACKEND:-}" "${QWEN_TORCH_CONSTRAINTS:-}"
 
 # Filename-aware image input/output nodes used by Qwen Edit workflows.
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"

@@ -20,8 +20,9 @@ else
     runtime_die 'OpenPose Studio has conflicting local changes; reference patch was not applied.'
 fi
 cp "$REFERENCE_DIR/pose_reference.py" "$OPENPOSE_DIR/pose_reference.py"
-"$WORKSPACE/bin/uv" pip install --python "$PYTHON" \
-    -r "$COMFY_DIR/custom_nodes/comfyui_controlnet_aux/requirements.txt"
+runtime_uv_install_requirements "$WORKSPACE/bin/uv" "$PYTHON" \
+    "$COMFY_DIR/custom_nodes/comfyui_controlnet_aux/requirements.txt" \
+    cu126 "$MODEL_DIR/torch-cu126-constraints.txt"
 mkdir -p "$COMFY_DIR/custom_nodes/ComfyUI-QwenPoseStages"
 cp "$MODEL_DIR/custom_nodes/ComfyUI-QwenPoseStages/__init__.py" \
     "$COMFY_DIR/custom_nodes/ComfyUI-QwenPoseStages/__init__.py"

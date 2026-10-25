@@ -42,4 +42,10 @@ runtime_link_data
 [ -L "$COMFY_DIR/custom_nodes/qwen-runtime" ]
 [ "$before_model" = "$(sha256sum "$SHARED_COMFY_DIR/models/checkpoints/keep.bin")" ]
 [ "$before_workflow" = "$(sha256sum "$SHARED_COMFY_DIR/user/default/workflows/keep.json")" ]
+
+uv_mock() { printf '%s\n' "$@" > "$CASE_DIR/uv-args"; }
+runtime_uv_install_requirements uv_mock /fake/python requirements.txt
+[ "$(cat "$CASE_DIR/uv-args")" = $'pip\ninstall\n--python\n/fake/python\n-r\nrequirements.txt' ]
+runtime_uv_install_requirements uv_mock /fake/python requirements.txt cu126 constraints.txt
+[ "$(cat "$CASE_DIR/uv-args")" = $'pip\ninstall\n--python\n/fake/python\n--torch-backend\ncu126\n--constraint\nconstraints.txt\n-r\nrequirements.txt' ]
 printf 'Non-destructive shared data path test passed\n'

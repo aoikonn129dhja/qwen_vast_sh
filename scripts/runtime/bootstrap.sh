@@ -109,6 +109,14 @@ runtime_clone_node() {
     fi
 }
 
+runtime_uv_install_requirements() {
+    local uv="$1" python="$2" requirements="$3" backend="${4:-}" constraints="${5:-}"
+    local options=()
+    [ -z "$backend" ] || options+=(--torch-backend "$backend")
+    [ -z "$constraints" ] || options+=(--constraint "$constraints")
+    "$uv" pip install --python "$python" "${options[@]}" -r "$requirements"
+}
+
 runtime_pid_valid() {
     local pid="$1" port="$2" command_line cwd
     [[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] || return 1
