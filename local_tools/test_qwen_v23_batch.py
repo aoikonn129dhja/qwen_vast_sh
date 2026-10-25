@@ -49,6 +49,18 @@ class InputTests(unittest.TestCase):
             self.assertEqual(batch.list_images(directory), [candidates[0], candidates[2]])
 
 
+class PromptTests(unittest.TestCase):
+    def test_multiline_prompt_preserves_blank_lines(self):
+        with patch("builtins.input", side_effect=["SCENE:", "first line", "", "second line", "."]), \
+                patch("builtins.print"):
+            self.assertEqual(batch.read_prompt(), "SCENE:\nfirst line\n\nsecond line")
+
+    def test_empty_prompt_is_rejected(self):
+        with patch("builtins.input", side_effect=["", "."]), patch("builtins.print"):
+            with self.assertRaises(ValueError):
+                batch.read_prompt()
+
+
 class LaunchTests(unittest.TestCase):
     def test_upload_stream_contains_prompt(self):
         class OutputBuffer(io.BytesIO):
@@ -75,9 +87,52 @@ class LaunchTests(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(process.stdin.getvalue()), mode="r:") as archive:
             self.assertEqual(archive.extractfile("prompt.txt").read(), b"line one\nline two")
 
+    def test_interrupt_closes_archive_before_ssh_pipe(self):
+        closed = []
+
+        class FakeStream:
+            def close(self):
+                closed.append("archive")
+
+        class FakeArchive:
+            fileobj = FakeStream()
+
+            def addfile(self, *_):
+                pass
+
+            def add(self, *_ , **__):
+                raise KeyboardInterrupt
+
+        class FakePipe:
+            def close(self):
+                closed.append("pipe")
+
+        class FakeProcess:
+            stdin = FakePipe()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                closed.append("ssh")
+
+        with patch.object(batch.subprocess, "Popen", return_value=FakeProcess()), \
+                patch.object(batch.tarfile, "open", return_value=FakeArchive()), \
+                patch("builtins.print"):
+            with self.assertRaises(KeyboardInterrupt):
+                batch.upload_images(["ssh", "target"], "/workspace/ComfyUI/input/v23_batch/" + "a" * 32,
+                                    [Path("input/example.png")], "a prompt")
+        self.assertEqual(closed, ["archive", "pipe", "ssh"])
+
     def test_prompts_once_then_uploads_and_runs(self):
         image = Path("input/example.png")
-        with patch("builtins.input", side_effect=["input", "A prompt"]), \
+        with patch("builtins.input", side_effect=["input", "A prompt", "."]), \
                 patch.object(batch, "image_directory", return_value=Path("input")), \
                 patch.object(batch, "list_images", return_value=[image]), \
                 patch.object(batch, "ssh_executable", return_value="ssh"), \
@@ -97,7 +152,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_accepts_usual_ssh_command_with_local_forward(self):
         image = Path("input/example.png")
-        with patch("builtins.input", side_effect=["input", "A prompt"]), \
+        with patch("builtins.input", side_effect=["input", "A prompt", "."]), \
                 patch.object(batch, "image_directory", return_value=Path("input")), \
                 patch.object(batch, "list_images", return_value=[image]), \
                 patch.object(batch, "ssh_executable", return_value="ssh"), \

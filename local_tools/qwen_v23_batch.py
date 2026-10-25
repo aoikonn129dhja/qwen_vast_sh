@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import io
 import os
 import re
@@ -84,21 +85,51 @@ def ssh_command(executable: str, target: str, port: int | None, identity: str | 
     return command
 
 
+def read_prompt() -> str:
+    print("プロンプトを入力してください。改行できます。最後に単独の行で . を入力すると開始します。")
+    lines = []
+    while True:
+        line = input()
+        if line == ".":
+            break
+        lines.append(line)
+    prompt = "\n".join(lines).strip()
+    if not prompt:
+        raise ValueError("プロンプトが空です。")
+    return prompt
+
+
 def upload_images(command: list[str], stage: str, images: list[Path], prompt: str) -> None:
-    remote = f"mkdir -p {stage}/images && tar -x -C {stage}"
+    remote = (f"mkdir -p {stage}/images && "
+              f"trap 'rm -rf -- {stage}' EXIT && "
+              f"tar -x -C {stage} && trap - EXIT")
     with subprocess.Popen([*command, remote], stdin=subprocess.PIPE) as process:
         assert process.stdin is not None
+        archive = None
         try:
-            with tarfile.open(fileobj=process.stdin, mode="w|") as archive:
-                prompt_bytes = prompt.encode("utf-8")
-                info = tarfile.TarInfo("prompt.txt")
-                info.size = len(prompt_bytes)
-                info.mode = 0o600
-                archive.addfile(info, io.BytesIO(prompt_bytes))
-                for path in images:
-                    archive.add(path, arcname=f"images/{path.name}", recursive=False)
-        finally:
+            archive = tarfile.open(fileobj=process.stdin, mode="w|")
+            prompt_bytes = prompt.encode("utf-8")
+            info = tarfile.TarInfo("prompt.txt")
+            info.size = len(prompt_bytes)
+            info.mode = 0o600
+            archive.addfile(info, io.BytesIO(prompt_bytes))
+            for index, path in enumerate(images, 1):
+                print(f"転送中 [{index}/{len(images)}] {path.name}", flush=True)
+                archive.add(path, arcname=f"images/{path.name}", recursive=False)
+            archive.close()
             process.stdin.close()
+        except BaseException:
+            # tarfile leaves its stream open on KeyboardInterrupt. Close it
+            # before the SSH pipe to avoid an ignored write-to-closed-file error.
+            if archive is not None:
+                with suppress(OSError, ValueError):
+                    archive.fileobj.close()
+            with suppress(OSError, ValueError):
+                process.stdin.close()
+            if process.poll() is None:
+                with suppress(OSError):
+                    process.terminate()
+            raise
         if process.wait() != 0:
             raise RuntimeError("SSH 経由の画像転送に失敗しました。")
 
@@ -120,9 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         target, port = parse_target(target_raw, args.port)
         source = image_directory(input("編集する画像ディレクトリの Windows フルパス: "))
         images = list_images(source)
-        prompt = input("適用するプロンプト: ").strip()
-        if not prompt:
-            raise ValueError("プロンプトが空です。")
+        prompt = read_prompt()
         command = ssh_command(ssh_executable(), target, port, args.identity)
         run_id = uuid.uuid4().hex
         stage = f"{REMOTE_INPUT_ROOT}/{run_id}"
