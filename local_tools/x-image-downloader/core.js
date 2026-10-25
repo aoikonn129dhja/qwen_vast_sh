@@ -53,7 +53,7 @@
     if (!Number.isInteger(number) || number < 100 || number > 999 || !FORMATS.has(extension)) {
       throw new Error('保存名の情報が不正です。');
     }
-    return `${normalizeAccount(input.account)}${number} (${input.index}).${extension === 'jpeg' ? 'jpg' : extension}`;
+    return `${normalizeAccount(input.account)}${number} (1).${extension === 'jpeg' ? 'jpg' : extension}`;
   }
 
   function extensionForMime(value) {

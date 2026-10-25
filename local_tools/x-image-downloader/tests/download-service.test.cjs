@@ -56,13 +56,13 @@ test('original endpoint is checked and download uses explicit name without overw
   assert.deepEqual(f.api.storage.session.data, {});
 });
 
-test('all images in a post share the persisted number, including after worker restart', async () => {
+test('all images in a post share the persisted number and always use suffix 1', async () => {
   const f = fixture();
   await Promise.all([f.service.start(image, sender), f.service.start({ ...image, index: 2 }, sender)]);
   assert.equal(Object.keys(f.api.storage.local.data).length, 1);
   const restarted = create(f.api, f.fetcher, { getRandomValues: a => { a[0] = 0; } });
   const result = await restarted.start({ ...image, index: 3 }, sender);
-  assert.equal(result.filename, 'ouran_sakura583 (3).jpg');
+  assert.equal(result.filename, 'ouran_sakura583 (1).jpg');
 });
 
 test('failed original endpoint or non-image response never falls back to a thumbnail', async () => {

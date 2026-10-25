@@ -34,7 +34,7 @@ test('image links identify the image owner, post, and 1-based index', () => {
 
 test('filename generation and MIME extension match the required pattern', () => {
   assert.equal(core.filename(image, 583, 'jpg'), 'ouran_sakura583 (1).jpg');
-  assert.equal(core.filename({ ...image, account: 'kimiko9', index: 2 }, 100, 'png'), 'kimiko100 (2).png');
+  assert.equal(core.filename({ ...image, account: 'kimiko9', index: 2 }, 100, 'png'), 'kimiko100 (1).png');
   assert.equal(core.extensionForMime('image/jpeg; charset=binary'), 'jpg');
   assert.equal(core.extensionForMime('text/html'), null);
   for (const bad of [99, 1000, NaN]) assert.throws(() => core.filename(image, bad, 'jpg'));
