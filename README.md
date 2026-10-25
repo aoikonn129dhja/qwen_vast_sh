@@ -40,6 +40,8 @@ Rapid v23はVast側で `models/qwen-rapid-aio-nsfw-v23/setup.sh` を実行した
 python local_tools\qwen_v23_batch.py ssh://root@ホスト:ポート
 ```
 
+普段の `ssh -p ポート ユーザー@ホスト -L ...` 形式も引数に使える。`-L` は受け付けるが、バッチではポート転送を起動しない。
+
 ## リポジトリ構成
 
 ```text

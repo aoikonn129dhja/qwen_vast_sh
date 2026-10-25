@@ -164,6 +164,14 @@ Windows側のターミナルでリポジトリのルートに移動し、Vastの
 python local_tools\qwen_v23_batch.py ssh://root@ホスト:ポート
 ```
 
+普段のSSHコマンドも、そのまま後ろに指定できます。
+
+```powershell
+python local_tools\qwen_v23_batch.py ssh -p 40455 root@ssh.example.com -L 8080:localhost:8080
+```
+
+`-L` は接続コマンドとの互換性のため受け付けます。バッチの転送・実行には使わず、ポート転送を継続する必要がある場合は別のSSHターミナルで起動します。
+
 起動後、画像が入ったWindowsディレクトリのフルパス、適用するプロンプトの順に入力します。PNG、JPG、JPEG、WebPの画像をディレクトリ直下から読み取り、SSH経由でVastへ転送します。1つのプロンプトを各画像へ順番に適用します。サブディレクトリは対象外です。
 
 生成画像は `/workspace/ComfyUI/output/` に残ります。Windowsへの回収は、従来どおり `python local_tools\vast_comfy_output_sync_and_log.py` を別のターミナルで起動し、ComfyUIのGateway URLまたはSSHポート転送URLを入力します。V23バッチの実行前から同期ツールを起動しても構いません。

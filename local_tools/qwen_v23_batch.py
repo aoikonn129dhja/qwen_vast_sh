@@ -105,13 +105,18 @@ def upload_images(command: list[str], stage: str, images: list[Path], prompt: st
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", nargs="?", help="SSH ホスト名、ユーザー@ホスト、または ssh:// URL")
-    parser.add_argument("--port", type=int, help="SSH ポート")
-    parser.add_argument("--identity", help="SSH 秘密鍵のパス")
-    args = parser.parse_args(argv)
+    parser.add_argument("connection", nargs="*", help="SSH 接続コマンド、ホスト名、または ssh:// URL")
+    parser.add_argument("-p", "--port", type=int, help="SSH ポート")
+    parser.add_argument("-i", "--identity", help="SSH 秘密鍵のパス")
+    parser.add_argument("-L", "--local-forward", action="append", metavar="SPEC",
+                        help="通常の SSH コマンドから受け付けます。バッチでは転送を使いません")
+    args = parser.parse_intermixed_args(argv)
+    connection = args.connection[1:] if args.connection and args.connection[0].lower() in {"ssh", "ssh.exe"} else args.connection
+    if len(connection) > 1:
+        parser.error("SSH 接続先は1つだけ指定してください。")
 
     try:
-        target_raw = args.target or os.environ.get("QWEN_V23_SSH_TARGET") or input("SSH 接続先: ")
+        target_raw = (connection[0] if connection else None) or os.environ.get("QWEN_V23_SSH_TARGET") or input("SSH 接続先: ")
         target, port = parse_target(target_raw, args.port)
         source = image_directory(input("編集する画像ディレクトリの Windows フルパス: "))
         images = list_images(source)

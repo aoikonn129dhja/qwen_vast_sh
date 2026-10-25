@@ -95,6 +95,27 @@ class LaunchTests(unittest.TestCase):
             check=False,
         )
 
+    def test_accepts_usual_ssh_command_with_local_forward(self):
+        image = Path("input/example.png")
+        with patch("builtins.input", side_effect=["input", "A prompt"]), \
+                patch.object(batch, "image_directory", return_value=Path("input")), \
+                patch.object(batch, "list_images", return_value=[image]), \
+                patch.object(batch, "ssh_executable", return_value="ssh"), \
+                patch.object(batch, "upload_images") as upload, \
+                patch.object(batch.subprocess, "run") as run, \
+                patch.object(batch.uuid, "uuid4") as identifier, \
+                patch("builtins.print"):
+            identifier.return_value.hex = "b" * 32
+            run.return_value.returncode = 0
+            result = batch.main([
+                "ssh", "-p", "40455", "root@174.94.107.156",
+                "-L", "8080:localhost:8080",
+            ])
+        self.assertEqual(result, 0)
+        expected_ssh = ["ssh", "-T", "-p", "40455", "root@174.94.107.156"]
+        upload.assert_called_once_with(expected_ssh, f"{batch.REMOTE_INPUT_ROOT}/{'b' * 32}", [image], "A prompt")
+        self.assertEqual(run.call_args.args[0][:5], expected_ssh)
+
 
 if __name__ == "__main__":
     unittest.main()
