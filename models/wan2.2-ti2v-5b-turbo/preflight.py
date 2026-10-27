@@ -58,9 +58,9 @@ def main():
         destination = args.shared_dir / 'models' / relative
         if not destination.is_file() or destination.stat().st_size != size:
             remaining += size
-    print(f'[2/5] Network preflight (up to {target / MIB:g} MiB)', flush=True)
+    print(f'[2/10] Network preflight (up to {target / MIB:g} MiB)', flush=True)
     if not remaining:
-        print('All model files have the expected sizes; no download or speed probe needed.', flush=True)
+        print('[2/10] All model files have the expected sizes; no download or speed probe needed.', flush=True)
         return 0
     print(f'Missing models: {remaining / 1e9:.2f} GB', flush=True)
     try:

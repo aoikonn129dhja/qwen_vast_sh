@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vast.ai ComfyUI manual GUI image sync. Python standard library only."""
+"""Vast.ai ComfyUI manual GUI image and video sync. Python standard library only."""
 from __future__ import annotations
 import base64
 import csv
@@ -21,7 +21,8 @@ POLL_SECONDS = 2
 HISTORY_LIMIT = 500
 TIMEOUT_SECONDS = 30
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
-CSV_FIELDS = ("source", "filename", "subfolder", "local_image", "saved_at", "bytes",
+VIDEO_EXTS = {".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v"}
+CSV_FIELDS = ("source", "filename", "subfolder", "media_type", "local_file", "local_image", "saved_at", "bytes",
               "sha256", "started_at", "finished_at", "duration_seconds", "status",
               "positive_prompt", "negative_prompt", "image_1", "image_2",
               "filename_prefix", "model", "model_weight_dtype", "clip", "clip_type",
@@ -148,15 +149,20 @@ def time_fields(history: dict) -> dict:
             }
 
 
-def image_entries(history: dict):
+def media_entries(history: dict):
+    """Yield saved images and videos from ComfyUI's history output records."""
     for node_id, node in (history.get("outputs") or {}).items():
         if not isinstance(node, dict):
             continue
-        for item in node.get("images", []):
-            if (isinstance(item, dict) and isinstance(item.get("filename"), str)
-                    and Path(item["filename"]).suffix.lower() in IMAGE_EXTS
-                    and item.get("type", "output") == "output"):
-                yield str(node_id), item
+        for collection, extensions, media_type in (
+            ("images", IMAGE_EXTS, "image"),
+            ("videos", VIDEO_EXTS, "video"),
+        ):
+            for item in node.get(collection, []):
+                if (isinstance(item, dict) and isinstance(item.get("filename"), str)
+                        and Path(item["filename"]).suffix.lower() in extensions
+                        and item.get("type", "output") == "output"):
+                    yield str(node_id), item, media_type
 
 
 def model_label(workflow: object) -> str:
@@ -290,17 +296,17 @@ def main() -> int:
                     prompt = history.get("prompt")
                     workflow = prompt[2] if isinstance(prompt, list) and len(prompt) > 2 else None
                     extra_data = prompt[3] if isinstance(prompt, list) and len(prompt) > 3 else None
-                    for node_id, item in image_entries(history):
-                        identity = json.dumps([prompt_id, node_id, item.get("filename"), item.get("subfolder", ""), item.get("type", "output")], ensure_ascii=False)
+                    for node_id, item, media_type in media_entries(history):
+                        identity = json.dumps([prompt_id, node_id, media_type, item.get("filename"), item.get("subfolder", ""), item.get("type", "output")], ensure_ascii=False)
                         if identity in state["done"]:
                             record = state["done"][identity]
-                            if isinstance(record, dict) and isinstance(record.get("image"), str) and (OUTPUT_DIR / record["image"]).is_file():
+                            if isinstance(record, dict) and isinstance(record.get("file", record.get("image")), str) and (OUTPUT_DIR / record.get("file", record.get("image"))).is_file():
                                 continue
                             del state["done"][identity]
                         qs = urllib.parse.urlencode({"filename": item["filename"], "subfolder": item.get("subfolder") or "", "type": "output"})
                         data = fetch(f"{url}/view?{qs}", authorization)
                         if not data:
-                            raise ValueError("Empty image response")
+                            raise ValueError("Empty media response")
                         directory = image_directory(workflow, datetime.now())
                         dest = candidate_name(str(prompt_id), item, directory)
                         session_csv = session_csvs.get(directory)
@@ -312,7 +318,9 @@ def main() -> int:
                                 os.fsync(out.fileno())
                             session_csvs[directory] = session_csv
                         metadata = {"source": "Vast.ai ComfyUI", "prompt_id": prompt_id, "node_id": node_id,
-                                    "filename": item["filename"], "subfolder": item.get("subfolder", ""), "local_image": str(dest.relative_to(OUTPUT_DIR)),
+                                    "filename": item["filename"], "subfolder": item.get("subfolder", ""),
+                                    "media_type": media_type, "local_file": str(dest.relative_to(OUTPUT_DIR)),
+                                    "local_image": str(dest.relative_to(OUTPUT_DIR)) if media_type == "image" else None,
                                     "saved_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                                     "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                                     **time_fields(history), "status": history.get("status"),
@@ -322,7 +330,7 @@ def main() -> int:
                             out.flush()
                             os.fsync(out.fileno())
                         write_csv_row(session_csv, metadata)
-                        state["done"][identity] = {"image": str(dest.relative_to(OUTPUT_DIR))}
+                        state["done"][identity] = {"file": str(dest.relative_to(OUTPUT_DIR))}
                         atomic_json(state_file, state)
                         log(f"保存: {dest.relative_to(OUTPUT_DIR)} / {session_csv.name}")
             except (OSError, ValueError, json.JSONDecodeError) as exc:

@@ -15,6 +15,33 @@ Gatewayは8188、Turbo専用ComfyUIは内部ポート18225です。
 
 起動直後にGPU・ディスクを表示し、ComfyUI取得や依存インストールより前に、Turbo配布元から最大8 MiBを読み取って速度を測定します。v23と同じくMiB/s・Mbps・未取得モデルの推定ダウンロード時間を表示します。既定10 MiB/s未満では対話実行なら続行確認、非対話なら停止します。測定失敗時は警告して続行します。必要な場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` で低速でも続行できます。`MIN_DOWNLOAD_MIB_S` と `SPEED_TEST_BYTES` も指定できます。
 
+### 進捗ログ
+
+全体は次の10段階です。`START` が開始、`DONE` が完了、`SKIP` が既存ファイルの再利用です。待機・取得・再構築・配置・起動など時間のかかる処理は5秒ごとに実行中ログを出します。
+
+| 先頭の番号 | 処理 |
+| --- | --- |
+| `[1/10]` | GPU・ディスク確認 |
+| `[2/10]` | Hugging Face速度確認 |
+| `[3/10]` | 共通ロック待機・専用Python環境準備 |
+| `[4/10]` | ComfyUIコード取得・共有パス設定 |
+| `[5/10]` | ComfyUIのPython依存取得・インストール |
+| `[6/10]` | Hugging Face取得用ライブラリ準備 |
+| `[7/10] [1/3 files]` | Turbo本体の取得・再構築・配置 |
+| `[8/10] [2/3 files]` | テキストエンコーダの取得・再構築・配置 |
+| `[9/10] [3/3 files]` | VAEの取得・再構築・配置 |
+| `[10/10]` | ComfyUI起動・workflow登録・Gateway起動 |
+
+モデル関連3ファイルでは `completed 1/3 files` のように配置完了数も表示します。Hugging Faceのバーが100%になった後も、キャッシュからモデル保存先へのコピーは別処理です。コピー中はMiB単位の配置量・パーセント・速度・残り秒数・経過秒数を表示します。Hugging Face標準の転送バーも表示されます。
+
+```text
+[8/10] [2/3 files] START umt5_xxl_fp8_e4m3fn_scaled.safetensors | completed 1/3 files
+[8/10] [2/3 files] START Download / cache reconstruction: umt5_xxl_fp8_e4m3fn_scaled.safetensors (elapsed 0s)
+[8/10] [2/3 files] Cache -> model directory copy: 3200.0/6423.9 MiB (49.8%) | 320.0 MiB/s | ETA 10s | elapsed 10s
+```
+
+この残り時間は現在のファイルの配置コピー分です。取得・再構築中やPython依存のインストール中は経過時間を表示し、全セットアップの残り時間を推測表示しません。
+
 初回のモデル合計は約18.33 GB（Turbo約10.18 GB、テキストエンコーダ約6.74 GB、VAE約1.41 GB）です。配布サイズと一致する既存ファイルは再取得せず、全部揃っている場合は速度測定も省略します。取得後もサイズを確認してからプロセス固有の一時ファイル経由で配置します。Hugging Faceのキャッシュと配置先の両方に空き容量が必要です。
 
 ### 別モデルとのセットアップ

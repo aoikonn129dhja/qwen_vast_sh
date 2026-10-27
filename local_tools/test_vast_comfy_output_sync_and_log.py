@@ -96,6 +96,24 @@ class SyncHistoryTests(unittest.TestCase):
         fetch.assert_called_once()
         self.assertTrue((self.directory / ".vast_comfy_sync_state_1.json").exists())
 
+    def test_media_entries_yield_supported_images_and_videos(self):
+        history = {"outputs": {"10": {
+            "images": [
+                {"filename": "still.PNG", "type": "output"},
+                {"filename": "ignored.mp4", "type": "output"},
+            ],
+            "videos": [
+                {"filename": "clip.MP4", "type": "output"},
+                {"filename": "preview.mp4", "type": "temp"},
+                {"filename": "unknown.xyz", "type": "output"},
+            ],
+        }}}
+        entries = list(sync.media_entries(history))
+        self.assertEqual(entries, [
+            ("10", {"filename": "still.PNG", "type": "output"}, "image"),
+            ("10", {"filename": "clip.MP4", "type": "output"}, "video"),
+        ])
+
 
 class OutputDirectoryTests(unittest.TestCase):
     def test_qwen_v23_workflow_fields(self):
