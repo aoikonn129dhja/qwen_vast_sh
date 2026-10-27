@@ -17,8 +17,13 @@ runtime_prepare() {
     RUNTIME_PID_FILE="$RUNTIME_ROOT/state/$model_id.pid"
     mkdir -p "$RUNTIME_ROOT/locks" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/state" "$RUNTIME_INSTANCE" "$SHARED_COMFY_DIR"
     command -v flock >/dev/null 2>&1 || runtime_die 'flock is required.' || return 1
-    exec {RUNTIME_SETUP_LOCK}>"$RUNTIME_ROOT/locks/$model_id.setup.lock"
-    flock -x "$RUNTIME_SETUP_LOCK"
+    # All models share downloads, user data and /workspace/bin/uv.
+    # Use the workspace (not the model or runtime root) as the lock scope.
+    exec {RUNTIME_SETUP_LOCK}>"$WORKSPACE/.qwen-setup.lock"
+    if ! flock -xn "$RUNTIME_SETUP_LOCK"; then
+        printf 'Another model setup is running; waiting for the workspace setup lock.\n'
+        flock -x "$RUNTIME_SETUP_LOCK"
+    fi
     if [ ! -x "$PYTHON" ]; then
         if command -v uv >/dev/null 2>&1; then
             uv venv --python "${BASE_PYTHON:-/venv/main/bin/python}" --seed "$RUNTIME_ENV"

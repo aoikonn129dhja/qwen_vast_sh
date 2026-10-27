@@ -516,6 +516,12 @@ bash models/wan2.2-ti2v-5b-turbo/setup.sh
 
 Turbo用の `Wan2_2-TI2V-5B-Turbo_fp16.safetensors` を取得します。通常版と同じテキストエンコーダ `umt5_xxl_fp8_e4m3fn_scaled.safetensors` とVAE `wan2.2_vae.safetensors` を使用し、配置済みなら再取得しません。追加LoRA・カスタムノードは不要です。
 
+最初にGPU・ディスクを表示し、ComfyUI取得や依存インストールの前にHugging Faceから最大8 MiBを読んで回線速度を測定します。v23と同じくMiB/s・Mbpsと未取得分の推定ダウンロード時間を表示します。既定10 MiB/s未満では続行確認し、非対話実行では停止します。低速でも続行する場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を指定します。測定失敗時は警告して続行します。
+
+初回のモデル合計は約18.33 GBです。既存ファイルのサイズが配布サイズと一致すれば再取得せず、全モデルが揃っている場合は速度測定も省略します。
+
+更新後のsetupは全モデル共通の `/workspace/.qwen-setup.lock` を使います。別ターミナルで他モデルのsetupを同時に起動しても、セットアップ本体は順番に進み、後続には待機メッセージを表示します。速度測定はロック取得前のため、ほかのダウンロードの影響を受けます。旧版のsetupが動いている場合は、終了してから更新版を実行してください。複数モデルの同時生成でのVRAM容量は別途必要です。
+
 Gatewayの公開ポートは8188、Turbo専用ComfyUIの内部ポートは18225です。Vast.ai Tunnelには `http://localhost:8188` を指定します。
 
 #### I2V workflowを読み込む
@@ -556,7 +562,7 @@ CreateVideo
 
 初期状態はI2Vです。`LoadImage` をCtrl+BでバイパスするとT2Vを試せますが、Turbo配布元の公開用途はI2Vであり、T2Vの品質は未確認です。
 
-依頼によりテスト・GPU生成は実施していません。構文とJSONの静的確認のみで、本番GPUでのロード・画質・VRAM所要量は未確認です。モデル固有の詳細と配布元は [Turbo版README](models/wan2.2-ti2v-5b-turbo/README.md) を参照してください。
+速度判定とセットアップ排他は外部サービスへ接続しないローカル・WSL確認の対象です。本番GPUでのロード・画質・VRAM所要量は未確認です。モデル固有の詳細と配布元は [Turbo版README](models/wan2.2-ti2v-5b-turbo/README.md) を参照してください。
 
 ## 4. 余談
 

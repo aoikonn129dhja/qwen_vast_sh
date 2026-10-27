@@ -20,7 +20,9 @@ python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py unload
 python /workspace/qwen_vast_sh/scripts/runtime/runtime_control.py restart-gateway
 ```
 
-セットアップはモデル別の `flock` を保持し、共有ファイルの上書きや別モデルのプロセス停止を避ける。追加モデルは専用の `runtime.json` と `setup.sh` を用意し、`runtime_prepare`、`runtime_clone_comfy`、`runtime_register`、`runtime_start`、`runtime_gateway_start` を呼ぶ。`runtime.json` にはモデルID、実行種別、ComfyUI固定コミット、依存、モデル保存先、カスタムノード、ワークフロー、GPU予約、退避方式、内部ポート、識別用シグネチャを記録する。
+セットアップはワークスペース共通の `/workspace/.qwen-setup.lock` の `flock` を終了まで保持する。別モデルのsetupを同時に起動しても、後続は待機して順番に実行する。モデル別環境に加え、共有モデルの一時ファイル、workflow、`/workspace/bin/uv` への書き込みも保護する。起動した常駐ComfyUIとGatewayにはこのロックを引き継がせない。更新前から動いているsetupは共通ロックを持たないため、終了してから更新版を実行する。同時セットアップの排他と同時生成時のVRAM管理は別であり、モデル切り替え時は上記のアンロード手順を使う。
+
+追加モデルは専用の `runtime.json` と `setup.sh` を用意し、`runtime_prepare`、`runtime_clone_comfy`、`runtime_register`、`runtime_start`、`runtime_gateway_start` を呼ぶ。`runtime.json` にはモデルID、実行種別、ComfyUI固定コミット、依存、モデル保存先、カスタムノード、ワークフロー、GPU予約、退避方式、内部ポート、識別用シグネチャを記録する。
 
 LightX2VなどのCLIジョブは次のアダプターに、**終了までフォアグラウンドで動く**実際の推論コマンドを渡す。VRAM予約・自動退避は行わない。
 
