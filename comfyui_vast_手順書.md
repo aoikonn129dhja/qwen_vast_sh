@@ -44,6 +44,9 @@ cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511 && bash setup.sh
 
 # LTX-2.3 Q4
 cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
+
+# Wan2.2 TI2V 5B Turbo
+cd /workspace/qwen_vast_sh/models/wan2.2-ti2v-5b-turbo && bash setup.sh
 ```
 
 モデルのダウンロード元への事前速度測定を行うセットアップがある。Qwen系列では既定10 MiB/s未満の場合に続行確認または非対話実行の停止が発生し得る。必要な場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。
@@ -496,6 +499,64 @@ models/qwen-rapid-aio-v1-reference/
 ```
 
 これは2入力参照workflowの保管場所で、セットアップ可能なモデルではありません。このディレクトリには `setup.sh` がありません。モデル配布元とSHA-256が未定義で、workflowにSaveImageノードもないため、実行用workflowと混同しないでください。
+
+### 3.6 Wan2.2-TI2V-5B-Turbo FP16
+
+通常版 `wan2.2-ti2v-5b` の構成を流用した、4ステップの画像から動画を生成するI2Vモデルです。
+
+#### 更新・セットアップ
+
+clone済みの本番環境では、次を実行します。
+
+```bash
+cd /workspace/qwen_vast_sh
+git pull --ff-only origin main
+bash models/wan2.2-ti2v-5b-turbo/setup.sh
+```
+
+Turbo用の `Wan2_2-TI2V-5B-Turbo_fp16.safetensors` を取得します。通常版と同じテキストエンコーダ `umt5_xxl_fp8_e4m3fn_scaled.safetensors` とVAE `wan2.2_vae.safetensors` を使用し、配置済みなら再取得しません。追加LoRA・カスタムノードは不要です。
+
+Gatewayの公開ポートは8188、Turbo専用ComfyUIの内部ポートは18225です。Vast.ai Tunnelには `http://localhost:8188` を指定します。
+
+#### I2V workflowを読み込む
+
+セットアップで次のworkflowが自動配置されます。既存の同名workflowは上書きしません。
+
+```text
+/workspace/ComfyUI/user/default/workflows/Wan-2.2-TI2V-5B-Turbo.json
+```
+
+1. ComfyUIの保存済みworkflow一覧から `Wan-2.2-TI2V-5B-Turbo.json` を開く。
+2. `LoadImage` で実際の入力画像をアップロード・選択する。初期値 `example.png` は置き換える。
+3. 正のプロンプトに、画像内の被写体をどう動かすか入力する。
+4. 次の初期設定を確認し、Queueを実行する。
+
+```text
+KSampler
+  steps          = 4
+  cfg            = 1.0
+  sampler_name   = lcm
+  scheduler      = simple
+  denoise        = 1.0
+
+ModelSamplingSD3
+  shift          = 8
+
+Wan22ImageToVideoLatent
+  width          = 1280
+  height         = 704
+  length         = 121
+  batch_size     = 1
+
+CreateVideo
+  fps            = 24
+```
+
+約5秒の動画を生成し、`/workspace/ComfyUI/output/video/` 配下へ `Wan22-Turbo` を先頭に付けた名前で保存します。CFG 1.0では負のプロンプトは使用されません。
+
+初期状態はI2Vです。`LoadImage` をCtrl+BでバイパスするとT2Vを試せますが、Turbo配布元の公開用途はI2Vであり、T2Vの品質は未確認です。
+
+依頼によりテスト・GPU生成は実施していません。構文とJSONの静的確認のみで、本番GPUでのロード・画質・VRAM所要量は未確認です。モデル固有の詳細と配布元は [Turbo版README](models/wan2.2-ti2v-5b-turbo/README.md) を参照してください。
 
 ## 4. 余談
 
