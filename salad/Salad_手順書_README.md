@@ -45,13 +45,13 @@ Container Group に `COMFY_GATEWAY_USER` と20文字以上の `COMFY_GATEWAY_PAS
 
 ## 生成物の回収
 
-Windows 側で SaladCloud 用の回収ツールを実行する。
+Windows 側で Vast.ai と共通の回収ツールを実行する。SaladCloud の Gateway URL を入力すると自動判定し、`.env` または環境変数の認証情報を利用する。SSH 転送の localhost URL を入力する場合は `--salad` を付ける。既存の Salad 回収履歴も引き継ぎ、画像と動画を回収する。
 
 ```powershell
-uv run salad\tools\salad_comfy_output_sync_and_log.py
+python local_tools\vast_comfy_output_sync_and_log.py
 ```
 
-画像と生成ログ CSV は `D:\po\NSFW_cos\tmp` 以下に保存する。
+従来の `python salad\tools\salad_comfy_output_sync_and_log.py` も同じ処理を呼び出す。画像・動画と生成ログ CSV は `D:\po\NSFW_cos\tmp` 以下に保存する。
 
 ## コンテナの保存領域
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vast.ai ComfyUI manual GUI image and video sync. Python standard library only."""
+"""Vast.ai and SaladCloud ComfyUI image and video sync. Standard library only."""
 from __future__ import annotations
 import base64
 import csv
@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 import re
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -30,6 +31,41 @@ CSV_FIELDS = ("source", "filename", "subfolder", "media_type", "local_file", "lo
               "sampling_shift", "cfg_norm_strength", "cfg_norm_pre_cfg",
               "reference_latents_method", "seed", "steps", "cfg", "sampler",
               "scheduler", "denoise")
+
+
+def gateway_credentials() -> tuple[str, str]:
+    """Read Salad Gateway credentials without displaying them."""
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    values: dict[str, str] = {}
+    if env_path.is_file():
+        for line in env_path.read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[7:].strip()
+            key, sep, value = line.partition("=")
+            if not sep:
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            values[key.strip()] = value
+
+    def setting(*keys: str) -> str:
+        for key in keys:
+            found = os.environ.get(key) or values.get(key)
+            if found:
+                return found
+        return ""
+
+    return (setting("SALAD_COMFY_GATEWAY_USER", "COMFY_GATEWAY_USER"),
+            setting("SALAD_COMFY_GATEWAY_PASSWORD", "SALADA_COMFY_GATEWAY_PASSWORD",
+                    "COMFY_GATEWAY_PASSWORD"))
+
+
+def is_salad_gateway(hostname: str | None) -> bool:
+    return bool(hostname and hostname.lower().endswith(".salad.cloud"))
 
 
 def log(message: str) -> None:
@@ -54,8 +90,9 @@ def workflow_fields(workflow: object) -> dict:
         return value if not isinstance(value, (list, dict)) else None
 
     checkpoint = workflow.get("1")
+    checkpoint_fields = {}
     if isinstance(checkpoint, dict) and checkpoint.get("class_type") == "CheckpointLoaderSimple":
-        return {
+        checkpoint_fields = {
             "positive_prompt": setting("3", "prompt"),
             "negative_prompt": setting("4", "prompt"),
             "image_1": setting("8", "image"),
@@ -71,7 +108,7 @@ def workflow_fields(workflow: object) -> dict:
 
     lora_enabled = setting("170:168", "value")
     sampler = inputs("170:169")
-    return {
+    fields = {
         "positive_prompt": setting("170:151", "prompt"),
         "negative_prompt": setting("170:149", "prompt"),
         "image_1": setting("41", "image"),
@@ -97,6 +134,44 @@ def workflow_fields(workflow: object) -> dict:
         "scheduler": setting("170:169", "scheduler"),
         "denoise": setting("170:169", "denoise"),
     }
+    def node_by_type(*types: str) -> dict:
+        for node in workflow.values():
+            if isinstance(node, dict) and node.get("class_type") in types:
+                value = node.get("inputs")
+                return value if isinstance(value, dict) else {}
+        return {}
+
+    def scalar(value):
+        return value if not isinstance(value, (list, dict)) else None
+
+    sampler_inputs = node_by_type("KSampler", "KSamplerAdvanced")
+    if sampler_inputs:
+        for field, input_name in (("positive_prompt", "positive"), ("negative_prompt", "negative")):
+            link = sampler_inputs.get(input_name)
+            if isinstance(link, list) and link:
+                prompt_inputs = inputs(str(link[0]))
+                fields[field] = scalar(prompt_inputs.get("prompt")) or scalar(prompt_inputs.get("text")) or fields[field]
+        for field, input_name in (("seed", "seed"), ("steps", "steps"), ("cfg", "cfg"),
+                                  ("sampler", "sampler_name"), ("scheduler", "scheduler"),
+                                  ("denoise", "denoise")):
+            value = scalar(sampler_inputs.get(input_name))
+            if value is not None:
+                fields[field] = value
+
+    model_inputs = node_by_type("CheckpointLoaderSimple", "UNETLoader")
+    if model_inputs:
+        fields["model"] = scalar(model_inputs.get("ckpt_name")) or scalar(model_inputs.get("unet_name"))
+        fields["model_weight_dtype"] = scalar(model_inputs.get("weight_dtype"))
+    image_inputs = node_by_type("LoadImageWithFilename", "LoadImage")
+    if image_inputs:
+        fields["image_1"] = scalar(image_inputs.get("image"))
+    save_inputs = node_by_type("SaveImage", "SaveImageAdvanced")
+    if save_inputs and "filename_prefix" in save_inputs:
+        fields["filename_prefix"] = scalar(save_inputs["filename_prefix"])
+    for key, value in checkpoint_fields.items():
+        if fields.get(key) is None and value is not None:
+            fields[key] = value
+    return fields
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -224,9 +299,19 @@ def write_csv_row(path: Path, metadata: dict) -> None:
         os.fsync(out.fileno())
 
 
-def select_sync_state(output_dir: Path, server_key: str) -> tuple[Path, dict]:
+def select_sync_state(output_dir: Path, server_key: str, salad: bool = False) -> tuple[Path, dict]:
     """Reuse this server's history, or reserve an unused numbered history."""
     output_dir.mkdir(parents=True, exist_ok=True)
+    if salad:
+        legacy = output_dir / ".salad_comfy_sync_state.json"
+        if legacy.is_file():
+            try:
+                old_state = json.loads(legacy.read_text(encoding="utf-8"))
+            except (OSError, ValueError, UnicodeError):
+                old_state = None
+            if (isinstance(old_state, dict) and old_state.get("server_key") == server_key
+                    and isinstance(old_state.get("done"), dict)):
+                return legacy, old_state
     pattern = re.compile(r"\.vast_comfy_sync_state(?:_([1-9][0-9]*))?\.json")
     while True:
         histories = {}
@@ -258,7 +343,7 @@ def select_sync_state(output_dir: Path, server_key: str) -> tuple[Path, dict]:
         return path, state
 
 
-def main() -> int:
+def main(salad: bool = False) -> int:
     try:
         url = input("ComfyUI の Gateway ドメインまたは SSH 転送 URL: ").strip()
     except EOFError:
@@ -282,15 +367,21 @@ def main() -> int:
         log("HTTPS Gateway ドメイン、または http://127.0.0.1:ポート の SSH 転送 URL を入力してください。")
         return 2
     url = f"{parsed.scheme}://{parsed.netloc}"
+    salad = salad or is_salad_gateway(parsed.hostname)
     try:
-        username = input("Gateway認証ユーザー (不要なら空欄): ").strip()
-        password = getpass.getpass("Gateway認証パスワード: ") if username else ""
+        username, password = gateway_credentials() if salad else ("", "")
+        if not username:
+            username = input("Gateway認証ユーザー (不要なら空欄): ").strip()
+        if username and not password:
+            password = getpass.getpass("Gateway認証パスワード: ")
     except EOFError:
         log("認証情報の入力が完了しませんでした。")
         return 2
     authorization = ("Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")) if username else None
     server_key = hashlib.sha256(url.encode("utf-8")).hexdigest()
-    state_file, state = select_sync_state(OUTPUT_DIR, server_key)
+    state_file, state = select_sync_state(OUTPUT_DIR, server_key, salad)
+    source = "SaladCloud ComfyUI" if salad else "Vast.ai ComfyUI"
+    csv_prefix = "salad" if salad else "vast"
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     session_csvs: dict[Path, Path] = {}
     log(f"接続先: {url}\n保存先の親ディレクトリ: {OUTPUT_DIR}\n監視周期: {POLL_SECONDS}秒。終了: Ctrl+C")
@@ -309,6 +400,11 @@ def main() -> int:
                     extra_data = prompt[3] if isinstance(prompt, list) and len(prompt) > 3 else None
                     for node_id, item, media_type in media_entries(history):
                         identity = json.dumps([prompt_id, node_id, media_type, item.get("filename"), item.get("subfolder", ""), item.get("type", "output")], ensure_ascii=False)
+                        if salad and media_type == "image" and identity not in state["done"]:
+                            old_identity = json.dumps([prompt_id, node_id, item.get("filename"), item.get("subfolder", ""), item.get("type", "output")], ensure_ascii=False)
+                            old_record = state["done"].get(old_identity)
+                            if isinstance(old_record, dict) and isinstance(old_record.get("image"), str):
+                                state["done"][identity] = {"file": old_record["image"]}
                         if identity in state["done"]:
                             record = state["done"][identity]
                             if isinstance(record, dict) and isinstance(record.get("file", record.get("image")), str) and (OUTPUT_DIR / record.get("file", record.get("image"))).is_file():
@@ -322,13 +418,13 @@ def main() -> int:
                         dest = candidate_name(str(prompt_id), item, directory)
                         session_csv = session_csvs.get(directory)
                         if session_csv is None:
-                            session_csv = directory / f"vast_comfy_sync_{session_id}.csv"
+                            session_csv = directory / f"{csv_prefix}_comfy_sync_{session_id}.csv"
                             with session_csv.open("x", encoding="utf-8-sig", newline="") as out:
                                 csv.DictWriter(out, fieldnames=CSV_FIELDS).writeheader()
                                 out.flush()
                                 os.fsync(out.fileno())
                             session_csvs[directory] = session_csv
-                        metadata = {"source": "Vast.ai ComfyUI", "prompt_id": prompt_id, "node_id": node_id,
+                        metadata = {"source": source, "prompt_id": prompt_id, "node_id": node_id,
                                     "filename": item["filename"], "subfolder": item.get("subfolder", ""),
                                     "media_type": media_type, "local_file": str(dest.relative_to(OUTPUT_DIR)),
                                     "local_image": str(dest.relative_to(OUTPUT_DIR)) if media_type == "image" else None,
@@ -353,4 +449,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1] != "--salad"):
+        raise SystemExit("Usage: python vast_comfy_output_sync_and_log.py [--salad]")
+    raise SystemExit(main(salad="--salad" in sys.argv[1:]))

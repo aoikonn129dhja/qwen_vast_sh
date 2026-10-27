@@ -1,7 +1,9 @@
 """Offline checks for Vast ComfyUI output folder selection."""
 import importlib.util
 import io
+import csv
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime
@@ -86,6 +88,21 @@ class SyncHistoryTests(unittest.TestCase):
         self.assertEqual(broken.read_bytes(), b"invalid json")
         self.assertEqual(wrong_shape.read_bytes(), wrong_original)
 
+    def test_salad_reuses_legacy_history(self):
+        saved = {"server_key": "salad", "done": {"job": {"image": "saved.png"}}}
+        path = self.directory / ".salad_comfy_sync_state.json"
+        path.write_text(json.dumps(saved), encoding="utf-8")
+        self.assertEqual(sync.select_sync_state(self.directory, "salad", True), (path, saved))
+        self.assertFalse((self.directory / ".vast_comfy_sync_state.json").exists())
+
+    def test_salad_uses_numbered_history_when_legacy_belongs_to_another_server(self):
+        legacy = self.directory / ".salad_comfy_sync_state.json"
+        legacy.write_text(json.dumps({"server_key": "other", "done": {}}), encoding="utf-8")
+        path, state = sync.select_sync_state(self.directory, "new-salad", True)
+        self.assertEqual(path.name, ".vast_comfy_sync_state.json")
+        self.assertEqual(state["server_key"], "new-salad")
+        self.assertEqual(json.loads(legacy.read_text())["server_key"], "other")
+
     def test_main_reaches_polling_despite_conflict(self):
         self.history("", {"server_key": "other", "done": {}})
         with patch.object(sync, "OUTPUT_DIR", self.directory), \
@@ -155,8 +172,61 @@ class SyncHistoryTests(unittest.TestCase):
         self.assertEqual(rows[0]['media_type'], 'video')
         self.assertEqual(rows[0]['local_image'], '')
 
+    def test_salad_reuses_image_history_and_downloads_video(self):
+        image = {"filename": "saved.png", "type": "output"}
+        video = {"filename": "clip.mp4", "type": "output"}
+        history = {"job": {"outputs": {"10": {"images": [image, video]}},
+                           "prompt": [0, "job", {}]}}
+        url = "https://example.salad.cloud"
+        old_identity = json.dumps(["job", "10", "saved.png", "", "output"], ensure_ascii=False)
+        legacy = self.directory / ".salad_comfy_sync_state.json"
+        legacy.write_text(json.dumps({"server_key": sync.hashlib.sha256(url.encode()).hexdigest(),
+                                      "done": {old_identity: {"image": "saved.png"}}}), encoding="utf-8")
+        requests = []
+
+        def fetch(request_url, authorization):
+            requests.append(request_url)
+            self.assertEqual(authorization, "Basic dXNlcjpwYXNz")
+            return json.dumps(history).encode() if "/history?" in request_url else b"fake-video"
+
+        with patch.object(sync, "OUTPUT_DIR", self.directory), \
+                patch.object(sync, "gateway_credentials", return_value=("user", "pass")), \
+                patch("builtins.input", return_value=url), \
+                patch.object(sync.Path, "is_file", return_value=True), \
+                patch.object(sync, "fetch", side_effect=fetch), \
+                patch.object(sync.time, "sleep", side_effect=KeyboardInterrupt), \
+                patch("builtins.print"):
+            self.assertEqual(sync.main(), 0)
+        self.assertEqual(len([request for request in requests if "/view?" in request]), 1)
+        state = json.loads(legacy.read_text(encoding="utf-8"))
+        self.assertEqual(len(state["done"]), 3)
+        with next(self.directory.rglob("*.csv")).open(encoding="utf-8-sig", newline="") as file:
+            row = next(csv.DictReader(file))
+        self.assertEqual(row["source"], "SaladCloud ComfyUI")
+        self.assertEqual(row["media_type"], "video")
+
 
 class OutputDirectoryTests(unittest.TestCase):
+    def test_salad_gateway_detection_and_credentials(self):
+        self.assertTrue(sync.is_salad_gateway("example.salad.cloud"))
+        self.assertFalse(sync.is_salad_gateway("example.salad.cloud.evil.test"))
+        with patch.dict(os.environ, {"SALAD_COMFY_GATEWAY_USER": "user",
+                                  "SALAD_COMFY_GATEWAY_PASSWORD": "secret"}):
+            self.assertEqual(sync.gateway_credentials(), ("user", "secret"))
+
+    def test_renamed_salad_workflow_fields(self):
+        workflow = {
+            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
+            "2": {"class_type": "KSampler", "inputs": {"positive": ["3", 0], "steps": 4}},
+            "3": {"inputs": {"prompt": "edit"}},
+            "14": {"class_type": "LoadImageWithFilename", "inputs": {"image": "input.png"}},
+        }
+        fields = sync.workflow_fields(workflow)
+        self.assertEqual(fields["positive_prompt"], "edit")
+        self.assertEqual(fields["image_1"], "input.png")
+        self.assertEqual(fields["model"], "model.safetensors")
+        self.assertEqual(fields["steps"], 4)
+
     def test_qwen_v23_workflow_fields(self):
         workflow = {
             "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "v23.safetensors"}},
