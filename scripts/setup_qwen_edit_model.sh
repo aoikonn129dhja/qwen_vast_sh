@@ -38,7 +38,7 @@ import json, sys
 print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
 PY
 )"
-VERIFY_SHA256="${VERIFY_SHA256:-1}"
+VERIFY_SHA256=1
 MIN_DOWNLOAD_MIB_S="${MIN_DOWNLOAD_MIB_S:-10}"
 SPEED_TEST_BYTES="${SPEED_TEST_BYTES:-8388608}"
 ALLOW_SLOW_DOWNLOAD="${ALLOW_SLOW_DOWNLOAD:-0}"
@@ -50,11 +50,11 @@ UV_BIN_SHA256="1cb9cd0a1749debf6049d7d2bb933882cc52d81016326ee6d99a786d6c988b03"
 UV="${UV:-$WORKSPACE/bin/uv}"
 
 TEXT_ENCODER_FILE="qwen_2.5_vl_7b_fp8_scaled.safetensors"
-TEXT_ENCODER_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/$TEXT_ENCODER_FILE"
+TEXT_ENCODER_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/text_encoders/$TEXT_ENCODER_FILE"
 TEXT_ENCODER_SHA256="cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4"
 
 VAE_FILE="qwen_image_vae.safetensors"
-VAE_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/$VAE_FILE"
+VAE_URL="https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/vae/$VAE_FILE"
 VAE_SHA256="a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
 
 DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
@@ -125,35 +125,8 @@ download_file() {
     local url="$1"
     local dest="$2"
     local sha="$3"
-    local dir name
-    dir="$(dirname "$dest")"
-    name="$(basename "$dest")"
-    mkdir -p "$dir"
-
-    if [ -s "$dest" ]; then
-        if [ "$VERIFY_SHA256" = "1" ]; then
-            log "既存ファイルを検査: $dest"
-            if sha256_matches "$dest" "$sha"; then
-                log "既存ファイルは正常。ダウンロードをスキップ: $name"
-                return 0
-            fi
-            log "既存ファイルは未完了または不一致。wget -cで再開を試行: $name"
-        else
-            log "既存ファイルを使用。SHA確認は無効: $dest"
-            return 0
-        fi
-    else
-        log "ダウンロード: $name"
-    fi
-
-    # URL末尾と保存ファイル名を同一にして、wget -cのresumeを有効にする。
-    (
-        cd "$dir"
-        wget -c --progress=bar:force:noscroll "$url"
-    )
-
-    [ -s "$dest" ] || die "ダウンロード後のファイルが空です: $dest"
-    sha256_verify "$dest" "$sha"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" "$url" "$dest" "$sha" \
+        || die "モデルファイルの検証または取得に失敗しました: $dest"
 }
 
 need_cmd git
@@ -267,30 +240,7 @@ fi
 # ------------------------------------------------------------
 # ComfyUI
 # ------------------------------------------------------------
-if [ -d "$COMFY_DIR/.git" ] && [ -f "$COMFY_DIR/main.py" ]; then
-    COMFY_PIN="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1], encoding='utf-8'))['comfy_commit'])
-PY
-)"
-    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFY_PIN" ] || die "専用ComfyUIコミットが異なります: $COMFY_DIR"
-    log "既存のモデル専用ComfyUIを使用"
-elif [ -e "$COMFY_DIR" ]; then
-    die "不完全またはGit管理外の専用ComfyUIがあります: $COMFY_DIR"
-else
-    log "モデル専用ComfyUIを取得"
-    COMFY_PIN="$("$PYTHON" - "$MODEL_DIR/runtime.json" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1], encoding='utf-8'))['comfy_commit'])
-PY
-)"
-    git init -q "$COMFY_DIR"
-    git -C "$COMFY_DIR" remote add origin https://github.com/Comfy-Org/ComfyUI.git
-    git -C "$COMFY_DIR" fetch -q --depth 1 origin "$COMFY_PIN"
-    git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
-    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFY_PIN" ] || die "取得したComfyUIコミットが一致しません。"
-fi
-runtime_link_data
+runtime_clone_comfy "$MODEL_DIR/runtime.json"
 
 cd "$COMFY_DIR"
 

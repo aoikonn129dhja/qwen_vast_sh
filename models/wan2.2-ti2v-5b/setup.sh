@@ -13,27 +13,16 @@ UV="${UV:-$(command -v uv || true)}"
 
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
-"$UV" pip install --python "$PYTHON" 'huggingface_hub[cli]>=0.34,<2'
 mkdir -p "$SHARED_COMFY_DIR/models/diffusion_models" "$SHARED_COMFY_DIR/models/text_encoders" "$SHARED_COMFY_DIR/models/vae"
-"$PYTHON" - "$HF_REPO" "$SHARED_COMFY_DIR" "$DIFFUSION_REL" "$TEXT_ENCODER_REL" "$VAE_REL" <<'PY'
-import os, sys
-from huggingface_hub import hf_hub_download
-
-repo, comfy, *files = sys.argv[1:]
-for source, folder in zip(files, ('diffusion_models', 'text_encoders', 'vae')):
-    dest = os.path.join(comfy, 'models', folder)
-    output = os.path.join(dest, os.path.basename(source))
-    os.makedirs(dest, exist_ok=True)
-    if os.path.isfile(output) and os.path.getsize(output) > 0:
-        print('Present:', output, flush=True)
-        continue
-    cached = hf_hub_download(repo_id=repo, filename=source)
-    tmp = output + '.part'
-    import shutil
-    shutil.copyfile(cached, tmp)
-    os.replace(tmp, output)
-    print('Downloaded:', output, flush=True)
-PY
+for entry in \
+  "$DIFFUSION_REL|diffusion_models|$DIFFUSION_SHA256" \
+  "$TEXT_ENCODER_REL|text_encoders|$TEXT_ENCODER_SHA256" \
+  "$VAE_REL|vae|$VAE_SHA256"; do
+    IFS='|' read -r relative folder expected <<< "$entry"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" \
+      "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$relative" \
+      "$SHARED_COMFY_DIR/models/$folder/${relative##*/}" "$expected"
+done
 
 WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/Wan-2.2-TI2V-5B.json"
 if [ ! -e "$WORKFLOW_PATH" ]; then

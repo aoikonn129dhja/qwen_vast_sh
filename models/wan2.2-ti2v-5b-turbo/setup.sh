@@ -73,11 +73,11 @@ mkdir -p "$SHARED_COMFY_DIR/models/diffusion_models" "$SHARED_COMFY_DIR/models/t
 CURRENT_STEP="7-9"
 CURRENT_LABEL="Model assets (see individual file progress)"
 "$PYTHON" "$MODEL_DIR/download_models.py" \
-    --repo "$HF_REPO" --revision "$HF_REVISION" --shared-repo "$SHARED_HF_REPO" \
+    --repo "$HF_REPO" --revision "$HF_REVISION" --shared-repo "$SHARED_HF_REPO" --shared-revision "$SHARED_HF_REVISION" \
     --shared-dir "$SHARED_COMFY_DIR" \
-    --file "$DIFFUSION_REL" diffusion_models "$DIFFUSION_BYTES" \
-    --file "$TEXT_ENCODER_REL" text_encoders "$TEXT_ENCODER_BYTES" \
-    --file "$VAE_REL" vae "$VAE_BYTES"
+    --file "$DIFFUSION_REL" diffusion_models "$DIFFUSION_BYTES" "$DIFFUSION_SHA256" \
+    --file "$TEXT_ENCODER_REL" text_encoders "$TEXT_ENCODER_BYTES" "$TEXT_ENCODER_SHA256" \
+    --file "$VAE_REL" vae "$VAE_BYTES" "$VAE_SHA256"
 
 start_services() {
     RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"

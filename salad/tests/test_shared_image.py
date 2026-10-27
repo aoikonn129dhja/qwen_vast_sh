@@ -11,8 +11,8 @@ class SharedImageTests(unittest.TestCase):
         self.assertEqual(dockerfiles, [ROOT / 'salad/Dockerfile'])
         source = dockerfiles[0].read_text(encoding='utf-8')
         self.assertIn('FROM pytorch/pytorch:2.11.0-cuda13.0-cudnn9-runtime@sha256:', source)
-        self.assertIn('COPY models/ models/', source)
-        self.assertIn('COPY scripts/ scripts/', source)
+        self.assertNotIn('COPY models/ models/', source)
+        self.assertNotIn('COPY scripts/ scripts/', source)
         self.assertIn('/venv/main/bin/python', source)
 
     def test_every_comfy_setup_has_runtime_config(self):

@@ -65,21 +65,7 @@ fetch_model() {
     if [ -n "$pinned" ] && [ "$expected" != "$pinned" ]; then
         die "固定SHA-256が設定と一致しません: $relative"
     fi
-    mkdir -p "$(dirname "$dest")"
-    if [ -s "$dest" ]; then
-        actual="$(sha256sum "$dest" | awk '{print $1}')"
-        if [ "$actual" = "$expected" ]; then
-            log "検証済み、スキップ: $(basename "$dest")"
-            return 0
-        fi
-        die "既存ファイルのSHA-256が不一致です。削除せず中止: $dest"
-    fi
-    log "ダウンロード: $(basename "$dest")"
-    wget --https-only --tries=3 --timeout=60 -c --progress=bar:force:noscroll -O "${dest}.part" "$url" \
-        || die "ダウンロード失敗。再実行すればpartから再開: $relative"
-    actual="$(sha256sum "${dest}.part" | awk '{print $1}')"
-    [ "$actual" = "$expected" ] || die "SHA-256が不一致です: ${dest}.part"
-    mv -n -- "${dest}.part" "$dest"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" "$url" "$dest" "$expected"
 }
 
 log 'モデル3ファイルを配置'

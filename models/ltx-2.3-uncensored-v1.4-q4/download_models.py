@@ -2,12 +2,14 @@
 
 import argparse
 import json
-import subprocess
 import sys
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "runtime"))
+from model_files import fetch, verify
 
 
 MIB = 1024 ** 2
@@ -24,7 +26,7 @@ def model_sizes(repo, revision, files):
         entries = json.load(response)
     available = {item["path"]: item.get("size") for item in entries}
     sizes = []
-    for relative, _ in files:
+    for relative, _, _ in files:
         size = available.get(relative)
         if not isinstance(size, int) or size <= 0:
             raise RuntimeError(f"配布元でファイルとサイズを確認できません: {relative}")
@@ -34,8 +36,13 @@ def model_sizes(repo, revision, files):
 
 def existing_bytes(files, sizes):
     total = 0
-    for (_, destination), size in zip(files, sizes):
-        current = destination.stat().st_size if destination.exists() else 0
+    for (_, destination, expected), size in zip(files, sizes):
+        if destination.exists():
+            verify(destination, expected)
+            current = size
+        else:
+            partial = destination.with_name(destination.name + ".part")
+            current = partial.stat().st_size if partial.exists() else 0
         if current > size:
             raise RuntimeError(f"配布サイズより大きい既存ファイルがあります: {destination}")
         total += current
@@ -84,33 +91,11 @@ def download(files, sizes, base_url, initial_speed):
     print(f"モデル{len(files)}ファイルの合計: {total / GIB:.2f} GiB", flush=True)
     print(progress_line(initial_done, total, initial_speed), flush=True)
 
-    for index, ((relative, destination), size) in enumerate(zip(files, sizes), 1):
+    for index, ((relative, destination, expected), size) in enumerate(zip(files, sizes), 1):
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists() and destination.stat().st_size == size:
-            print(f"[{index}/{len(files)}] 既存ファイルを使用: {destination.name}", flush=True)
-            continue
-
         url = f"{base_url}/{urllib.parse.quote(relative, safe='/')}"
-        print(f"[{index}/{len(files)}] ダウンロード: {destination.name}", flush=True)
-        process = subprocess.Popen(
-            ["wget", "-c", "--progress=bar:force:noscroll", "-O", str(destination), url]
-        )
-        try:
-            while True:
-                try:
-                    result = process.wait(timeout=REPORT_SECONDS)
-                    break
-                except subprocess.TimeoutExpired:
-                    done = existing_bytes(files, sizes)
-                    elapsed = max(time.monotonic() - started, 0.001)
-                    live_speed = max(0, done - initial_done) / elapsed
-                    print(progress_line(done, total, live_speed or initial_speed), flush=True)
-        except BaseException:
-            process.terminate()
-            process.wait()
-            raise
-        if result != 0:
-            raise RuntimeError(f"ダウンロードに失敗しました: {destination.name} (wget exit {result})")
+        print(f"[{index}/{len(files)}] SHA-256 検証: {destination.name}", flush=True)
+        fetch(url, destination, expected)
         if destination.stat().st_size != size:
             raise RuntimeError(f"ダウンロードサイズが一致しません: {destination.name}")
         done = existing_bytes(files, sizes)
@@ -125,9 +110,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True)
     parser.add_argument("--revision", required=True)
-    parser.add_argument("--file", nargs=2, action="append", metavar=("REMOTE", "LOCAL"), required=True)
+    parser.add_argument("--file", nargs=3, action="append", metavar=("REMOTE", "LOCAL", "SHA256"), required=True)
     args = parser.parse_args()
-    files = [(remote, Path(local)) for remote, local in args.file]
+    files = [(remote, Path(local), expected) for remote, local, expected in args.file]
     base_url = f"https://huggingface.co/{args.repo}/resolve/{urllib.parse.quote(args.revision, safe='')}"
 
     sizes = model_sizes(args.repo, args.revision, files)

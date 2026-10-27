@@ -13,7 +13,6 @@ import json, sys
 print(json.load(open(sys.argv[1], encoding='utf-8'))['port'])
 PY
 )"
-VERIFY_SHA256="${VERIFY_SHA256:-0}" # 1: optional full SHA-256 verification
 UPDATE_COMFYUI="${UPDATE_COMFYUI:-1}"
 
 log() { printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
@@ -27,7 +26,6 @@ need df
 need sha256sum
 [ -x "$PYTHON" ] || die "Python がありません: $PYTHON（Vast PyTorch または Salad コンテナを確認）"
 [ -f "$MODEL_DIR/workflows/$WORKFLOW_FILE" ] || die "workflow がありません: $MODEL_DIR/workflows/$WORKFLOW_FILE"
-[[ "$VERIFY_SHA256" == 0 || "$VERIFY_SHA256" == 1 ]] || die 'VERIFY_SHA256 は 0 または 1 を指定してください。'
 mkdir -p "$WORKSPACE"
 
 log 'GPU・ディスク容量を確認'
@@ -46,37 +44,8 @@ log 'ComfyUI 依存パッケージを導入'
 HF_BASE="https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/$BASE_REVISION"
 HF_LORA="https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning/resolve/$LORA_REVISION"
 
-# Use temporary .part files so an interrupted download can be resumed.
-# The source SHA-256 is optionally checked using VERIFY_SHA256=1.
 fetch_model() {
-    local url="$1" dest="$2" expected_sha="$3" min_bytes="$4"
-    local partial="${dest}.part" size got_sha
-    mkdir -p "$(dirname "$dest")"
-    if [ -s "$dest" ]; then
-        size="$(stat -c %s "$dest")"
-        if [ "$size" -ge "$min_bytes" ]; then
-            if [ "$VERIFY_SHA256" != 1 ]; then
-                log "既存ファイルを再利用: $(basename "$dest")"
-                return 0
-            fi
-            log "既存ファイルの SHA-256 を確認: $(basename "$dest")"
-            got_sha="$(sha256sum "$dest" | awk '{print $1}')"
-            [ "$got_sha" = "$expected_sha" ] && return 0
-        fi
-        die "既存モデルが不完全・不一致です。手動確認してください: $dest"
-    fi
-    log "ダウンロード: $(basename "$dest")"
-    wget --https-only --tries=4 --timeout=60 -c --progress=bar:force:noscroll \
-        -O "$partial" "$url" || die "ダウンロードに失敗しました。再実行で再開できます: $partial"
-    [ -s "$partial" ] || die "空ファイルが取得されました: $partial"
-    size="$(stat -c %s "$partial")"
-    [ "$size" -ge "$min_bytes" ] || die "取得サイズが小さすぎます: $partial ($size bytes)"
-    if [ "$VERIFY_SHA256" = 1 ]; then
-        log "取得したファイルの SHA-256 を確認: $(basename "$dest")"
-        got_sha="$(sha256sum "$partial" | awk '{print $1}')"
-        [ "$got_sha" = "$expected_sha" ] || die "SHA-256 不一致: $partial"
-    fi
-    mv -n -- "$partial" "$dest"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" "$1" "$2" "$3"
 }
 
 DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"

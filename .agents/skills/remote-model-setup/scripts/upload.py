@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Upload repository code over SSH; leave model installation to the user."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import tarfile
+import tempfile
+import uuid
+
+
+ROOT = Path(__file__).resolve().parents[4]
+REMOTE_ROOT = '/workspace/qwen_vast_sh'
+ALLOWED_SUFFIXES = {'.sh', '.py', '.json', '.conf', '.lock', '.in', '.patch', '.js', '.txt'}
+MAX_SOURCE_BYTES = 10 * 1024 * 1024
+
+
+def parse_ssh(value: str) -> tuple[list[str], str]:
+    words = [word.strip('"') for word in shlex.split(value.strip(), posix=False)]
+    if not words or Path(words[0]).name.lower() not in ('ssh', 'ssh.exe'):
+        raise ValueError('SSH command must start with ssh')
+    arguments = []
+    target = None
+    index = 1
+    while index < len(words):
+        word = words[index]
+        if word in ('-p', '-i', '-L'):
+            index += 1
+            if index >= len(words):
+                raise ValueError(f'Missing {word} value')
+            if word != '-L':
+                arguments.extend((word, words[index]))
+        elif word.startswith('-p') and len(word) > 2:
+            arguments.extend(('-p', word[2:]))
+        elif word.startswith('-i') and len(word) > 2:
+            arguments.extend(('-i', word[2:]))
+        elif re.fullmatch(r'[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+', word):
+            if target is not None:
+                raise ValueError('Multiple SSH targets')
+            target = word
+        else:
+            raise ValueError(f'Unsupported SSH argument: {word}')
+        index += 1
+    if target is None:
+        raise ValueError('SSH user@host is missing')
+    if '-p' in arguments:
+        port = arguments[arguments.index('-p') + 1]
+        if not port.isdecimal() or not 1 <= int(port) <= 65535:
+            raise ValueError('Invalid SSH port')
+    return arguments, target
+
+
+def source_files(root: Path) -> list[Path]:
+    paths = []
+    for part in ('scripts', 'models'):
+        for path in (root / part).rglob('*'):
+            if path.suffix.lower() not in ALLOWED_SUFFIXES:
+                continue
+            relative = path.relative_to(root)
+            if part == 'models' and (len(relative.parts) < 3 or
+                                     not (root / 'models' / relative.parts[1] / 'setup.sh').is_file()):
+                continue
+            if path.suffix.lower() == '.txt' and not path.name.endswith('constraints.txt'):
+                continue
+            if path.name.startswith('.') or any(token in path.name.lower() for token in ('secret', 'api_key', 'token')):
+                continue
+            if any(component in ('tests', '__pycache__', 'tmp') for component in relative.parts):
+                continue
+            if path.is_symlink() or not path.is_file():
+                continue
+            if path.stat().st_size > MAX_SOURCE_BYTES:
+                raise ValueError(f'Source file is unexpectedly large: {relative}')
+            if path.suffix.lower() == '.json':
+                try:
+                    json.loads(path.read_text(encoding='utf-8'))
+                except (UnicodeError, json.JSONDecodeError):
+                    print(f'Skipping invalid optional JSON: {relative}')
+                    continue
+            paths.append(path)
+    return sorted(paths)
+
+
+def build_archive(root: Path, output: Path) -> dict:
+    files = source_files(root)
+    manifest = {'files': {}}
+    with tarfile.open(output, 'w') as archive:
+        for path in files:
+            relative = path.relative_to(root).as_posix()
+            data = path.read_bytes()
+            manifest['files'][relative] = hashlib.sha256(data).hexdigest()
+            info = tarfile.TarInfo(relative)
+            info.size = len(data)
+            info.mode = 0o644
+            archive.addfile(info, io.BytesIO(data))
+        installer = Path(__file__).with_name('remote_install.py').read_bytes()
+        info = tarfile.TarInfo('remote_install.py')
+        info.size = len(installer)
+        info.mode = 0o644
+        archive.addfile(info, io.BytesIO(installer))
+        version_source = json.dumps(manifest['files'], sort_keys=True).encode('utf-8')
+        manifest['version'] = hashlib.sha256(version_source).hexdigest()
+        body = json.dumps(manifest, sort_keys=True).encode('utf-8')
+        info = tarfile.TarInfo('manifest.json')
+        info.size = len(body)
+        info.mode = 0o644
+        archive.addfile(info, io.BytesIO(body))
+    return manifest
+
+
+def checked_marker(command: list[str], marker: str) -> str:
+    result = subprocess.run(command, text=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, check=False)
+    for line in result.stdout.splitlines():
+        if line.startswith(marker):
+            return line
+    raise RuntimeError(f'SSH verification failed: {result.stdout[-2000:]}')
+
+
+def upload(ssh_command: str, model: str, provider: str = 'auto') -> tuple[str, str]:
+    if not re.fullmatch(r'[a-z0-9][a-z0-9.-]*', model) or not (ROOT / 'models' / model / 'setup.sh').is_file():
+        raise ValueError(f'Unknown runnable model: {model}')
+    config = json.loads((ROOT / 'models' / model / 'runtime.json').read_text(encoding='utf-8'))
+    for workflow in config.get('workflows', []):
+        path = ROOT / 'models' / model / 'workflows' / workflow
+        if not path.is_file():
+            path = ROOT / 'models' / model / workflow
+        json.loads(path.read_text(encoding='utf-8'))
+    arguments, target = parse_ssh(ssh_command)
+    ssh = ['ssh', '-T', *arguments, target]
+    if provider == 'auto':
+        result = checked_marker(ssh + [
+            "if [ -f /opt/salad/start.sh ]; then echo PROVIDER=salad; "
+            "elif [ -d /workspace ]; then echo PROVIDER=vast; fi"
+        ], 'PROVIDER=')
+        provider = result.split('=', 1)[1]
+    if provider not in ('vast', 'salad'):
+        raise ValueError('Provider must be vast or salad')
+    if provider == 'salad' and model == 'lightwan2.2-a14b':
+        raise ValueError('LightWan is not supported by the Salad ComfyUI Gateway')
+    (ROOT / 'tmp').mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='remote-code-', dir=ROOT / 'tmp') as temporary:
+        archive = Path(temporary) / 'code.tar'
+        manifest = build_archive(ROOT, archive)
+        nonce = uuid.uuid4().hex
+        remote_archive = f'/workspace/.codex-transfer-{nonce}.tar'
+        remote_stage = f'/workspace/.codex-transfer-{nonce}'
+        scp_arguments = []
+        if '-p' in arguments:
+            scp_arguments.extend(('-P', arguments[arguments.index('-p') + 1]))
+        if '-i' in arguments:
+            scp_arguments.extend(('-i', arguments[arguments.index('-i') + 1]))
+        subprocess.run(['scp', *scp_arguments, str(archive), f'{target}:{remote_archive}'], check=True)
+        remote = (
+            f'mkdir -p {remote_stage} && '
+            f'tar -xf {remote_archive} -C {remote_stage} && '
+            f'python3 {remote_stage}/remote_install.py {remote_stage} {REMOTE_ROOT} && '
+            f'rm -f {remote_archive} && rm -r {remote_stage}'
+        )
+        checked_marker(ssh + [remote], f"TRANSFER_OK {manifest['version']}")
+    return provider, manifest['version']
+
+
+def setup_command(ssh_command: str, provider: str, model: str) -> str:
+    arguments, target = parse_ssh(ssh_command)
+    tokens = ['ssh', '-tt']
+    for index in range(0, len(arguments), 2):
+        flag, value = arguments[index:index + 2]
+        if flag == '-i':
+            value = "'" + value.replace("'", "''") + "'"
+        tokens.extend((flag, value))
+    tokens.append(target)
+    script = (f'bash /opt/salad/select_model.sh {model}' if provider == 'salad'
+              else f'bash {REMOTE_ROOT}/models/{model}/setup.sh')
+    tokens.append("'" + script + "'")
+    return ' '.join(tokens)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ssh-command', required=True)
+    parser.add_argument('--model', required=True)
+    parser.add_argument('--provider', choices=('auto', 'vast', 'salad'), default='auto')
+    args = parser.parse_args()
+    provider, version = upload(args.ssh_command, args.model, args.provider)
+    print(f'Code transfer verified: provider={provider} model={args.model} version={version}')
+    print('Run this in PowerShell to watch model setup:')
+    print(setup_command(args.ssh_command, provider, args.model))
+
+
+if __name__ == '__main__':
+    main()

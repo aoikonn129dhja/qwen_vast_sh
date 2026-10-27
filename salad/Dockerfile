@@ -7,9 +7,7 @@ RUN uv pip install --python /venv/main/bin/python aiohttp==3.14.3
 RUN /venv/main/bin/python -c "import torch; assert torch.__version__ == '2.11.0+cu130'"
 RUN mkdir -p /opt/salad && cp -a /venv/main /opt/salad/base-venv
 ENV PATH="/venv/main/bin:$PATH" WORKSPACE=/workspace COMFY_DIR=/workspace/ComfyUI PYTHON=/venv/main/bin/python
-WORKDIR /workspace/qwen_vast_sh
-COPY models/ models/
-COPY scripts/ scripts/
+WORKDIR /workspace
 COPY salad/common/auth_proxy.py /opt/salad/auth_proxy.py
 COPY salad/start.sh /opt/salad/start.sh
 COPY salad/select_model.sh /opt/salad/select_model.sh

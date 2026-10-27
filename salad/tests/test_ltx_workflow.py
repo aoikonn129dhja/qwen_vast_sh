@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -75,20 +76,19 @@ class LtxWorkflowTests(unittest.TestCase):
 
     def test_vast_upscaler_skip_and_hash_failure(self):
         source = (VAST / 'setup.sh').read_text(encoding='utf-8')
-        helper = source.split('sha256_matches() {', 1)[1].split('\ninstall_uv()', 1)[0]
-        block = source.split('UPSCALER_PATH=', 1)[1].split('log "[5/5]', 1)[0]
-        script = 'set -Eeuo pipefail\nsha256_matches() {' + helper
-        script += '\ndie() { exit 1; }\nUPSCALER_PATH=' + block
+        self.assertIn('scripts/runtime/model_files.py', source)
         with tempfile.TemporaryDirectory(dir=ROOT / 'tmp') as folder:
             work = Path(folder)
             wget = work / 'wget'
             wget.write_text('#!/bin/bash\necho call >> "$CALLS"\nwhile (($#)); do if [ "$1" = -O ]; then out="$2"; shift 2; else shift; fi; done\nprintf "%s" "$CONTENT" > "$out"\n')
             wget.chmod(0o755)
             calls = work / 'calls'
-            env = dict(os.environ, PATH=str(work)+':'+os.environ['PATH'], COMFY_DIR=str(work / 'comfy'), UPSCALER_FILE='upscale.bin', UPSCALER_URL='https://offline.invalid', UPSCALER_SHA256=hashlib.sha256(b'valid').hexdigest(), CALLS=str(calls), CONTENT='valid')
-            def run():
-                return subprocess.run(['bash','-c',script],env=env,capture_output=True)
+            env = dict(os.environ, PATH=str(work)+':'+os.environ['PATH'], CALLS=str(calls), CONTENT='valid')
             destination = work / 'comfy/models/latent_upscale_models/upscale.bin'
+            def run():
+                return subprocess.run([sys.executable, str(ROOT / 'scripts/runtime/model_files.py'),
+                                       'https://offline.invalid/upscale.bin', str(destination),
+                                       hashlib.sha256(b'valid').hexdigest()], env=env, capture_output=True)
             self.assertEqual(run().returncode, 0)
             self.assertEqual(destination.read_bytes(), b'valid')
             self.assertEqual(run().returncode, 0)

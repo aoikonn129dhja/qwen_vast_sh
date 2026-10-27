@@ -99,22 +99,15 @@ VAE_DIR="$SHARED_COMFY_DIR/models/vae"
 
 "$PYTHON" "$MODEL_DIR/download_models.py" \
     --repo "$HF_REPO" --revision "$HF_REVISION" \
-    --file "$TRANSFORMER_REL" "$DIFFUSION_DIR/$TRANSFORMER_FILE" \
-    --file "$TEXT_ENCODER_REL" "$TEXT_ENCODERS_DIR/$TEXT_ENCODER_FILE" \
-    --file "$PROJECTIONS_REL" "$TEXT_ENCODERS_DIR/$PROJECTIONS_FILE" \
-    --file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE" \
-    --file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE"
+    --file "$TRANSFORMER_REL" "$DIFFUSION_DIR/$TRANSFORMER_FILE" "$TRANSFORMER_SHA256" \
+    --file "$TEXT_ENCODER_REL" "$TEXT_ENCODERS_DIR/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_SHA256" \
+    --file "$PROJECTIONS_REL" "$TEXT_ENCODERS_DIR/$PROJECTIONS_FILE" "$PROJECTIONS_SHA256" \
+    --file "$VIDEO_VAE_REL" "$VAE_DIR/$VIDEO_VAE_FILE" "$VIDEO_VAE_SHA256" \
+    --file "$AUDIO_VAE_REL" "$VAE_DIR/$AUDIO_VAE_FILE" "$AUDIO_VAE_SHA256"
 
 UPSCALER_PATH="$SHARED_COMFY_DIR/models/latent_upscale_models/$UPSCALER_FILE"
-if ! sha256_matches "$UPSCALER_PATH" "$UPSCALER_SHA256"; then
-    mkdir -p -- "$(dirname -- "$UPSCALER_PATH")"
-    wget -q --https-only --tries=3 --timeout=60 -c -O "$UPSCALER_PATH.part" "$UPSCALER_URL"
-    if ! sha256_matches "$UPSCALER_PATH.part" "$UPSCALER_SHA256"; then
-        rm -f -- "$UPSCALER_PATH.part"
-        die "x2 upscalerのSHA-256が一致しません。"
-    fi
-    mv -f -- "$UPSCALER_PATH.part" "$UPSCALER_PATH"
-fi
+"$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" \
+    "$UPSCALER_URL" "$UPSCALER_PATH" "$UPSCALER_SHA256"
 
 RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
 runtime_start "$RUNTIME_PORT"

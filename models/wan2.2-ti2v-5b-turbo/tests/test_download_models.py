@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import importlib.util
 import io
 from pathlib import Path
@@ -22,8 +23,10 @@ class DownloadTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.cached = self.root / 'cache.bin'
         self.cached.write_bytes(b'data')
-        self.files = [('turbo.bin', 'diffusion_models', 4),
-                      ('encoder.bin', 'text_encoders', 4), ('vae.bin', 'vae', 4)]
+        expected = hashlib.sha256(b'data').hexdigest()
+        self.files = [('turbo.bin', 'diffusion_models', 4, expected),
+                      ('encoder.bin', 'text_encoders', 4, expected),
+                      ('vae.bin', 'vae', 4, expected)]
 
     def run_download(self, download):
         downloader.download_models(self.files, 'turbo-repo', 'pinned', 'shared-repo',
@@ -45,18 +48,16 @@ class DownloadTests(unittest.TestCase):
         self.assertIn('completed 3/3 files', log)
         self.assertIn('100.0%', log)
         self.assertIn('MiB/s | ETA', log)
-        self.assertIn('SKIP already present:', log)
+        self.assertIn('Verified SHA-256; reuse:', log)
 
     def test_bad_download_preserves_existing_destination(self):
         destination = self.root / 'models/diffusion_models/turbo.bin'
         destination.parent.mkdir(parents=True)
         destination.write_bytes(b'old')
-        self.cached.write_bytes(b'x')
         with contextlib.redirect_stdout(io.StringIO()) as output:
-            with self.assertRaisesRegex(RuntimeError, 'Download size mismatch'):
+            with self.assertRaisesRegex(RuntimeError, 'Existing model SHA-256 differs'):
                 self.run_download(Mock(return_value=self.cached))
         self.assertEqual(destination.read_bytes(), b'old')
-        self.assertIn('FAILED Download / cache reconstruction', output.getvalue())
         self.assertNotIn('completed 1/3 files', output.getvalue())
 
     def test_copy_error_preserves_destination_and_removes_partial(self):

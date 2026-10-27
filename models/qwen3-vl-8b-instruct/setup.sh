@@ -223,26 +223,33 @@ PY
 
 log "Qwen3-VL-8B-Instruct公式モデルを取得（約17.5GB）"
 mkdir -p "$MODEL_PATH" "$SHARED_COMFY_DIR/input" "$SHARED_COMFY_DIR/output" "$(dirname "$WORKFLOW_PATH")"
-QWEN_MODEL_ID="$MODEL_ID" QWEN_MODEL_PATH="$MODEL_PATH" QWEN_MODEL_REVISION="$MODEL_REVISION" "$PYTHON" - <<'PY'
+QWEN_MODEL_ID="$MODEL_ID" QWEN_MODEL_PATH="$MODEL_PATH" QWEN_MODEL_REVISION="$MODEL_REVISION" QWEN_REPO_ROOT="$REPO_ROOT" "$PYTHON" - <<'PY'
 import os
 from pathlib import Path
+import sys
 from huggingface_hub import snapshot_download
+sys.path.insert(0, str(Path(os.environ['QWEN_REPO_ROOT']) / 'scripts' / 'runtime'))
+from model_files import fetch
 path = Path(os.environ['QWEN_MODEL_PATH'])
 index = path / 'model.safetensors.index.json'
-complete = False
-if (path / 'config.json').is_file() and index.is_file():
-    import json
-    shards = set(json.loads(index.read_text(encoding='utf-8'))['weight_map'].values())
-    complete = bool(shards) and all((path / shard).is_file() and (path / shard).stat().st_size > 0 for shard in shards)
-if not complete:
+weights = {
+    'model-00001-of-00004.safetensors': 'd5d0aef0eb170fc7453a296c43c0849a56f510555d3588e4fd662bb35490aefa',
+    'model-00002-of-00004.safetensors': '8be88fb5501e4d5719a6d4cc212e6a13480330e74f3e8c77daa1a68f199106b5',
+    'model-00003-of-00004.safetensors': '83de00eafe6e0d57ccd009dbcf71c9974d74df2f016c27afb7e95aafd16b2192',
+    'model-00004-of-00004.safetensors': '0a88b98e9f96270973f567e6a2c103ede6ccdf915ca3075e21c755604d0377a5',
+}
+for name, expected in weights.items():
+    url = f"https://huggingface.co/{os.environ['QWEN_MODEL_ID']}/resolve/{os.environ['QWEN_MODEL_REVISION']}/{name}"
+    fetch(url, path / name, expected)
+if not (path / 'config.json').is_file() or not index.is_file():
     snapshot_download(
         repo_id=os.environ['QWEN_MODEL_ID'],
         revision=os.environ['QWEN_MODEL_REVISION'],
         local_dir=str(path),
-        ignore_patterns=['*.md', '.gitattributes'],
+        ignore_patterns=['*.safetensors', '*.md', '.gitattributes'],
         max_workers=4,
     )
-if not (path / 'config.json').is_file() or not list(path.glob('*.safetensors')):
+if not (path / 'config.json').is_file() or not index.is_file():
     raise SystemExit(f'Model download is incomplete: {path}')
 print(f'Model downloaded to: {path}')
 PY

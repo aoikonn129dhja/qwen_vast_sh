@@ -11,14 +11,9 @@ Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するため�
 
 ## モデルを選ぶ
 
-新規インスタンスでは、clone後に使うモデルのディレクトリへ移動し、セットアップを実行する。
+新規インスタンスでは Codex に SSH コマンドを渡し、`remote-model-setup` スキルで使うモデルを選ぶ。Codex がコード・設定・ワークフローを転送し、セットアップの実行コマンドを返す。モデルのダウンロードとセットアップはユーザーがそのコマンドを実行して進捗を確認する。リポジトリの `git clone` は不要。
 
-```bash
-git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
-cd /workspace/qwen_vast_sh
-cd models/qwen-rapid-aio-nsfw-v19
-bash setup.sh
-```
+同じインスタンスでの再実行では、既存モデルの SHA-256 を確認して再利用する。不一致のファイルは削除・上書きせず停止する。ComfyUI が壊れた場合は対象モデルのコードと専用 Python 環境だけを退避して再構築し、共有モデルは保持する。
 
 | ディレクトリ | 用途 | バッチ |
 |---|---|---|
@@ -27,6 +22,7 @@ bash setup.sh
 | `qwen-image-edit-2509` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
 | `qwen-image-edit-2511` | ComfyUIでの公式系画像編集・ポーズ入力 | 非対応 |
 | `ltx-2.3-uncensored-v1.4-q4` | ComfyUIでの画像から動画の生成 | 非対応 |
+| `wan2.2-enhanced-nsfw` | Wan 2.2 Enhanced SVI FP8 動画生成 | 非対応 |
 
 Rapid v19のバッチ実行:
 

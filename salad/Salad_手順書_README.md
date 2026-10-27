@@ -2,7 +2,7 @@
 
 ## 共通イメージと Container Group
 
-リポジトリのルートをビルド context にして、SaladCloud 用の共通イメージを作る。モデル本体はイメージに含まれない。
+リポジトリのルートをビルド context にして、SaladCloud 用の共通イメージを作る。モデル本体と `models/`・`scripts/` のコードはイメージに含まれない。
 
 ```bash
 docker build --platform linux/amd64 -f salad/Dockerfile -t salad:local .
@@ -12,7 +12,7 @@ Container Group には共通イメージを設定し、Autostart を無効にす
 
 ## 起動とモデルの切り替え
 
-SaladCloud で Run を押し、レプリカが起動したらコンテナのターミナルでモデルを選ぶ。
+SaladCloud で Run を押し、レプリカが起動したら Codex にインスタンスの SSH コマンドを渡し、`remote-model-setup` スキルでモデルを選ぶ。Codex によるコード転送の完了後、返されたコマンドを自分の PowerShell で実行し、モデルのダウンロード状況を見る。
 
 ```bash
 bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
@@ -30,6 +30,7 @@ bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
 - Qwen3-VL 8B: `bash /opt/salad/select_model.sh qwen3-vl-8b-instruct`
 - Wan 2.2 TI2V 5B: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b`
 - Wan 2.2 TI2V 5B Turbo: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b-turbo`
+- Wan 2.2 Enhanced NSFW SVI FP8: `bash /opt/salad/select_model.sh wan2.2-enhanced-nsfw`
 
 LightWan 2.2 A14B は LightX2V を使う CLI モデルであり、ComfyUI Gateway のモデル選択には対応しない。Vast 側でも推論用の標準実行コマンドと必要資産の検証は未整備。
 

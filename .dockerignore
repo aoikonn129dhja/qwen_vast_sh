@@ -1,10 +1,6 @@
 *
 !salad/
 !salad/**
-!models/
-!models/**
-!scripts/
-!scripts/**
 .git
 tmp
 **/__pycache__

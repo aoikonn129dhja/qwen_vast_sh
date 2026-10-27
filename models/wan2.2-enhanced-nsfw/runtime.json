@@ -1,0 +1,21 @@
+{
+  "model_id": "wan2.2-enhanced-nsfw",
+  "runtime_type": "comfyui",
+  "comfy_commit": "ba994879b88d0ebd9950b1e5c1e923d928f216ba",
+  "python_requirements": "ComfyUI/requirements.txt",
+  "model_paths": [
+    "models/diffusion_models/wan22EnhancedNSFWSVICamera_nsfwV2FP8H.safetensors",
+    "models/diffusion_models/wan22EnhancedNSFWSVICamera_nsfwV2FP8L.safetensors"
+  ],
+  "custom_nodes": ["comfyui-load-image-with-filename"],
+  "workflows": ["Wan 2.2 Enhanced NSFW SVI FP8.json"],
+  "gpu_policy": {"reserve_mb": 24576},
+  "unload_strategy": "comfy_free_then_managed_process",
+  "port": 18226,
+  "signatures": {
+    "model_files": [
+      "wan22EnhancedNSFWSVICamera_nsfwV2FP8H.safetensors",
+      "wan22EnhancedNSFWSVICamera_nsfwV2FP8L.safetensors"
+    ]
+  }
+}

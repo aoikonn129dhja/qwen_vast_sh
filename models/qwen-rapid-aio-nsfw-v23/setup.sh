@@ -26,6 +26,7 @@ UV="$WORKSPACE/bin/uv"
 MODEL_FILE="Qwen-Rapid-AIO-NSFW-v23.safetensors"
 MODEL_REPO_COMMIT="691024f438640508f8aa86414863fc15edfb8a84"
 MODEL_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/v23/Qwen-Rapid-AIO-NSFW-v23.safetensors"
+MODEL_SHA256="fdb919fc81bea63f13759967fc92c9118142e5c70d4e6795199233a35eefa233"
 
 QWEN_NODE_URL="https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/resolve/$MODEL_REPO_COMMIT/fixed-textencode-node/nodes_qwen.v2.py"
 QWEN_NODE_SHA256="9df96288f466ca03f7d7fa8587ad53c8021b784f42daabdc1f59a61b71c40238"
@@ -87,15 +88,8 @@ ensure_large_file() {
     local url="$1"
     local destination="$2"
     local label="$3"
-    local partial="${destination}.part"
-
-    if [ -s "$destination" ]; then
-        return 0
-    fi
-
-    wget -c -O "$partial" "$url" || die "$label のダウンロードに失敗しました。"
-    [ -s "$partial" ] || die "$label のダウンロード結果が空です。"
-    mv -f -- "$partial" "$destination"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" "$url" "$destination" "$MODEL_SHA256" \
+        || die "$label の SHA-256 検証またはダウンロードに失敗しました。"
 }
 
 install_verified_uv() {
@@ -241,34 +235,7 @@ fi
 # ------------------------------------------------------------
 # ComfyUI
 # ------------------------------------------------------------
-COMFY_VALID=0
-COMFY_CURRENT_COMMIT=""
-
-if [ -d "$COMFY_DIR/.git" ] \
-    && [ -f "$COMFY_DIR/requirements.txt" ] \
-    && [ -f "$COMFY_DIR/main.py" ] \
-    && git -C "$COMFY_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    COMFY_CURRENT_COMMIT="$(git -C "$COMFY_DIR" rev-parse HEAD 2>/dev/null || true)"
-    if [ "$COMFY_CURRENT_COMMIT" = "$COMFYUI_COMMIT" ]; then
-        COMFY_VALID=1
-    fi
-fi
-
-if [ "$COMFY_VALID" -eq 1 ]; then
-    log "固定済みComfyUIコミットを確認: $COMFYUI_COMMIT"
-elif [ -e "$COMFY_DIR" ]; then
-    die "専用ComfyUIのコミットが異なります。既存インスタンスを保護するため停止: $COMFY_DIR"
-else
-    log "モデル専用ComfyUI固定コミットを取得: $COMFYUI_COMMIT"
-    git init -q "$COMFY_DIR"
-    git -C "$COMFY_DIR" remote add origin "$COMFYUI_REPO"
-    git -C "$COMFY_DIR" fetch -q --depth 1 origin "$COMFYUI_COMMIT"
-    git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
-    [ "$(git -C "$COMFY_DIR" rev-parse HEAD)" = "$COMFYUI_COMMIT" ] \
-        || die "ComfyUIの取得コミットが固定値と一致しません。"
-fi
-
-runtime_link_data
+runtime_clone_comfy "$MODEL_DIR/runtime.json"
 cd "$COMFY_DIR"
 
 log "固定済みuvを準備"

@@ -3,6 +3,23 @@
 
 runtime_die() { printf 'ERROR: %s\n' "$*" >&2; return 1; }
 
+runtime_make_env() {
+    if command -v uv >/dev/null 2>&1; then
+        uv venv --python "${BASE_PYTHON:-/venv/main/bin/python}" --seed "$RUNTIME_ENV"
+    elif [ -x "$WORKSPACE/bin/uv" ]; then
+        "$WORKSPACE/bin/uv" venv --python "${BASE_PYTHON:-/venv/main/bin/python}" --seed "$RUNTIME_ENV"
+    else
+        "${BASE_PYTHON:-/venv/main/bin/python}" -m venv "$RUNTIME_ENV"
+    fi
+}
+
+runtime_backup_path() {
+    local kind="$1" backup
+    backup="$RUNTIME_ROOT/repair-backups/$(basename -- "$RUNTIME_INSTANCE")/$(date -u +%Y%m%dT%H%M%S.%N)-$$-$kind"
+    mkdir -p "$(dirname -- "$backup")"
+    printf '%s\n' "$backup"
+}
+
 runtime_prepare() {
     local model_id="$1"
     [[ "$model_id" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || runtime_die 'Invalid model ID.' || return 1
@@ -24,14 +41,14 @@ runtime_prepare() {
         printf 'Another model setup is running; waiting for the workspace setup lock.\n'
         flock -x "$RUNTIME_SETUP_LOCK"
     fi
+    if [ -e "$RUNTIME_ENV" ] && { [ ! -x "$PYTHON" ] || ! "$PYTHON" -c 'import sys' >/dev/null 2>&1; }; then
+        local backup
+        backup="$(runtime_backup_path environment)"
+        mv -- "$RUNTIME_ENV" "$backup" || return 1
+        printf 'Damaged Python environment preserved: %s\n' "$backup"
+    fi
     if [ ! -x "$PYTHON" ]; then
-        if command -v uv >/dev/null 2>&1; then
-            uv venv --python "${BASE_PYTHON:-/venv/main/bin/python}" --seed "$RUNTIME_ENV"
-        elif [ -x "$WORKSPACE/bin/uv" ]; then
-            "$WORKSPACE/bin/uv" venv --python "${BASE_PYTHON:-/venv/main/bin/python}" --seed "$RUNTIME_ENV"
-        else
-            "${BASE_PYTHON:-/venv/main/bin/python}" -m venv "$RUNTIME_ENV"
-        fi
+        runtime_make_env
     fi
     export WORKSPACE RUNTIME_ROOT SHARED_COMFY_DIR RUNTIME_INSTANCE RUNTIME_ENV COMFY_DIR PYTHON COMFY_LOG RUNTIME_PID_FILE
 }
@@ -76,42 +93,80 @@ PY
 }
 
 runtime_clone_comfy() {
-    local config="$1" commit current
-    commit="$("$PYTHON" - "$config" <<'PY'
+    local config="$1" commit current backup port pid
+    commit="$("${BASE_PYTHON:-$PYTHON}" - "$config" <<'PY'
 import json, sys
 print(json.load(open(sys.argv[1], encoding='utf-8'))['comfy_commit'])
 PY
 )"
+    [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || runtime_die 'Invalid pinned ComfyUI commit.' || return 1
+    current=""
     if [ -f "$COMFY_DIR/main.py" ] && [ -d "$COMFY_DIR/.git" ]; then
-        current="$(git -C "$COMFY_DIR" rev-parse HEAD)"
-        [ "$current" = "$commit" ] || runtime_die "Instance commit differs: $current (expected $commit)" || return 1
-    elif [ -e "$COMFY_DIR" ]; then
-        runtime_die "Incomplete instance is preserved for inspection: $COMFY_DIR" || return 1
-    else
-        git init -q "$COMFY_DIR"
-        git -C "$COMFY_DIR" remote add origin https://github.com/Comfy-Org/ComfyUI.git
-        git -C "$COMFY_DIR" fetch -q --depth 1 origin "$commit"
-        git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD
+        current="$(git -C "$COMFY_DIR" rev-parse HEAD 2>/dev/null || true)"
+        if [ "$current" = "$commit" ] &&
+           ! git -C "$COMFY_DIR" diff --quiet HEAD -- . ':!comfy_extras/nodes_qwen.py'; then
+            current="damaged-working-tree"
+        fi
     fi
-    runtime_link_data
+    if [ "${FORCE_COMFY_REPAIR:-0}" = 1 ] && [ -e "$COMFY_DIR" ]; then
+        current="forced-repair"
+    fi
+    if [ -e "$COMFY_DIR" ] && [ "$current" != "$commit" ]; then
+        local embedded_model
+        embedded_model="$(find "$COMFY_DIR" -type f \( -iname '*.safetensors' -o -iname '*.gguf' -o -iname '*.ckpt' -o -iname '*.pt' -o -iname '*.pth' -o -iname '*.onnx' \) -print -quit)" || return 1
+        [ -z "$embedded_model" ] || runtime_die "Model file inside ComfyUI instance; refusing automatic repair: $embedded_model" || return 1
+        port="$(runtime_port "$config")" || return 1
+        if [ -s "$RUNTIME_PID_FILE" ]; then
+            read -r pid < "$RUNTIME_PID_FILE"
+            if runtime_pid_valid "$pid" "$port"; then
+                kill "$pid" || return 1
+            elif [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+                runtime_die "Unrecognized running process; refusing ComfyUI repair: $pid" || return 1
+            fi
+        fi
+        backup="$(runtime_backup_path ComfyUI)"
+        mv -- "$COMFY_DIR" "$backup" || return 1
+        printf 'Damaged ComfyUI preserved: %s\n' "$backup"
+        if [ -e "$RUNTIME_ENV" ]; then
+            backup="$(runtime_backup_path environment)"
+            mv -- "$RUNTIME_ENV" "$backup" || return 1
+            printf 'Previous Python environment preserved: %s\n' "$backup"
+            runtime_make_env || return 1
+        fi
+    fi
+    if [ ! -e "$COMFY_DIR" ]; then
+        git init -q "$COMFY_DIR" || return 1
+        git -C "$COMFY_DIR" remote add origin "${COMFY_SOURCE_URL:-https://github.com/Comfy-Org/ComfyUI.git}" || return 1
+        git -C "$COMFY_DIR" fetch -q --depth 1 origin "$commit" || return 1
+        git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD || return 1
+    fi
+    runtime_link_data || return 1
 }
 
 runtime_clone_node() {
-    local url="$1" commit="$2" destination="$3"
+    local url="$1" commit="$2" destination="$3" backup current origin
     [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || runtime_die 'Custom node commit must be a 40-character SHA.' || return 1
-    if [ -d "$destination/.git" ]; then
-        [ "$(git -C "$destination" remote get-url origin 2>/dev/null || true)" = "$url" ] || runtime_die "Custom node remote differs: $destination" || return 1
-        [ "$(git -C "$destination" rev-parse HEAD)" = "$commit" ] || runtime_die "Custom node commit differs: $destination" || return 1
-    elif [ -e "$destination" ]; then
-        runtime_die "Existing custom node is preserved: $destination" || return 1
-    else
-        mkdir -p "$(dirname -- "$destination")"
-        git init -q "$destination"
-        git -C "$destination" remote add origin "$url"
-        git -C "$destination" fetch -q --depth 1 origin "$commit"
-        git -C "$destination" checkout -q --detach FETCH_HEAD
-        [ "$(git -C "$destination" rev-parse HEAD)" = "$commit" ] || runtime_die "Custom node checkout failed: $destination" || return 1
+    [[ "$destination" == "$COMFY_DIR/custom_nodes/"* ]] || runtime_die 'Custom node path is outside the model instance.' || return 1
+    current="$(git -C "$destination" rev-parse HEAD 2>/dev/null || true)"
+    origin="$(git -C "$destination" remote get-url origin 2>/dev/null || true)"
+    if [ "$current" = "$commit" ] && [ "$origin" = "$url" ] &&
+       git -C "$destination" diff --quiet HEAD; then
+        return 0
     fi
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+        local embedded_model
+        embedded_model="$(find "$destination" -type f \( -iname '*.safetensors' -o -iname '*.gguf' -o -iname '*.ckpt' -o -iname '*.pt' -o -iname '*.pth' -o -iname '*.onnx' \) -print -quit)" || return 1
+        [ -z "$embedded_model" ] || runtime_die "Model file inside custom node; refusing automatic repair: $embedded_model" || return 1
+        backup="$(runtime_backup_path "$(basename -- "$destination")")"
+        mv -- "$destination" "$backup" || return 1
+        printf 'Damaged custom node preserved: %s\n' "$backup"
+    fi
+    mkdir -p "$(dirname -- "$destination")"
+    git init -q "$destination" || return 1
+    git -C "$destination" remote add origin "$url" || return 1
+    git -C "$destination" fetch -q --depth 1 origin "$commit" || return 1
+    git -C "$destination" checkout -q --detach FETCH_HEAD || return 1
+    [ "$(git -C "$destination" rev-parse HEAD)" = "$commit" ] || runtime_die "Custom node checkout failed: $destination" || return 1
 }
 
 runtime_uv_install_requirements() {

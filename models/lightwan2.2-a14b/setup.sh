@@ -22,11 +22,14 @@ fi
 "$UV" pip install --python "$PYTHON" 'aiohttp==3.14.3'
 MODEL_PATH="$WORKSPACE/models/LightWan2.2-A14B"
 mkdir -p "$MODEL_PATH"
-"$PYTHON" - "$HF_REPO" "$MODEL_PATH" <<'PY'
-import sys
-from huggingface_hub import snapshot_download
-snapshot_download(repo_id=sys.argv[1], local_dir=sys.argv[2])
-PY
+for entry in \
+  "Wan2.2-T2V-A14B_NVFP4_Sparse_high.safetensors|$HIGH_SHA256" \
+  "Wan2.2-T2V-A14B_NVFP4_Sparse_low.safetensors|$LOW_SHA256"; do
+    IFS='|' read -r name expected <<< "$entry"
+    "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" \
+      "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$name" \
+      "$MODEL_PATH/$name" "$expected"
+done
 runtime_register_cli "$MODEL_DIR/runtime.json" "$ENGINE"
 runtime_gateway_start
 cat <<MSG
