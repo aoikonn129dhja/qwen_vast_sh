@@ -29,6 +29,9 @@ bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
 - Qwen Image 2.1 INT8 Lightning: `bash /opt/salad/select_model.sh qwen-image-2.1-int8-lightning`
 - Qwen3-VL 8B: `bash /opt/salad/select_model.sh qwen3-vl-8b-instruct`
 - Wan 2.2 TI2V 5B: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b`
+- Wan 2.2 TI2V 5B Turbo: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b-turbo`
+
+LightWan 2.2 A14B は LightX2V を使う CLI モデルであり、ComfyUI Gateway のモデル選択には対応しない。Vast 側でも推論用の標準実行コマンドと必要資産の検証は未整備。
 
 別のモデルを使う場合はワークフローを開いてQueueする。不要になったモデルの登録だけ解除するときは名前を指定する。
 

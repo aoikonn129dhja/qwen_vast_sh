@@ -7,7 +7,7 @@ Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するため�
 ## プロバイダを選ぶ
 
 - `models/`: Vast.ai用モデル設定。以下の手順を使用する。
-- `salad/`: SaladCloud用。詳細は [salad/README.md](salad/README.md) を参照する。
+- `salad/`: SaladCloud用。詳細は [SaladCloud 手順書](salad/Salad_手順書_README.md) を参照する。
 
 ## モデルを選ぶ
 
