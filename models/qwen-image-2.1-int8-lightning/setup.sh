@@ -34,6 +34,18 @@ df -h "$WORKSPACE"
 free_kb="$(df -Pk "$WORKSPACE" | awk 'NR == 2 { print $4 }')"
 [ "$free_kb" -ge 23000000 ] || die '空き容量が23GB未満です。モデル約17.4GBと一時ファイルの領域を確保してください。'
 
+HF_BASE="https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/$BASE_REVISION"
+HF_LORA="https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning/resolve/$LORA_REVISION"
+DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
+TEXT_ENCODER_PATH="$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
+VAE_PATH="$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
+LORA_PATH="$SHARED_COMFY_DIR/models/loras/$LORA_FILE"
+"$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
+    --file "$HF_BASE/diffusion_models/$DIFFUSION_FILE" "$DIFFUSION_PATH" "$DIFFUSION_SHA256" \
+    --file "$HF_BASE/text_encoders/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_PATH" "$TEXT_ENCODER_SHA256" \
+    --file "$HF_BASE/vae/$VAE_FILE" "$VAE_PATH" "$VAE_SHA256" \
+    --file "$HF_LORA/$LORA_SOURCE_FILE" "$LORA_PATH" "$LORA_SHA256"
+
 # Ensure a recent ComfyUI to support the native Qwen Image 2.1 nodes.
 log 'ComfyUI の準備'
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
@@ -41,17 +53,10 @@ runtime_clone_comfy "$MODEL_DIR/runtime.json"
 log 'ComfyUI 依存パッケージを導入'
 "$PYTHON" -m pip install -r "$COMFY_DIR/requirements.txt"
 
-HF_BASE="https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/$BASE_REVISION"
-HF_LORA="https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning/resolve/$LORA_REVISION"
-
 fetch_model() {
     "$PYTHON" "$REPO_ROOT/scripts/runtime/model_files.py" "$1" "$2" "$3"
 }
 
-DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
-TEXT_ENCODER_PATH="$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
-VAE_PATH="$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
-LORA_PATH="$SHARED_COMFY_DIR/models/loras/$LORA_FILE"
 WORKFLOW_PATH="$SHARED_COMFY_DIR/user/default/workflows/$WORKFLOW_FILE"
 
 # Do not download the optional Qwen 3.5 Prompt Enhancer: one image + one prompt only.

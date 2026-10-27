@@ -11,6 +11,14 @@ runtime_prepare "$MODEL_ID"
 UV="${UV:-$(command -v uv || true)}"
 [ -n "$UV" ] && [ -x "$UV" ] || { echo 'uv is required' >&2; exit 1; }
 
+"$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
+    --file "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$DIFFUSION_REL" \
+      "$SHARED_COMFY_DIR/models/diffusion_models/${DIFFUSION_REL##*/}" "$DIFFUSION_SHA256" \
+    --file "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$TEXT_ENCODER_REL" \
+      "$SHARED_COMFY_DIR/models/text_encoders/${TEXT_ENCODER_REL##*/}" "$TEXT_ENCODER_SHA256" \
+    --file "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$VAE_REL" \
+      "$SHARED_COMFY_DIR/models/vae/${VAE_REL##*/}" "$VAE_SHA256"
+
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
 mkdir -p "$SHARED_COMFY_DIR/models/diffusion_models" "$SHARED_COMFY_DIR/models/text_encoders" "$SHARED_COMFY_DIR/models/vae"

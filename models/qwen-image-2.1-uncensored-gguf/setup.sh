@@ -32,6 +32,13 @@ df -h "$WORKSPACE"
 FREE_KB="$(df -Pk "$WORKSPACE" | awk 'NR==2 {print $4}')"
 [ "$FREE_KB" -ge 25000000 ] || die '空きディスクが25GB未満です。追加ファイルを配置する余裕がありません。'
 
+GGUF_REVISION="6b34e59458d3eb7ba6a6f86a116aed5253dc02c3"
+GGUF_BASE="https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF/resolve/$GGUF_REVISION"
+"$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
+    --file "$GGUF_BASE/$GGUF_REL" "$SHARED_COMFY_DIR/models/diffusion_models/$GGUF_FILE" "$GGUF_SHA256" \
+    --file "$GGUF_BASE/$TEXT_ENCODER_REL" "$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_SHA256" \
+    --file "$GGUF_BASE/$VAE_REL" "$SHARED_COMFY_DIR/models/vae/$VAE_FILE" "$VAE_SHA256"
+
 log 'ComfyUIを準備（既存インストールは変更しない）'
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 
@@ -49,16 +56,14 @@ fi
 # 取得元の固定リビジョンと各ファイルのSHA-256を検証する。
 fetch_model() {
     local relative="$1" dest="$2" pinned="${3:-}" url expected actual
-    local revision="6b34e59458d3eb7ba6a6f86a116aed5253dc02c3"
-
-    url="https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF/resolve/$revision/$relative"
+    url="$GGUF_BASE/$relative"
     case "$relative" in
         "$GGUF_REL")
             expected="e79c8a009f2ecbdb6c70fd663d9aea9ee304a0d91f347e4169a756b8ad141b41" ;;
         "$TEXT_ENCODER_REL")
-            expected="8bfd0f6e12abf2d2d697ecc888e5e90b0d6741d6708f05799f53afa560452e8f" ;;
+            expected="$TEXT_ENCODER_SHA256" ;;
         "$VAE_REL")
-            expected="bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9" ;;
+            expected="$VAE_SHA256" ;;
         *) die "未登録のモデル: $relative" ;;
     esac
 

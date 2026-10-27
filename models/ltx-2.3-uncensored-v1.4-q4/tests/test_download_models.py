@@ -74,6 +74,21 @@ class DownloadModelsTest(unittest.TestCase):
                 download_models.existing_bytes([("split/a.gguf", destination, "0" * 64)], [3])
             self.assertEqual(destination.read_bytes(), b"too big")
 
+    def test_slow_preflight_stops_before_model_download(self):
+        argv = ["download_models.py", "--repo", "owner/repo", "--revision", "pinned",
+                "--file", "split/a.gguf", "missing.gguf", "0" * 64]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(download_models, "model_sizes", return_value=[100]), \
+             mock.patch.object(download_models, "existing_bytes", return_value=0), \
+             mock.patch.object(download_models, "speed_probe", return_value=2 * download_models.MIB), \
+             mock.patch.object(download_models, "download") as download, \
+             mock.patch.object(sys.stdin, "isatty", return_value=False), \
+             mock.patch.dict("os.environ", {"MIN_DOWNLOAD_MIB_S": "10", "ALLOW_SLOW_DOWNLOAD": "0"}):
+            with self.assertRaises(SystemExit) as exit_info:
+                download_models.main()
+        self.assertEqual(exit_info.exception.code, 2)
+        download.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

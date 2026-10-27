@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -10,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "runtime"))
 from model_files import fetch, verify
+from network_preflight import allow_download
 
 
 MIB = 1024 ** 2
@@ -124,8 +126,13 @@ def main():
             first_url = f"{base_url}/{urllib.parse.quote(files[0][0], safe='/')}"
             initial_speed = speed_probe(first_url)
             print(f"事前測定: {initial_speed / MIB:.1f} MiB/s", flush=True)
+            minimum = float(os.environ.get("MIN_DOWNLOAD_MIB_S", "10"))
+            if not allow_download(initial_speed / MIB, minimum,
+                                  os.environ.get("ALLOW_SLOW_DOWNLOAD", "0") == "1",
+                                  sys.stdin.isatty()):
+                raise SystemExit(2)
         except Exception as error:
-            print(f"速度の事前測定を省略: {error}", flush=True)
+            print(f"WARNING: 速度の事前測定を省略: {error}", flush=True)
     download(files, sizes, base_url, initial_speed)
 
 

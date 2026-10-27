@@ -138,6 +138,12 @@ df -h "$WORKSPACE" || true
 # ------------------------------------------------------------
 log "回線速度を事前確認（Hugging Faceから最大8MiBだけ試験DL）"
 
+if [ -e "$MODEL_PATH" ] || [ -L "$MODEL_PATH" ]; then
+    MODEL_PATH_ENV="$MODEL_PATH" MODEL_SHA256_ENV="$MODEL_SHA256" \
+      PYTHONPATH="$REPO_ROOT/scripts/runtime${PYTHONPATH:+:$PYTHONPATH}" \
+      "$PYTHON" -c 'import os; from pathlib import Path; from model_files import verify; verify(Path(os.environ["MODEL_PATH_ENV"]), os.environ["MODEL_SHA256_ENV"])'
+    SPEED_RESULT="SKIP|検証済みモデルを再利用"
+else
 SPEED_RESULT="$(
     MODEL_URL="$MODEL_URL" SPEED_TEST_BYTES="$SPEED_TEST_BYTES" "$PYTHON" - <<'PY'
 import os
@@ -177,6 +183,7 @@ mbps = mib_s * 8.388608
 print(f"OK|{mib_s:.2f}|{mbps:.1f}|{elapsed:.2f}|{downloaded}")
 PY
 )"
+fi
 
 if [[ "$SPEED_RESULT" == OK\|* ]]; then
     IFS='|' read -r _ DOWNLOAD_MIB_S DOWNLOAD_MBPS TEST_SECONDS TEST_BYTES <<< "$SPEED_RESULT"
@@ -230,6 +237,8 @@ PY
             fi
         fi
     fi
+elif [[ "$SPEED_RESULT" == SKIP\|* ]]; then
+    log "${SPEED_RESULT#SKIP|}。速度試験を省略します。"
 else
     echo
     echo "WARNING: 回線速度の事前測定に失敗しました: ${SPEED_RESULT#ERROR|}"

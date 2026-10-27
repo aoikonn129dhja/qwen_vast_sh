@@ -13,6 +13,17 @@ command -v wget >/dev/null 2>&1 || { printf 'ERROR: wget is required\n' >&2; exi
 printf 'GPU and available disk:\n'
 nvidia-smi
 df -h "$WORKSPACE"
+"$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
+  --file "https://huggingface.co/$WAN_REPO/resolve/$WAN_REVISION/$HIGH_FILE" \
+    "$SHARED_COMFY_DIR/models/diffusion_models/$HIGH_FILE" "$HIGH_SHA256" \
+  --file "https://huggingface.co/$WAN_REPO/resolve/$WAN_REVISION/$LOW_FILE" \
+    "$SHARED_COMFY_DIR/models/diffusion_models/$LOW_FILE" "$LOW_SHA256" \
+  --file "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/$TEXT_REVISION/split_files/text_encoders/$TEXT_FILE" \
+    "$SHARED_COMFY_DIR/models/text_encoders/$TEXT_FILE" "$TEXT_SHA256" \
+  --file "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/$VAE_REVISION/split_files/vae/$VAE_FILE" \
+    "$SHARED_COMFY_DIR/models/vae/$VAE_FILE" "$VAE_SHA256" \
+  --file "https://huggingface.co/Comfy-Org/frame_interpolation/resolve/$RIFE_REVISION/frame_interpolation/$RIFE_FILE" \
+    "$SHARED_COMFY_DIR/models/frame_interpolation/$RIFE_FILE" "$RIFE_SHA256"
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
 

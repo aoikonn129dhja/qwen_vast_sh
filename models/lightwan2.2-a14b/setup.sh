@@ -13,6 +13,12 @@ assert torch.cuda.is_available(), 'CUDA GPU required'
 major, _ = torch.cuda.get_device_capability()
 assert major >= 10, 'LightWan NVFP4 needs Blackwell GPU (RTX 50 series)'
 PY
+MODEL_PATH="$WORKSPACE/models/LightWan2.2-A14B"
+"$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
+  --file "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/Wan2.2-T2V-A14B_NVFP4_Sparse_high.safetensors" \
+    "$MODEL_PATH/Wan2.2-T2V-A14B_NVFP4_Sparse_high.safetensors" "$HIGH_SHA256" \
+  --file "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/Wan2.2-T2V-A14B_NVFP4_Sparse_low.safetensors" \
+    "$MODEL_PATH/Wan2.2-T2V-A14B_NVFP4_Sparse_low.safetensors" "$LOW_SHA256"
 ENGINE="$RUNTIME_INSTANCE/LightX2V"
 if [ ! -d "$ENGINE/.git" ]; then
   [ ! -e "$ENGINE" ] || { echo 'Invalid existing LightX2V directory' >&2; exit 1; }
@@ -20,7 +26,6 @@ if [ ! -d "$ENGINE/.git" ]; then
 fi
 "$UV" pip install --python "$PYTHON" -e "$ENGINE" 'huggingface_hub[cli]>=0.34,<2'
 "$UV" pip install --python "$PYTHON" 'aiohttp==3.14.3'
-MODEL_PATH="$WORKSPACE/models/LightWan2.2-A14B"
 mkdir -p "$MODEL_PATH"
 for entry in \
   "Wan2.2-T2V-A14B_NVFP4_Sparse_high.safetensors|$HIGH_SHA256" \
