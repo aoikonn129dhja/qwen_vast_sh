@@ -150,18 +150,29 @@ def time_fields(history: dict) -> dict:
 
 
 def media_entries(history: dict):
-    """Yield saved images and videos from ComfyUI's history output records."""
+    """Classify saved media by extension; SaveVideo also uses the images array."""
     for node_id, node in (history.get("outputs") or {}).items():
         if not isinstance(node, dict):
             continue
-        for collection, extensions, media_type in (
-            ("images", IMAGE_EXTS, "image"),
-            ("videos", VIDEO_EXTS, "video"),
-        ):
-            for item in node.get(collection, []):
-                if (isinstance(item, dict) and isinstance(item.get("filename"), str)
-                        and Path(item["filename"]).suffix.lower() in extensions
-                        and item.get("type", "output") == "output"):
+        seen = set()
+        for collection in ("images", "videos", "gifs"):
+            items = node.get(collection)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if (not isinstance(item, dict) or not isinstance(item.get("filename"), str)
+                        or item.get("type", "output") != "output"):
+                    continue
+                extension = Path(item["filename"]).suffix.lower()
+                if extension in VIDEO_EXTS:
+                    media_type = "video"
+                elif extension in IMAGE_EXTS:
+                    media_type = "image"
+                else:
+                    continue
+                identity = (item["filename"], item.get("subfolder") or "", media_type)
+                if identity not in seen:
+                    seen.add(identity)
                     yield str(node_id), item, media_type
 
 

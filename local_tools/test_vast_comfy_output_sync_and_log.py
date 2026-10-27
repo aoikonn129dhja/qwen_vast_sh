@@ -100,7 +100,7 @@ class SyncHistoryTests(unittest.TestCase):
         history = {"outputs": {"10": {
             "images": [
                 {"filename": "still.PNG", "type": "output"},
-                {"filename": "ignored.mp4", "type": "output"},
+                {"filename": "savevideo.mp4", "type": "output"},
             ],
             "videos": [
                 {"filename": "clip.MP4", "type": "output"},
@@ -111,8 +111,49 @@ class SyncHistoryTests(unittest.TestCase):
         entries = list(sync.media_entries(history))
         self.assertEqual(entries, [
             ("10", {"filename": "still.PNG", "type": "output"}, "image"),
+            ("10", {"filename": "savevideo.mp4", "type": "output"}, "video"),
             ("10", {"filename": "clip.MP4", "type": "output"}, "video"),
         ])
+
+    def test_videohelper_output_and_duplicate_collections(self):
+        item = {"filename": "clip.webm", "subfolder": "video", "type": "output"}
+        history = {"outputs": {"58": {"images": [item], "videos": [item], "gifs": [item]}}}
+        self.assertEqual(list(sync.media_entries(history)), [("58", item, "video")])
+
+    def test_real_savevideo_history_is_downloaded_once_and_recorded_as_video(self):
+        history = {"job": {
+            "outputs": {"58": {"images": [{
+                "filename": "Wan22-Turbo_00002_.mp4", "subfolder": "video", "type": "output",
+                "metadata": {"kind": "video", "fps": 24.0, "frame_count": 121},
+            }], "animated": [True]}},
+            "status": {"status_str": "success"},
+            "prompt": [0, "job", {"37": {"inputs": {"unet_name": "Wan-Turbo.safetensors"}}}],
+        }}
+        requests = []
+
+        def fetch(url, authorization):
+            requests.append(url)
+            return json.dumps(history).encode() if '/history?' in url else b'fake-video-data'
+
+        with patch.object(sync, "OUTPUT_DIR", self.directory), \
+                patch("builtins.input", side_effect=["http://127.0.0.1:18188", ""]), \
+                patch.object(sync, "fetch", side_effect=fetch), \
+                patch.object(sync.time, "sleep", side_effect=[None, KeyboardInterrupt]), \
+                patch("builtins.print"):
+            self.assertEqual(sync.main(), 0)
+        videos = list(self.directory.rglob('*.mp4'))
+        self.assertEqual(len(videos), 1)
+        self.assertEqual(videos[0].read_bytes(), b'fake-video-data')
+        views = [url for url in requests if '/view?' in url]
+        self.assertEqual(len(views), 1)
+        self.assertIn('subfolder=video', views[0])
+        state = json.loads((self.directory / '.vast_comfy_sync_state.json').read_text())
+        self.assertEqual(len(state['done']), 1)
+        import csv
+        with next(self.directory.rglob('*.csv')).open(encoding='utf-8-sig', newline='') as file:
+            rows = list(csv.DictReader(file))
+        self.assertEqual(rows[0]['media_type'], 'video')
+        self.assertEqual(rows[0]['local_image'], '')
 
 
 class OutputDirectoryTests(unittest.TestCase):
