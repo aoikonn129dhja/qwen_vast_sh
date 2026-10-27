@@ -1,15 +1,24 @@
-# Vast.ai ComfyUI モデル利用手順書
+# Vast.ai・SaladCloud モデル利用手順書
 
-Vast.aiでGPUインスタンスを借り、このリポジトリから使用するモデルを選んでセットアップするための手順書です。
+## Codex スキル経由で使う場合（最初に読む）
 
-基本方針は「インスタンスをRENTする → リポジトリをcloneする → 使うモデルのディレクトリへ移動する → そのディレクトリの `setup.sh` を実行する」です。モデルごとのファイルは `models/<モデル名>/` に分離されています。ルートの `setup.sh` にモデル名を渡す手順は使いません。
+1. Vast.ai では GPU インスタンスを RENT、SaladCloud では共通イメージの Container Group を Run して、SSH 接続コマンドを取得する。
+2. このプロジェクトを開いた Codex に、SSH 接続コマンドを渡して「`remote-model-setup` スキルでセットアップしたい」と伝える。例: `ssh -p <ポート> root@<ホスト>`。SSH 鍵のパスや `-L` オプションを含む普段の接続コマンドも渡せる。
+3. Codex に「今日はどのモデルを使いますか」と聞かれたらモデル名を選ぶ。Codex がこの Windows 側リポジトリから**コード・設定・ワークフローだけ**を SSH で転送・検証する。モデル本体は転送せず、リモートでの `git clone` も不要。
+4. Codex が返す **PowerShell 用の `ssh -tt ...` セットアップコマンドを自分の端末で実行する**。モデルの試験ダウンロード、速度警告、本ダウンロード、SHA-256 検証、セットアップの進捗をその端末で確認する。Codex はこのセットアップコマンドを実行しない。
 
-## 1. コマンド早見表
+SaladCloud では LightWan 2.2 A14B を選べない。SaladCloud のコマンドはコンテナ内の `/opt/salad/select_model.sh`、Vast.ai のコマンドは選んだモデルの `setup.sh` を実行する。転送に失敗した場合、Codex はセットアップコマンドを提示しない。SaladCloud は SSH 単発コマンドが成功時にも終了コード `1` を返す場合があるため、末尾の `SETUP COMPLETE` / `Model setup complete` とエラー表示を確認する。
+
+既存のモデルファイルは毎回 SHA-256 を計算し、一致すれば再利用する。不一致ならファイルを残して停止する。未取得モデルがある場合は Hugging Face から最大 8 MiB を試験取得し、既定の 10 MiB/s 未満なら警告して続行を確認する。速度測定に失敗した場合は警告して取得を続ける。SaladCloud は再配置でコンテナのローカルストレージが消える場合があり、その場合はモデルの再取得が必要になる。
+
+以下の Vast.ai の clone・pull 手順は、Codex を使わず手動で配置する場合の手順。SaladCloud の共通イメージ、起動、Gateway、回収は後半の「SaladCloud」節にまとめた。
+
+## 1. Vast.ai を手動でセットアップする場合
 
 [Vast.aiのダッシュボード](https://cloud.vast.ai/)
 
 
-Vast.aiでPyTorch系インスタンスをRENTし、Jupyter WebUIのTerminalを開く。前提パスは `/workspace` と `/venv/main/bin/python`。GPUと十分なストレージが必要。モデル間で依存関係とComfyUIの変更があり得るため、安定運用では1インスタンス1モデルを基本とする。
+Vast.aiでPyTorch系インスタンスをRENTし、Jupyter WebUIのTerminalを開く。前提パスは `/workspace` と `/venv/main/bin/python`。GPUと十分なストレージが必要。モデルごとの ComfyUI と Python 環境は分離されるが、同時に実行する場合はモデルごとの VRAM 容量を確保する。
 
 ```bash
 git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
@@ -49,7 +58,7 @@ cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
 cd /workspace/qwen_vast_sh/models/wan2.2-ti2v-5b-turbo && bash setup.sh
 ```
 
-モデルのダウンロード元への事前速度測定を行うセットアップがある。Qwen系列では既定10 MiB/s未満の場合に続行確認または非対話実行の停止が発生し得る。必要な場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。
+モデル取得前に Hugging Face の速度を測り、既定 10 MiB/s 未満では続行確認する。非対話実行では停止するため、低速でも続けると決めた場合だけ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。
 
 
 ### Comfy UI 開き方
@@ -250,7 +259,7 @@ cd /workspace/qwen_vast_sh/models/qwen-image-edit-2511
 bash setup.sh
 ```
 
-モデルによってComfyUI本体、カスタムノード、Python依存関係の構成が異なります。同じインスタンスへ複数モデルを順番に導入すると、後から実行したsetupがComfyUIや依存関係を更新することがあります。安定性を優先する場合は、1インスタンスにつき1モデルを使用してください。
+モデルによって ComfyUI 本体、カスタムノード、Python 依存関係の構成が異なる。現在のセットアップはモデル別の ComfyUI と Python 環境を使い、モデルファイル・入力・出力を共有する。複数モデルを同時実行する場合は GPU の VRAM 容量を確認する。
 
 ### 2.5 ComfyUIを開く
 
@@ -451,7 +460,7 @@ bash setup.sh
 - `ltxv23_uncensored_v1.4_audio_vae.safetensors`
 - `ChrisColeTech/ComfyUI-GGUF-Loader`
 
-x2 spatial upscaler、追加LoRA、音声参照用素材は初期セットアップに含まれません。
+x2 spatial upscaler は初期セットアップで取得する。追加 LoRA と音声参照用素材は含まれない。
 
 セットアップは `[1/5]` から `[5/5]` まで段階を表示します。モデルファイルの取得前に Hugging Face から最大8 MiBを読み、回線速度を測定します。取得中は現在のファイル番号（例: `[2/5]`）と、5ファイル合計の進捗率・実測速度・残り時間の目安が約5秒ごとに表示されます。この残り時間はモデルファイルの転送分のみで、ComfyUIや依存ライブラリの導入時間は含みません。再実行すると、完了済みファイルはスキップし、途中ファイルは続きから取得します。
 
@@ -518,7 +527,7 @@ Turbo用の `Wan2_2-TI2V-5B-Turbo_fp16.safetensors` を取得します。通常�
 
 最初にGPU・ディスクを表示し、ComfyUI取得や依存インストールの前にHugging Faceから最大8 MiBを読んで回線速度を測定します。v23と同じくMiB/s・Mbpsと未取得分の推定ダウンロード時間を表示します。既定10 MiB/s未満では続行確認し、非対話実行では停止します。低速でも続行する場合のみ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を指定します。測定失敗時は警告して続行します。
 
-初回のモデル合計は約18.33 GBです。既存ファイルのサイズが配布サイズと一致すれば再取得せず、全モデルが揃っている場合は速度測定も省略します。
+初回のモデル合計は約18.33 GB。既存ファイルは SHA-256 が一致すれば再取得せず、全モデルが揃っている場合は速度測定も省略する。
 
 ログ先頭の `[1/10]` ～ `[10/10]` は、GPU・ディスク、速度確認、ロック・Python環境、ComfyUI本体、Python依存、Hugging Faceライブラリ、Turbo本体、テキストエンコーダ、VAE、サービス起動の順です。モデル関連は `[8/10] [2/3 files]` のようにファイル番号と、`completed 1/3 files` の配置完了数も表示します。既存ファイルは `SKIP`、各段階の完了は `DONE` と表示します。
 
@@ -568,7 +577,67 @@ CreateVideo
 
 速度判定とセットアップ排他は外部サービスへ接続しないローカル・WSL確認の対象です。本番GPUでのロード・画質・VRAM所要量は未確認です。モデル固有の詳細と配布元は [Turbo版README](models/wan2.2-ti2v-5b-turbo/README.md) を参照してください。
 
-## 4. 余談
+## 4. SaladCloud
+
+### 4.1 共通イメージと Container Group
+
+SaladCloud の共通イメージにはモデル本体と `models/`・`scripts/` のコードを含めない。ローカルで確認する場合は、リポジトリのルートを build context にする。
+
+```bash
+docker build --platform linux/amd64 -f salad/Dockerfile -t salad:local .
+```
+
+Container Group に共通イメージを設定し、Autostart を無効にする。`main` の Salad 関連ファイルをプッシュすると、GitHub Actions が `ghcr.io/<owner>/<repo>/salad:sha-<commit>` をビルドする。Container Group は自動起動しない。
+
+### 4.2 起動とモデルの切り替え
+
+SaladCloud で Run を押し、レプリカが起動したら、冒頭の手順に沿って Codex に SSH コマンドを渡す。Codex がコードの転送を完了したら、返された PowerShell 用コマンドを自分の端末で実行する。コンテナ内で手動実行する場合のモデル選択コマンドは次の形式。
+
+```bash
+bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23
+```
+
+利用できる ComfyUI モデル（使うモデルごとに `select_model.sh` を実行する）:
+
+- Qwen Rapid AIO NSFW v19: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v19`
+- Qwen Rapid AIO NSFW v23: `bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23`
+- Qwen Image Edit 2509: `bash /opt/salad/select_model.sh qwen-image-edit-2509`
+- Qwen Image Edit 2511: `bash /opt/salad/select_model.sh qwen-image-edit-2511`
+- LTX 2.3 Q4: `bash /opt/salad/select_model.sh ltx-2.3-uncensored-v1.4-q4`
+- Qwen Image 2.1 GGUF: `bash /opt/salad/select_model.sh qwen-image-2.1-uncensored-gguf`
+- Qwen Image 2.1 INT8 Lightning: `bash /opt/salad/select_model.sh qwen-image-2.1-int8-lightning`
+- Qwen3-VL 8B: `bash /opt/salad/select_model.sh qwen3-vl-8b-instruct`
+- Wan 2.2 TI2V 5B: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b`
+- Wan 2.2 TI2V 5B Turbo: `bash /opt/salad/select_model.sh wan2.2-ti2v-5b-turbo`
+- Wan 2.2 Enhanced NSFW SVI FP8: `bash /opt/salad/select_model.sh wan2.2-enhanced-nsfw`
+
+LightWan 2.2 A14B は LightX2V を使う CLI モデルであり、SaladCloud の ComfyUI Gateway では選べない。Vast.ai 側でも推論用の標準実行コマンドと必要資産の検証は未整備。
+
+別のモデルを導入したら、そのモデルのワークフローを開いて Queue する。不要になったモデルの登録だけ解除する場合は、名前を指定する。
+
+```bash
+bash /opt/salad/reset_model.sh <モデル名>
+```
+
+### 4.3 Gateway
+
+Container Group に `COMFY_GATEWAY_USER` と 20 文字以上の `COMFY_GATEWAY_PASSWORD` を設定する。Container Gateway は HTTPS、port 8189、Gateway 側の認証は無効にする。コンテナ内の HTTP Basic 認証を経由して 8188 の共通 Gateway に接続する。`GET /healthz` は認証不要。モデル未登録時は外部プロキシを開かない。登録済みモデルがあれば、コンテナ再起動後に Gateway を復旧する。
+
+### 4.4 生成物の回収
+
+Windows 側で Vast.ai と共通の回収ツールを実行する。SaladCloud の Gateway URL を入力すると自動判定し、`.env` または環境変数の認証情報を利用する。SSH 転送の localhost URL を入力する場合は `--salad` を付ける。既存の Salad 回収履歴も引き継ぎ、画像と動画を回収する。
+
+```powershell
+python local_tools\vast_comfy_output_sync_and_log.py
+```
+
+従来の `python salad\tools\salad_comfy_output_sync_and_log.py` も同じ処理を呼び出す。画像・動画と生成ログ CSV は `D:\po\NSFW_cos\tmp` 以下に保存する。
+
+### 4.5 コンテナの保存領域
+
+入力・生成物・取得済みモデルはコンテナのローカルストレージに置かれる。永続ボリュームを使わない場合、再配置時に失われる可能性がある。
+
+## 5. 余談
 
 ### 旧リポジトリ名からの移行
 

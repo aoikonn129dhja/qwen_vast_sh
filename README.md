@@ -6,8 +6,8 @@ Vast.aiとSaladCloud上でComfyUI画像・動画モデルを利用するため�
 
 ## プロバイダを選ぶ
 
-- `models/`: Vast.ai用モデル設定。以下の手順を使用する。
-- `salad/`: SaladCloud用。詳細は [SaladCloud 手順書](salad/Salad_手順書_README.md) を参照する。
+- `models/`: モデル別の設定とセットアップ。Vast.ai・SaladCloud の使い方は [共通手順書](Confiバストサラダ手順書.md) を参照する。
+- `salad/`: SaladCloud 用の共通イメージと起動処理。設定方法も [共通手順書](Confiバストサラダ手順書.md#4-saladcloud) に記載する。
 
 ## モデルを選ぶ
 
@@ -76,7 +76,7 @@ qwen_vast_sh/
 ├─ scripts/
 │  └─ setup_qwen_edit_model.sh
 ├─ local_tools/                # Windows側のバッチ起動・ComfyUI出力同期ツール
-├─ comfyui_vast_手順書.md
+├─ Confiバストサラダ手順書.md
 └─ README.md
 ```
 
