@@ -1,16 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "X Img DL NSFW",
-  "version": "1.1.2",
-  "description": "Xの投稿画像を原寸指定で、投稿者IDを使ったファイル名で保存します。",
+  "name": "X Instagram Img DL NSFW",
+  "version": "1.2.0",
+  "description": "XとInstagramの投稿画像を投稿者IDを使ったファイル名で保存します。",
   "minimum_chrome_version": "120",
   "permissions": ["downloads", "storage"],
-  "host_permissions": ["https://pbs.twimg.com/*"],
+  "host_permissions": ["https://pbs.twimg.com/*", "https://*.cdninstagram.com/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [{
     "matches": ["https://x.com/*", "https://twitter.com/*"],
     "js": ["core.js", "content.js"],
     "css": ["content.css"],
+    "run_at": "document_idle"
+  }, {
+    "matches": ["https://www.instagram.com/*", "https://instagram.com/*"],
+    "js": ["instagram-core.js", "instagram-content.js"],
+    "css": ["instagram-content.css"],
     "run_at": "document_idle"
   }]
 }

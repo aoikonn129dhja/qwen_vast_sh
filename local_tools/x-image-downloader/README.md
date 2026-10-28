@@ -1,4 +1,4 @@
-# X Img DL NSFW
+# X Instagram Img DL NSFW
 
 Chrome用のManifest V3拡張です。ビルドは不要です。
 
@@ -7,15 +7,17 @@ Chrome用のManifest V3拡張です。ビルドは不要です。
 1. Chromeで `chrome://extensions/` を開く。
 2. 「デベロッパーモード」をオンにする。
 3. 「パッケージ化されていない拡張機能を読み込む」で、このREADMEとmanifest.jsonがある `x-image-downloader` フォルダを選ぶ。
-4. すでに開いているXのタブを再読み込みする。
+4. すでに開いているXとInstagramのタブを再読み込みする。
 
-更新時は `chrome://extensions/` の拡張機能の再読み込みボタンを押し、Xのタブも再読み込みする。更新後の名称は「X Img DL NSFW」。
+更新時は `chrome://extensions/` の拡張機能の再読み込みボタンを押し、XとInstagramのタブも再読み込みする。更新後の名称は「X Instagram Img DL NSFW」。
 
 ## 使い方と保存名
 
 投稿画像の右上の「DL」で、その1枚を保存する。ボタンは最小幅66px・高さ54px（前版の縦横1/2）。
 拡大画像にも対応。動画・GIF動画、プロフィール画像、ヘッダー画像は対象外。
 Chromeの「ダウンロード前に各ファイルの保存場所を確認する」などの設定・ポリシーは優先される。
+
+Instagramでは画像投稿を開いたときに表示される「DL」から保存する。カルーセルの各画像に対応する。プロフィール一覧のサムネイル、動画、リール、アバターは対象外。Instagramがページの`srcset`で提供する最大解像度のURLを選び、画像は再圧縮・リサイズしない。Instagramが提供していない原寸ファイルの取得は保証できない。
 
 ## 保存先
 
@@ -27,13 +29,14 @@ Chromeの「設定」→「ダウンロード」（`chrome://settings/downloads`
 
 - `@ouran_sakura__` → `ouran_sakura583 (1).jpg`
 - `@kimiko9` → `kimiko247 (1).jpg`
+- `@suiika_desuwa` → `suiika_desuwa583 (1).jpg`
 - 先頭の `@` と末尾に連続する数字・アンダースコアだけを除く。途中の数字・アンダースコアは保持。
 - 数字・アンダースコアだけのIDは `account` にする。
 - 100〜999の乱数を投稿ごとに生成し、拡張機能内に保存。同じ投稿の画像は何枚目でも同じ乱数で `(1)`。
 - 正規化で同じ名前になる別アカウントや乱数の衝突はあり得る。同名ファイルはChromeが追加の連番を付け、上書きしない。
-- 拡張子は原寸URLのContent-Typeに合わせる。画像を再圧縮・リサイズしない。
+- 拡張子は画像URLのContent-Typeに合わせる。画像を再圧縮・リサイズしない。
 
-`name=orig` を指定し、HEADで成功と画像形式を確認した後、同じURLをChromeのdownloads APIで保存する。
+Xでは`name=orig`を指定し、HEADで成功と画像形式を確認した後、同じURLをChromeのdownloads APIで保存する。
 原寸が取得できない場合は「再試行」と理由を表示し、表示用の低解像度画像には切り替えない。
 Xが保持・配信する原寸画像が対象で、撮影時の無加工ファイルを保証するものではない。
 HEADを拒否する画像は保存しない。全画像の原寸対応は実ブラウザでの確認が必要。
@@ -44,10 +47,10 @@ HEADを拒否する画像は保存しない。全画像の原寸対応は実ブ�
 
 ## 権限と通信
 
-`downloads` と `storage`、X上のcontent script、`pbs.twimg.com` へのホスト権限だけを使用。
-原寸確認・画像保存の通信先はXの画像CDN。外部の解析サービス、X APIキー、課金APIは使用しない。
+`downloads` と `storage`、XとInstagram上のcontent script、`pbs.twimg.com` と`*.cdninstagram.com` へのホスト権限を使用。
+画像確認・保存の通信先はそれぞれの画像CDN。外部の解析サービス、APIキー、課金APIは使用しない。
 投稿と乱数の対応はstorage.local、処理中のダウンロード情報はstorage.sessionに保存。
-XのDOM変更でボタンが表示されなくなる可能性がある。
+XやInstagramのDOM変更でボタンが表示されなくなる可能性がある。
 
 ## ローカルテスト
 

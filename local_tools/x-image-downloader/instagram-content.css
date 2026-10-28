@@ -1,0 +1,10 @@
+.iid-download-host {
+  position: absolute !important;
+  right: 8px !important;
+  top: 8px !important;
+  z-index: 100 !important;
+  display: block !important;
+  width: max-content !important;
+  height: 54px !important;
+  pointer-events: auto !important;
+}
