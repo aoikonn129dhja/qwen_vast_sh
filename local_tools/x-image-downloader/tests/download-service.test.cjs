@@ -125,3 +125,13 @@ test('old destination settings are ignored and Chrome controls the destination a
     assert.equal(result.filename, download.filename);
   }
 });
+
+test('video thumbnail uses the poster URL and the same post number', async () => {
+  const f = fixture();
+  await f.service.start(image, sender);
+  const poster = 'https://pbs.twimg.com/amplify_video_thumb/123/img/Ab.jpg';
+  const result = await f.service.start({ ...image, kind: 'thumbnail', url: poster }, sender);
+  assert.equal(f.requests.at(-1).url, poster);
+  assert.equal(result.filename, 'ouran_sakura583 (1).jpg');
+  assert.equal(Object.keys(f.api.storage.local.data).filter(key => key.startsWith('number:')).length, 1);
+});

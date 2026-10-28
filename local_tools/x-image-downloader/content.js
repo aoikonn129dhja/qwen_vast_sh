@@ -15,8 +15,16 @@
     button[data-state="error"] { border-style: dashed; }
   `;
 
-  function descriptor(img) {
+  function descriptor(media) {
     try {
+      if (media instanceof HTMLVideoElement) {
+        const postLink = media.closest('article')?.querySelector('time')?.closest('a[href*="/status/"]');
+        const post = postLink && core.parsePostLink(postLink.href);
+        if (!post) return null;
+        const image = { ...post, kind: 'thumbnail', url: core.thumbnailUrl(media.poster) };
+        return { ...image, key: core.imageKey(image) };
+      }
+      const img = media;
       const raw = img.currentSrc || img.src;
       const url = core.originalUrl(raw);
       const anchor = img.closest('a[href*="/photo/"]');
@@ -34,8 +42,8 @@
     record.button.textContent = labels[state.state] || 'DL';
     record.button.dataset.state = state.state;
     record.button.disabled = ['pending', 'started'].includes(state.state);
-    record.button.title = state.error || state.filename || '原寸画像を保存';
-    record.button.setAttribute('aria-label', state.error || `${record.image.account}の画像${record.image.index}: ${labels[state.state]}`);
+    record.button.title = state.error || state.filename || (record.image.kind === 'thumbnail' ? '動画サムネイルを保存' : '原寸画像を保存');
+    record.button.setAttribute('aria-label', state.error || `${record.image.account}の${record.image.kind === 'thumbnail' ? '動画サムネイル' : `画像${record.image.index}`}: ${labels[state.state]}`);
   }
 
   function update(key, value) {
@@ -47,7 +55,7 @@
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    const image = descriptor(record.img);
+    const image = descriptor(record.media);
     if (!image || image.key !== record.image.key) { schedule(); return; }
     if (['pending', 'started'].includes(states.get(image.key)?.state)) return;
     update(image.key, { state: 'pending' });
@@ -60,18 +68,18 @@
   }
 
   function scan() {
-    for (const [img, record] of hosts) {
-      const image = img.isConnected ? descriptor(img) : null;
+    for (const [media, record] of hosts) {
+      const image = media.isConnected ? descriptor(media) : null;
       if (!image || image.key !== record.image.key || image.url !== record.image.url || !record.host.isConnected) {
         record.host.remove();
-        hosts.delete(img);
+        hosts.delete(media);
       }
     }
-    for (const img of document.querySelectorAll('img[src*="pbs.twimg.com/media/"]')) {
-      if (hosts.has(img)) continue;
-      const image = descriptor(img);
+    for (const media of document.querySelectorAll('img[src*="pbs.twimg.com/media/"], video[poster*="pbs.twimg.com/"]')) {
+      if (hosts.has(media)) continue;
+      const image = descriptor(media);
       if (!image) continue;
-      const parent = img.parentElement;
+      const parent = media.parentElement;
       // X uses positioned media containers in both timeline and photo viewer.
       // Avoid changing X's layout if a future DOM revision removes this anchor.
       if (!parent || getComputedStyle(parent).position === 'static') continue;
@@ -82,7 +90,7 @@
       style.textContent = styles;
       const button = document.createElement('button');
       button.type = 'button';
-      const record = { img, image, host, button };
+      const record = { media, image, host, button };
       button.addEventListener('click', event => { void download(record, event); });
       // Pointer events must not trigger X's parent image handlers.
       for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'dblclick']) {
@@ -90,7 +98,7 @@
       }
       shadow.append(style, button);
       parent.append(host);
-      hosts.set(img, record);
+      hosts.set(media, record);
       render(record);
     }
   }
@@ -107,7 +115,7 @@
     if (records.some(record => !record.target.closest?.('.xid-download-host') &&
         (record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes]
           .some(node => node.nodeType === 1 && !node.classList.contains('xid-download-host'))))) schedule();
-  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'href'] });
+  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'poster', 'href'] });
   window.addEventListener('popstate', schedule);
   document.addEventListener('load', event => {
     if (event.target instanceof HTMLImageElement && event.target.src.includes('pbs.twimg.com/media/')) schedule();

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Instagram Img DL NSFW",
-  "version": "1.2.0",
-  "description": "XとInstagramの投稿画像を投稿者IDを使ったファイル名で保存します。",
+  "version": "1.3.0",
+  "description": "XとInstagramの投稿画像と動画サムネイルを投稿者IDを使ったファイル名で保存します。",
   "minimum_chrome_version": "120",
   "permissions": ["downloads", "storage"],
   "host_permissions": ["https://pbs.twimg.com/*", "https://*.cdninstagram.com/*"],

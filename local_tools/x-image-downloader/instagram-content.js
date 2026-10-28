@@ -3,6 +3,7 @@
   const core = globalThis.InstagramImageDownloader;
   const hosts = new Map();
   const states = new Map();
+  const covers = new Map();
   const styles = `:host { color-scheme: dark; }
     button { box-sizing: border-box; display: block; min-width: 66px; height: 54px;
       padding: 0 18px; border: 1px solid #fff; border-radius: 999px;
@@ -13,13 +14,27 @@
     button:disabled { cursor: wait; }
     button[data-state="error"] { border-style: dashed; }`;
 
-  function descriptor(img) {
+  function descriptor(media) {
     try {
+      if (media instanceof HTMLVideoElement) {
+        const article = media.closest('article');
+        const post = article && core.parsePostLink(location.href);
+        const account = article?.querySelector('header a[href^="/"]')?.getAttribute('href')?.match(/^\/([A-Za-z0-9._]+)\/?$/)?.[1];
+        const cover = post && covers.get(post.postId);
+        const url = media.poster || cover;
+        if (!post || !account || !url) return null;
+        const image = { account, postId: post.postId, index: 1, kind: 'thumbnail',
+          url: core.validateImageUrl(url) };
+        return { ...image, key: core.imageKey(image) };
+      }
+      const img = media;
       const tile = img.closest('a[href]');
       const tilePost = tile && core.parsePostLink(tile.href);
       if (tilePost?.account && tile.contains(img)) {
         const image = { account: tilePost.account, postId: tilePost.postId, index: 1,
+          kind: tile.pathname.includes('/reel/') ? 'thumbnail' : 'image',
           url: core.largestImageUrl(img) };
+        if (image.kind === 'thumbnail') covers.set(image.postId, image.url);
         return { ...image, key: core.imageKey(image) };
       }
       const article = img.closest('article');
@@ -47,8 +62,8 @@
     record.button.textContent = labels[state.state] || 'DL';
     record.button.dataset.state = state.state;
     record.button.disabled = ['pending', 'started'].includes(state.state);
-    record.button.title = state.error || state.filename || '投稿画像を保存';
-    record.button.setAttribute('aria-label', state.error || `${record.image.account}の画像${record.image.index}: ${labels[state.state]}`);
+    record.button.title = state.error || state.filename || (record.image.kind === 'thumbnail' ? '動画サムネイルを保存' : '投稿画像を保存');
+    record.button.setAttribute('aria-label', state.error || `${record.image.account}の${record.image.kind === 'thumbnail' ? '動画サムネイル' : `画像${record.image.index}`}: ${labels[state.state]}`);
   }
   function update(key, value) {
     states.set(key, value);
@@ -56,7 +71,7 @@
   }
   async function download(record, event) {
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
-    const image = descriptor(record.img);
+    const image = descriptor(record.media);
     if (!image || image.key !== record.image.key) { schedule(); return; }
     if (['pending', 'started'].includes(states.get(image.key)?.state)) return;
     update(image.key, { state: 'pending' });
@@ -68,29 +83,32 @@
   }
 
   function scan() {
-    for (const [img, record] of hosts) {
-      const image = img.isConnected ? descriptor(img) : null;
+    for (const [media, record] of hosts) {
+      const image = media.isConnected ? descriptor(media) : null;
       if (!image || image.key !== record.image.key || image.url !== record.image.url || !record.host.isConnected) {
-        record.host.remove(); hosts.delete(img);
+        record.host.remove(); hosts.delete(media);
       }
     }
-    for (const img of document.querySelectorAll('article ul li img[src*="cdninstagram.com/v/"], a[href*="/p/"] img[src*="cdninstagram.com/v/"]')) {
-      if (hosts.has(img)) continue;
-      const image = descriptor(img);
+    for (const media of document.querySelectorAll('article ul li img[src*="cdninstagram.com/v/"], a[href*="/p/"] img[src*="cdninstagram.com/v/"], a[href*="/reel/"] img[src*="cdninstagram.com/v/"], article video')) {
+      if (hosts.has(media)) continue;
+      const image = descriptor(media);
       if (!image) continue;
-      const parent = img.parentElement;
+      let parent = media.parentElement;
+      if (media instanceof HTMLVideoElement) {
+        while (parent && parent !== media.closest('article') && getComputedStyle(parent).position === 'static') parent = parent.parentElement;
+      }
       if (!parent || getComputedStyle(parent).position === 'static') continue;
       const host = document.createElement('span');
       host.className = 'iid-download-host';
       const shadow = host.attachShadow({ mode: 'open' });
       const style = document.createElement('style'); style.textContent = styles;
       const button = document.createElement('button'); button.type = 'button';
-      const record = { img, image, host, button };
+      const record = { media, image, host, button };
       button.addEventListener('click', event => { void download(record, event); });
       for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'dblclick']) {
         button.addEventListener(type, event => event.stopPropagation());
       }
-      shadow.append(style, button); parent.append(host); hosts.set(img, record); render(record);
+      shadow.append(style, button); parent.append(host); hosts.set(media, record); render(record);
     }
   }
   let timer;
@@ -102,7 +120,7 @@
     if (records.some(record => !record.target.closest?.('.iid-download-host') &&
         (record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes]
           .some(node => node.nodeType === 1 && !node.classList.contains('iid-download-host'))))) schedule();
-  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'srcset', 'href'] });
+  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src', 'srcset', 'poster', 'href'] });
   window.addEventListener('popstate', schedule);
   scan();
 })();

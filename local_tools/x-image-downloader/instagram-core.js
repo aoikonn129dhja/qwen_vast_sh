@@ -6,7 +6,7 @@
     try {
       const url = new URL(value, base);
       if (url.protocol !== 'https:' || !['instagram.com', 'www.instagram.com'].includes(url.hostname)) return null;
-      const match = url.pathname.match(/^\/(?:([A-Za-z0-9._]+)\/)?p\/([A-Za-z0-9_-]+)\/?$/);
+      const match = url.pathname.match(/^\/(?:([A-Za-z0-9._]+)\/)?(?:p|reel)\/([A-Za-z0-9_-]+)\/?$/);
       if (!match) return null;
       const index = Number(url.searchParams.get('img_index') || 1);
       if (!Number.isInteger(index) || index < 1 || index > 100) return null;
@@ -43,10 +43,13 @@
         !Number.isInteger(input.index) || input.index < 1 || input.index > 100) {
       throw new Error('保存対象の情報が不正です。');
     }
-    return { account: input.account, postId: input.postId, index: input.index, url: validateImageUrl(input.url) };
+    const kind = input.kind === 'thumbnail' ? 'thumbnail' : 'image';
+    if (input.kind && !['image', 'thumbnail'].includes(input.kind)) throw new Error('保存対象の種類が不正です。');
+    return { account: input.account, postId: input.postId, index: input.index,
+      kind, url: validateImageUrl(input.url) };
   }
 
-  function imageKey(input) { return `${input.account.toLowerCase()}:${input.postId}:${input.index}`; }
+  function imageKey(input) { return `${input.account.toLowerCase()}:${input.postId}:${input.index}${input.kind === 'thumbnail' ? ':thumbnail' : ''}`; }
   function randomNumber(cryptoApi = root.crypto) {
     const values = new Uint32Array(1);
     const limit = Math.floor(0x100000000 / 900) * 900;

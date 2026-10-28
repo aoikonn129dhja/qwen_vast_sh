@@ -26,3 +26,10 @@ test('image indexes and random range are validated', () => {
   assert.equal(core.randomNumber({ getRandomValues: a => { a[0] = 0; } }), 100);
   assert.equal(core.randomNumber({ getRandomValues: a => { a[0] = 899; } }), 999);
 });
+
+test('reel links and thumbnails have distinct save state', () => {
+  assert.equal(core.parsePostLink('/suiika_desuwa/reel/De8mYVxm9lt/').postId, 'De8mYVxm9lt');
+  const thumbnail = { ...image, kind: 'thumbnail' };
+  assert.equal(core.imageKey(thumbnail), 'suiika_desuwa:De8mYVxm9lt:2:thumbnail');
+  assert.equal(core.filename(thumbnail, 583, 'jpg'), 'suiika_desuwa583 (1).jpg');
+});

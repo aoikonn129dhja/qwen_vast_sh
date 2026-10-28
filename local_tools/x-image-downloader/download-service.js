@@ -42,9 +42,9 @@
         method: 'HEAD', credentials: 'omit', redirect: 'error',
         signal: AbortSignal.timeout(20000)
       });
-      if (!response.ok) throw new Error(`原寸画像を取得できません (HTTP ${response.status})。`);
+      if (!response.ok) throw new Error(`画像を取得できません (HTTP ${response.status})。`);
       const extension = core.extensionForMime(response.headers.get('content-type'));
-      if (!extension) throw new Error('原寸URLが画像を返しませんでした。');
+      if (!extension) throw new Error('画像URLが画像を返しませんでした。');
       const number = await numberFor(image);
       const name = core.filename(image, number, extension);
       const id = await api.downloads.download({

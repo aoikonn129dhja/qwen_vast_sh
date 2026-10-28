@@ -30,16 +30,29 @@
     return `https://pbs.twimg.com/media/${match[1]}?format=${format}&name=orig`;
   }
 
+  function thumbnailUrl(value) {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== 'pbs.twimg.com' ||
+        url.username || url.password || url.port ||
+        !/^\/(?:amplify_video_thumb|ext_tw_video_thumb|tweet_video_thumb|media)\/[A-Za-z0-9_/-]+\.(?:jpe?g|png|webp)$/i.test(url.pathname)) {
+      throw new Error('動画サムネイルURLが不正です。');
+    }
+    return url.href;
+  }
+
   function validateRequest(input) {
     if (!input || typeof input.account !== 'string' || !/^[A-Za-z0-9_]{1,15}$/.test(input.account) ||
         typeof input.postId !== 'string' || !/^\d{1,30}$/.test(input.postId) ||
         !Number.isInteger(input.index) || input.index < 1 || input.index > 4) {
       throw new Error('保存対象の情報が不正です。');
     }
-    return { account: input.account, postId: input.postId, index: input.index, url: originalUrl(input.url) };
+    const kind = input.kind === 'thumbnail' ? 'thumbnail' : 'image';
+    if (input.kind && !['image', 'thumbnail'].includes(input.kind)) throw new Error('保存対象の種類が不正です。');
+    return { account: input.account, postId: input.postId, index: input.index,
+      kind, url: kind === 'thumbnail' ? thumbnailUrl(input.url) : originalUrl(input.url) };
   }
 
-  function imageKey(input) { return `${input.account.toLowerCase()}:${input.postId}:${input.index}`; }
+  function imageKey(input) { return `${input.account.toLowerCase()}:${input.postId}:${input.index}${input.kind === 'thumbnail' ? ':thumbnail' : ''}`; }
 
   function randomNumber(cryptoApi = root.crypto) {
     const values = new Uint32Array(1);
@@ -62,7 +75,7 @@
     ] || null;
   }
 
-  const api = { parsePostLink, normalizeAccount, originalUrl, validateRequest, imageKey, randomNumber, filename, extensionForMime };
+  const api = { parsePostLink, normalizeAccount, originalUrl, thumbnailUrl, validateRequest, imageKey, randomNumber, filename, extensionForMime };
   root.XImageDownloader = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

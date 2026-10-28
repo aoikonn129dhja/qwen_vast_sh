@@ -107,8 +107,20 @@ test('photo viewer gets ownership and index from its URL', async t => {
   assert.equal(f.requests[0].image.index, 2);
 });
 
-test('does not add buttons to avatars, video posters, or arbitrary media without a post link', t => {
+test('does not add buttons to avatars or arbitrary media without a post link', t => {
   const f = fixture('<img src="https://pbs.twimg.com/profile_images/Ab.jpg"><div style="position:relative"><img src="https://pbs.twimg.com/media/Ab?format=jpg&name=small"></div>');
   t.after(() => f.window.close());
   assert.equal(buttons(f).length, 0);
+});
+
+test('adds a thumbnail button to a video with a post timestamp', async t => {
+  const f = fixture(`<article><a href="/kimiko9/status/987"><time>today</time></a>
+    <div style="position:relative"><video poster="https://pbs.twimg.com/amplify_video_thumb/123/img/Ab.jpg"></video></div></article>`);
+  t.after(() => f.window.close());
+  assert.equal(buttons(f).length, 1);
+  buttons(f)[0].click();
+  await tick();
+  assert.equal(f.requests[0].image.kind, 'thumbnail');
+  assert.equal(f.requests[0].image.account, 'kimiko9');
+  assert.equal(f.requests[0].image.postId, '987');
 });

@@ -48,3 +48,12 @@ test('random integer covers endpoints and rejects the biased tail', () => {
   assert.equal(core.randomNumber({ getRandomValues: a => { a[0] = calls++ ? 42 : 0xffffffff; } }), 142);
   assert.equal(calls, 2);
 });
+
+test('video poster URLs stay intact and use a separate save state', () => {
+  const poster = 'https://pbs.twimg.com/amplify_video_thumb/123/img/Ab.jpg';
+  const thumbnail = { ...image, kind: 'thumbnail', url: poster };
+  assert.equal(core.validateRequest(thumbnail).url, poster);
+  assert.equal(core.imageKey(thumbnail), 'ouran_sakura__:123:1:thumbnail');
+  assert.equal(core.filename(thumbnail, 583, 'jpg'), 'ouran_sakura583 (1).jpg');
+  assert.throws(() => core.thumbnailUrl('https://pbs.twimg.com/profile_images/Ab.jpg'));
+});

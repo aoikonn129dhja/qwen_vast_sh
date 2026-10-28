@@ -44,3 +44,13 @@ test('bad sender, bad media, and failed image HEAD do not download', async () =>
   await assert.rejects(failed.service.start(image, sender), /403/);
   assert.equal(failed.downloads.length, 0);
 });
+
+test('reel thumbnail shares its post number and retains the cover URL', async () => {
+  const f = fixture();
+  await f.service.start(image, sender);
+  const thumbnail = { ...image, kind: 'thumbnail' };
+  const result = await f.service.start(thumbnail, sender);
+  assert.equal(result.filename, 'ouran_sakura583 (1).jpg');
+  assert.equal(f.downloads.at(-1).url, image.url);
+  assert.equal(Object.keys(f.api.storage.local.data).length, 1);
+});

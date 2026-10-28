@@ -33,3 +33,22 @@ test('post carousel and profile grid receive buttons while avatars are excluded'
   assert.equal(requests[1].image.postId, 'Else');
   assert.equal(requests[1].image.index, 1);
 });
+
+test('reel tile provides a thumbnail button for the opened video', async t => {
+  const html = `<a href="/suiika_desuwa/reel/Reel123/"><div style="position:relative"><img src="${url(5)}"></div></a>
+    <article><header><a href="/suiika_desuwa/">owner</a></header>
+    <div style="position:relative"><video src="blob:https://www.instagram.com/video"></video></div></article>`;
+  const dom = new JSDOM(`<body>${html}</body>`, { url: 'https://www.instagram.com/p/Reel123/', runScripts: 'outside-only' });
+  t.after(() => dom.window.close());
+  const requests = [];
+  dom.window.chrome = { runtime: { sendMessage: async msg => { requests.push(msg); return { ok: true }; },
+    onMessage: { addListener() {} } } };
+  dom.window.eval(core); dom.window.eval(content);
+  const buttons = [...dom.window.document.querySelectorAll('.iid-download-host')].map(host => host.shadowRoot.querySelector('button'));
+  assert.equal(buttons.length, 2);
+  buttons[1].click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests[0].image.kind, 'thumbnail');
+  assert.equal(requests[0].image.url, url(5));
+  assert.equal(requests[0].image.postId, 'Reel123');
+});
