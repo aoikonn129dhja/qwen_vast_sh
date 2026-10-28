@@ -15,6 +15,13 @@
 
   function descriptor(img) {
     try {
+      const tile = img.closest('a[href]');
+      const tilePost = tile && core.parsePostLink(tile.href);
+      if (tilePost?.account && tile.contains(img)) {
+        const image = { account: tilePost.account, postId: tilePost.postId, index: 1,
+          url: core.largestImageUrl(img) };
+        return { ...image, key: core.imageKey(image) };
+      }
       const article = img.closest('article');
       if (!article) return null;
       // Only the media carousel contains full-size post images. Avatars live in other lists.
@@ -67,7 +74,7 @@
         record.host.remove(); hosts.delete(img);
       }
     }
-    for (const img of document.querySelectorAll('article ul li img[src*="cdninstagram.com/v/"]')) {
+    for (const img of document.querySelectorAll('article ul li img[src*="cdninstagram.com/v/"], a[href*="/p/"] img[src*="cdninstagram.com/v/"]')) {
       if (hosts.has(img)) continue;
       const image = descriptor(img);
       if (!image) continue;
