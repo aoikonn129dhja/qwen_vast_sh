@@ -102,6 +102,10 @@ def build_archive(root: Path, output: Path) -> dict:
         for path in files:
             relative = path.relative_to(root).as_posix()
             data = path.read_bytes()
+            # Archives bypass Git's eol=lf checkout rules. Windows working
+            # copies can still contain CRLF, which breaks bash and sourced conf.
+            if path.suffix.lower() in {'.sh', '.conf'}:
+                data = data.replace(b'\r\n', b'\n')
             manifest['files'][relative] = hashlib.sha256(data).hexdigest()
             info = tarfile.TarInfo(relative)
             info.size = len(data)

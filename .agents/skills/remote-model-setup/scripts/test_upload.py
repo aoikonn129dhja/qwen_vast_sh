@@ -5,6 +5,7 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -191,6 +192,46 @@ class UploadTests(unittest.TestCase):
                                    side_effect=lambda path, pattern: iter(candidates[path.name])):
                 names = [p.relative_to(root).as_posix() for p in upload.source_files(root)]
             self.assertEqual(names, ['models/sample/setup.sh', 'scripts/setup.sh'])
+
+    def test_archive_normalizes_shell_files_before_hashing_and_installing(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
+            root = Path(directory)
+            model = root / 'models' / 'sample'
+            model.mkdir(parents=True)
+            (root / 'scripts').mkdir()
+            fixtures = {
+                'models/sample/setup.sh': b'#!/usr/bin/env bash\r\nset -Eeuo pipefail\r\n',
+                'models/sample/model.conf': b'MODEL_ID="sample"\r\n',
+                'scripts/helper.sh': b'#!/usr/bin/env bash\nset -e\n',
+                'models/sample/runtime.json': b'{\r\n  "model_id": "sample"\r\n}\r\n',
+            }
+            for name, data in fixtures.items():
+                (root / name).write_bytes(data)
+            archive_path = root / 'code.tar'
+            manifest = upload.build_archive(root, archive_path)
+            stage = root / 'stage'
+            stage.mkdir()
+            with tarfile.open(archive_path) as archive:
+                # Extract only the known test files, never arbitrary tar paths.
+                for name in (*fixtures, 'manifest.json'):
+                    data = archive.extractfile(name).read()
+                    destination = stage / name
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(data)
+                    if name == 'manifest.json':
+                        self.assertEqual(json.loads(data), manifest)
+                        continue
+                    expected = (fixtures[name].replace(b'\r\n', b'\n')
+                                if Path(name).suffix in {'.sh', '.conf'} else fixtures[name])
+                    self.assertEqual(data, expected)
+                    self.assertEqual(manifest['files'][name], hashlib.sha256(expected).hexdigest())
+            target = root / 'installed'
+            installer.install(stage, target)
+            self.assertEqual((target / 'models/sample/setup.sh').read_bytes(),
+                             b'#!/usr/bin/env bash\nset -Eeuo pipefail\n')
+            # Packaging must leave the Windows working copy untouched.
+            for name, data in fixtures.items():
+                self.assertEqual((root / name).read_bytes(), data)
 
     def test_remote_install_never_changes_model_data_after_bad_transfer(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
