@@ -143,11 +143,19 @@ async def relay_http(request: web.Request, port: int) -> web.StreamResponse:
     async def body():
         async for chunk in request.content.iter_chunked(1024 * 1024):
             yield chunk
+    headers = headers_for_upstream(request.headers)
+    data = body() if request.can_read_body else None
+    if request.content_length is not None:
+        headers['Content-Length'] = str(request.content_length)
+    elif request.can_read_body and request.content_type == 'application/json':
+        # An outer proxy may send chunked JSON. VNCCS requires Content-Length;
+        # read JSON within this app's size limit so aiohttp can set its length.
+        data = await request.read()
     try:
         async with session.request(
             request.method, f"http://127.0.0.1:{port}{request.rel_url}",
-            headers=headers_for_upstream(request.headers),
-            data=body() if request.can_read_body else None,
+            headers=headers,
+            data=data,
             allow_redirects=False,
         ) as upstream:
             response = web.StreamResponse(status=upstream.status, reason=upstream.reason)

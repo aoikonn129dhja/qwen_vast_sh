@@ -99,10 +99,16 @@ async def relay_http(request: web.Request) -> web.StreamResponse:
             yield chunk
 
     has_body = request.can_read_body
+    headers = forwarded_headers(request.headers)
+    data = body() if has_body else None
+    if request.content_length is not None:
+        headers['Content-Length'] = str(request.content_length)
+    elif has_body and request.content_type == 'application/json':
+        data = await request.read()
     try:
         async with session.request(
-            request.method, upstream, headers=forwarded_headers(request.headers),
-            data=body() if has_body else None, allow_redirects=False,
+            request.method, upstream, headers=headers,
+            data=data, allow_redirects=False,
         ) as upstream_response:
             response = web.StreamResponse(status=upstream_response.status, reason=upstream_response.reason)
             for key, value in upstream_response.headers.items():

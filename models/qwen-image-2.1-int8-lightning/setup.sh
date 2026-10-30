@@ -48,6 +48,7 @@ mkdir -p "$(dirname "$WORKFLOW_PATH")" "$SHARED_COMFY_DIR/input" "$SHARED_COMFY_
 log "既存 Lightning workflow を保持: $WORKFLOW_PATH"
 # Dedicated pose-transfer path. Does not load the 4-step Lightning LoRA.
 bash "$MODEL_DIR/setup_vnccs.sh"
+bash "$MODEL_DIR/setup_vnccs_gui.sh"
 RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
 runtime_start "$RUNTIME_PORT"
 runtime_register "$MODEL_DIR/runtime.json" >/dev/null
