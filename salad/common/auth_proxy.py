@@ -103,7 +103,7 @@ async def relay_http(request: web.Request) -> web.StreamResponse:
     data = body() if has_body else None
     if request.content_length is not None:
         headers['Content-Length'] = str(request.content_length)
-    elif has_body and request.content_type == 'application/json':
+    elif has_body and request.content_type in {'application/json', 'multipart/form-data'}:
         data = await request.read()
     try:
         async with session.request(

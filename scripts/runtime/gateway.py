@@ -147,9 +147,10 @@ async def relay_http(request: web.Request, port: int) -> web.StreamResponse:
     data = body() if request.can_read_body else None
     if request.content_length is not None:
         headers['Content-Length'] = str(request.content_length)
-    elif request.can_read_body and request.content_type == 'application/json':
-        # An outer proxy may send chunked JSON. VNCCS requires Content-Length;
-        # read JSON within this app's size limit so aiohttp can set its length.
+    elif request.can_read_body and request.content_type in {'application/json', 'multipart/form-data'}:
+        # An outer proxy may send chunked JSON or multipart uploads. VNCCS
+        # requires Content-Length for both capture sync and SAM image imports.
+        # Read within this app's size limit so aiohttp can set the actual length.
         data = await request.read()
     try:
         async with session.request(
