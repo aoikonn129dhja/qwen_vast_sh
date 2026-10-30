@@ -27,10 +27,6 @@ df -h "$WORKSPACE"
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 "$UV" pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt"
 
-runtime_clone_node \
-  "https://github.com/kymeraj/comfyui-load-image-with-filename.git" \
-  "5b57eb29573c173b8f013997adc7d14d94bcd90f" \
-  "$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
 
 fetch_asset() {
     local url="$1" folder="$2" name="$3" expected="$4"

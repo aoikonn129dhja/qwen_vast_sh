@@ -327,13 +327,6 @@ if [ -f "$MODEL_DIR/run_batch.sh" ]; then
 fi
 
 # ------------------------------------------------------------
-# Load Image With Filename custom node
-CUSTOM_NODE_DIR="$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
-CUSTOM_NODE_REPO="https://github.com/kymeraj/comfyui-load-image-with-filename.git"
-runtime_clone_node "$CUSTOM_NODE_REPO" "5b57eb29573c173b8f013997adc7d14d94bcd90f" "$CUSTOM_NODE_DIR"
-[ -f "$CUSTOM_NODE_DIR/__init__.py" ] && [ -f "$CUSTOM_NODE_DIR/load_image_with_filename.py" ] \
-    || die "不完全なカスタムノードを検出しました: $CUSTOM_NODE_DIR"
-
 # Start the managed model process and Gateway.
 # ------------------------------------------------------------
 RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"

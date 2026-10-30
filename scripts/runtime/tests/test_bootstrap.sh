@@ -49,3 +49,21 @@ runtime_uv_install_requirements uv_mock /fake/python requirements.txt
 runtime_uv_install_requirements uv_mock /fake/python requirements.txt cu126 constraints.txt
 [ "$(cat "$CASE_DIR/uv-args")" = $'pip\ninstall\n--python\n/fake/python\n--torch-backend\ncu126\n--constraint\nconstraints.txt\n-r\nrequirements.txt' ]
 printf 'Non-destructive shared data path test passed\n'
+
+# Verify both supported implementations without contacting an external service.
+runtime_clone_node() {
+    printf '%s\n' "$1" "$2" "$3" > "$CASE_DIR/node-args"
+    mkdir -p "$3"
+    printf 'node\n' > "$3/__init__.py"
+    case "$1" in
+        *thalismind*) printf 'node\n' > "$3/nodes.py" ;;
+        *) printf 'node\n' > "$3/load_image_with_filename.py" ;;
+    esac
+}
+RUNTIME_INSTANCE="$CASE_DIR/instances/qwen-image-edit-2511"
+runtime_install_filename_node
+[ "$(sed -n '1p' "$CASE_DIR/node-args")" = 'https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git' ]
+RUNTIME_INSTANCE="$CASE_DIR/instances/another-model"
+runtime_install_filename_node
+[ "$(sed -n '1p' "$CASE_DIR/node-args")" = 'https://github.com/kymeraj/comfyui-load-image-with-filename.git' ]
+printf 'Filename node selection test passed\n'

@@ -183,6 +183,7 @@ else
     log "ComfyUI依存パッケージをインストール"
 fi
 runtime_link_data
+runtime_install_filename_node
 # ComfyUI-QwenVL resolves downloads through folder_paths.models_dir directly.
 # Keep its hard-coded LLM directory on the shared volume as well.
 if [ -L "$COMFY_DIR/models/LLM" ]; then

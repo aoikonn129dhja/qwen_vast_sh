@@ -248,15 +248,7 @@ log "ComfyUI依存パッケージをインストール"
 runtime_uv_install_requirements "$UV" "$PYTHON" requirements.txt \
     "${QWEN_TORCH_BACKEND:-}" "${QWEN_TORCH_CONSTRAINTS:-}"
 
-# Filename-aware image input/output nodes used by Qwen Edit workflows.
 CUSTOM_NODES_DIR="$COMFY_DIR/custom_nodes"
-FILENAME_NODE_DIR="$CUSTOM_NODES_DIR/ComfyUI-LoadImageWithFilename"
-mkdir -p "$CUSTOM_NODES_DIR"
-runtime_clone_node "https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git" \
-    "f6321875b3e8c5c200f558a76f6c49bbd0038387" "$FILENAME_NODE_DIR"
-[ -s "$FILENAME_NODE_DIR/__init__.py" ] && [ -s "$FILENAME_NODE_DIR/nodes.py" ] \
-    || die "LoadImageWithFilenameノードの必須ファイルが見つかりません: $FILENAME_NODE_DIR"
-
 if [ "${INSTALL_PEPE_UTILS:-0}" = "1" ]; then
     PEPE_UTILS_DIR="$CUSTOM_NODES_DIR/ComfyUI-PepeUtils"
     runtime_clone_node "https://github.com/Pepehoschi/ComfyUI-PepeUtils.git" \

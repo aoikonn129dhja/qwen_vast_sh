@@ -30,6 +30,7 @@ git -C "$seed" add .
 git -C "$seed" -c user.name=test -c user.email=test@example.invalid commit -qm seed
 commit="$(git -C "$seed" rev-parse HEAD)"
 printf '{"comfy_commit":"%s","port":18299}\n' "$commit" > "$CASE_DIR/runtime.json"
+runtime_install_filename_node() { :; }
 COMFY_SOURCE_URL="$seed"
 export COMFY_SOURCE_URL
 runtime_clone_comfy "$CASE_DIR/runtime.json"

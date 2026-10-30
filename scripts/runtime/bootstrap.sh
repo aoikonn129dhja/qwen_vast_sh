@@ -141,6 +141,28 @@ PY
         git -C "$COMFY_DIR" checkout -q --detach FETCH_HEAD || return 1
     fi
     runtime_link_data || return 1
+    runtime_install_filename_node || return 1
+}
+
+runtime_install_filename_node() {
+    local url commit destination required
+    case "$(basename -- "$RUNTIME_INSTANCE")" in
+        qwen-image-edit-2509|qwen-image-edit-2511)
+            url="https://github.com/thalismind/ComfyUI-LoadImageWithFilename.git"
+            commit="f6321875b3e8c5c200f558a76f6c49bbd0038387"
+            destination="$COMFY_DIR/custom_nodes/ComfyUI-LoadImageWithFilename"
+            required="nodes.py"
+            ;;
+        *)
+            url="https://github.com/kymeraj/comfyui-load-image-with-filename.git"
+            commit="5b57eb29573c173b8f013997adc7d14d94bcd90f"
+            destination="$COMFY_DIR/custom_nodes/comfyui-load-image-with-filename"
+            required="load_image_with_filename.py"
+            ;;
+    esac
+    runtime_clone_node "$url" "$commit" "$destination" || return 1
+    [ -s "$destination/__init__.py" ] && [ -s "$destination/$required" ] ||
+        runtime_die "Load Image With Filename node is incomplete: $destination"
 }
 
 runtime_clone_node() {
