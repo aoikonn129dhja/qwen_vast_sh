@@ -123,22 +123,49 @@ def checked_marker(command: list[str], marker: str) -> str:
     raise RuntimeError(f'SSH verification failed: {result.stdout[-2000:]}')
 
 
+def shell_command(script: str) -> str:
+    # Salad's SSH gateway executes argv directly instead of using a login shell.
+    # Quote the script so both that gateway and a regular SSH shell pass one
+    # argument to bash, preserving conditionals, pipelines and command chains.
+    return 'bash -c ' + shlex.quote(script)
+
+
+def workflow_source(model_dir: Path, name: str) -> Path:
+    for path in (model_dir / 'workflows' / name, model_dir / name):
+        if path.is_file():
+            return path
+    # Qwen Edit installs official.json under WORKFLOW_FILE_NAME at setup time.
+    # Read only literal assignments; never execute the shell configuration.
+    config = model_dir / 'model.conf'
+    values = {}
+    if config.is_file():
+        for line in config.read_text(encoding='utf-8').splitlines():
+            match = re.fullmatch(r'(WORKFLOW_FILE_NAME|WORKFLOW_SOURCE)=(.*)', line.strip())
+            if match:
+                words = shlex.split(match[2], comments=True)
+                if len(words) == 1:
+                    values[match[1]] = words[0]
+    if name == values.get('WORKFLOW_FILE_NAME') and values.get('WORKFLOW_SOURCE'):
+        path = model_dir / values['WORKFLOW_SOURCE']
+        if path.resolve().is_relative_to(model_dir.resolve()) and path.is_file():
+            return path
+    raise ValueError(f'Workflow source is missing: {model_dir.name}/{name}')
+
+
 def upload(ssh_command: str, model: str, provider: str = 'auto') -> tuple[str, str]:
     if not re.fullmatch(r'[a-z0-9][a-z0-9.-]*', model) or not (ROOT / 'models' / model / 'setup.sh').is_file():
         raise ValueError(f'Unknown runnable model: {model}')
     config = json.loads((ROOT / 'models' / model / 'runtime.json').read_text(encoding='utf-8'))
     for workflow in config.get('workflows', []):
-        path = ROOT / 'models' / model / 'workflows' / workflow
-        if not path.is_file():
-            path = ROOT / 'models' / model / workflow
+        path = workflow_source(ROOT / 'models' / model, workflow)
         json.loads(path.read_text(encoding='utf-8'))
     arguments, target = parse_ssh(ssh_command)
     ssh = ['ssh', '-T', *arguments, target]
     if provider == 'auto':
-        result = checked_marker(ssh + [
+        result = checked_marker(ssh + [shell_command(
             "if [ -f /opt/salad/start.sh ]; then echo PROVIDER=salad; "
             "elif [ -d /workspace ]; then echo PROVIDER=vast; fi"
-        ], 'PROVIDER=')
+        )], 'PROVIDER=')
         provider = result.split('=', 1)[1]
     if provider not in ('vast', 'salad'):
         raise ValueError('Provider must be vast or salad')
@@ -163,7 +190,7 @@ def upload(ssh_command: str, model: str, provider: str = 'auto') -> tuple[str, s
             f'python3 {remote_stage}/remote_install.py {remote_stage} {REMOTE_ROOT} && '
             f'rm -f {remote_archive} && rm -r {remote_stage}'
         )
-        checked_marker(ssh + [remote], f"TRANSFER_OK {manifest['version']}")
+        checked_marker(ssh + [shell_command(remote)], f"TRANSFER_OK {manifest['version']}")
     return provider, manifest['version']
 
 
