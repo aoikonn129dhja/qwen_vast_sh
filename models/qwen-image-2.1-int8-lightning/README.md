@@ -1,72 +1,42 @@
-# Qwen-Image-2.1 INT8 ConvRot + LightX2V Lightning 4steps
+# Qwen Image 2.1 INT8 Lightning ＋ VNCCS Pose Transfer
 
-ComfyUI用の単一画像編集構成。入力は画像1枚とテキストプロンプト1つ。追加の参照画像やプロンプト補強モデルは不要。
+従来の**1画像入力・Lightning 4steps**は維持し、**既存の3Dマネキン画像から人物画像へポーズを転写する機能**を追加する。元のセットアップのモデルファイル、共有ランタイム、Gateway、隔離されたPython環境を引き続き利用する。
 
-- ベースモデル。Comfy-Org配布のQwen-Image-2.1 INT8 ConvRot。NSFW専用の派生モデルではない。
-- 高速化。LightX2V Qwen-Image-2.1-Lightning 4steps LoRA。
-- テキストエンコーダー。Qwen3-VL 8B INT8 ConvRot。
-- VAE。Qwen-Image-2.1 BF16。
-- インストール。Hugging Faceの固定リビジョンから取得。既存モデルは再利用、途中ファイルは再開。
-- 不要なもの。Qwen 3.5 Prompt Enhancer、GGUFノード、追加LoRA。
-
-## 配置
-
-```text
-qwen_vast_sh/
-└── models/
-    └── qwen-image-2.1-int8-lightning/
-        ├── setup.sh
-        ├── model.conf
-        ├── README.md
-        └── workflows/
-            └── Qwen-Image-2.1-INT8-Lightning-4steps-1input.json
-```
-
-## Vast.ai上で実行
+## セットアップ
 
 ```bash
-cd /workspace/qwen_vast_sh
-bash models/qwen-image-2.1-int8-lightning/setup.sh
+bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup.sh
 ```
 
-既存ComfyUIが最新でなく、更新を抑制したい場合。
+既存のINT8ベース、エンコーダ、VAE、Lightning LoRAを取得・再利用する。追加でVNCCS PoseStudio V1.1 LoRA（約159MB）とポーズ転写用APIワークフローを配置する。**VNCCSの3D編集ノードや136姿勢ライブラリは導入しない。** 既存の3Dマネキン画像を直接使う構成だから不要。
+
+## 実行（Vast.ai / SaladCloud内）
 
 ```bash
-UPDATE_COMFYUI=0 bash models/qwen-image-2.1-int8-lightning/setup.sh
+python /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/scripts/run_pose_transfer.py \
+  --char /workspace/ComfyUI/input/character.png \
+  --pose-ref /workspace/ComfyUI/input/mannequin.png \
+  --out /workspace/ComfyUI/output/pose_result.png
 ```
 
-追加でファイルのハッシュを検証したい場合。
+- `--char`：保持したい人物の画像。
+- `--pose-ref`：無地の3Dマネキンの姿勢画像。写真やイラストからの骨格抽出は不要。
+- Image 1＝マネキン、Image 2＝人物。順序を入れ替えない。
+- VNCCS LoRA強度1.0、25 steps、CFG 1.0、Euler/simple。Lightning LoRAはこの経路では適用しない。
+- `--seed`、`--steps`、`--cfg`、`--lora-strength`で個別調整可能。
+- 内部ComfyUIにアクセスできない場合のみ`--url http://127.0.0.1:8188`を環境に合わせて指定。
 
-```bash
-VERIFY_SHA256=1 bash models/qwen-image-2.1-int8-lightning/setup.sh
-```
+このCLIのワークフローは**ComfyUI API形式**。GUIのワークフロー読み込み用ではない。既存LightningのGUIワークフローは引き続き使用できる。
 
-ハッシュ確認は通常無効。既存のファイルはサイズの下限のみ検査する。配布ファイルのSHA-256値は`model.conf`に保存している。
+## 注意
 
-セットアップ完了後、ComfyUIのワークフロー一覧から`Qwen-Image-2.1-INT8-Lightning-4steps-1input.json`を開き、`Load Image`に編集対象画像を指定する。`TextEncodeQwenImage21`のプロンプトを変更して実行する。
+- VNCCS専用LoRAが学習したマネキンの表現と異なる場合、姿勢転写に失敗する可能性がある。
+- 現在のセットアップにはVNCCS LoRAの既知のSHA256値を登録していない。HTTPSで取得しファイルの最低サイズは確認するが、バイト単位の完全性保証はしない。必要ならハッシュを別途固定する。
+- クラウド実GPUでの動作、画質、商用利用条件は未検証。元のリポジトリのライセンスとモデルウェイトの利用条件を確認する。
+- セットアップはモデル別ランタイムを使う。別モデルとの切替でメモリ不足なら既存`runtime_control.py unload`を使用。
 
-## SaladCloud
+## 出典
 
-既存共通イメージの`/opt/salad/select_model.sh`が新ディレクトリを含んでいる場合。
-
-```bash
-bash /opt/salad/select_model.sh qwen-image-2.1-int8-lightning
-```
-
-コンテナ内部の`/workspace/qwen_vast_sh`に新しいディレクトリが入っていなければ実行できない。共通イメージの再ビルドまたはディレクトリ配置が必要。
-
-## Lightning 4steps設定
-
-- LoRA strength: `1.0`。
-- CFG: `1.0`。
-- Eulerサンプラー。
-- `ManualSigmas`: `1.0, 0.75, 0.5, 0.25, 0.0`。末尾の0は最終ステップの終点で、4回の遷移を定義する。
-- Lightning配布元の使用例に準拠し、追加の入力参照とプロンプト補強は省略している。
-
-**動作保証の範囲。** モデル配布元はBF16 + Diffusersで4ステップ動作を説明している。INT8 ConvRot + ComfyUIでのLoRA適用・画質は実GPU環境で未検証。ワークフローはComfyUI標準ノードだけで組んでいるが、ComfyUIのバージョンに依存する。エラー時は`tail -n 100 /workspace/comfyui.log`および各ノードのエラー表示を確認する。
-
-## ダウンロード元
-
-- https://huggingface.co/Comfy-Org/Qwen-Image-2.1
-- https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning
-- https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_qwen_image_2_1_image_edit.json
+- [Qwen 2.1 pose-transfer skill](https://github.com/Arekejoker/qwen21-nsfw-pose-skill)。参考にしたのはRoute③の入力順序と25step設定。スクリプトは本パッチで独立実装。
+- [VNCCS PoseStudio LoRA](https://huggingface.co/MIUProject/VNCCS_PoseStudio_QI2.1)
+- [ベースモデル](https://huggingface.co/Comfy-Org/Qwen-Image-2.1)
