@@ -93,15 +93,78 @@ class UploadTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Workflow source is missing'):
                 upload.workflow_source(model, 'installed.json')
 
-    def test_requested_models_have_valid_workflow_sources(self):
+    def test_all_models_have_valid_workflow_sources(self):
         root = HERE.parents[3]
-        for name in ('qwen-image-2.1-int8-lightning', 'qwen-image-edit-2511'):
-            model = root / 'models' / name
+        setups = sorted((root / 'models').glob('*/setup.sh'))
+        self.assertTrue(setups)
+        for setup in setups:
+            model = setup.parent
             config = json.loads((model / 'runtime.json').read_text(encoding='utf-8'))
             for workflow in config['workflows']:
-                with self.subTest(model=name, workflow=workflow):
+                with self.subTest(model=model.name, workflow=workflow):
                     source = upload.workflow_source(model, workflow)
-                    json.loads(source.read_text(encoding='utf-8'))
+                    if source is None:
+                        self.assertIn((model.name, workflow), upload.SETUP_WORKFLOWS)
+                        self.assertIn(workflow, setup.read_text(encoding='utf-8'))
+                    else:
+                        json.loads(source.read_text(encoding='utf-8'))
+
+    def test_setup_workflow_exceptions_do_not_hide_missing_sources(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as directory:
+            root = Path(directory)
+            for (model, name), source in upload.SETUP_WORKFLOWS.items():
+                model_dir = root / model
+                model_dir.mkdir()
+                with self.subTest(model=model):
+                    with self.assertRaisesRegex(ValueError, 'missing'):
+                        upload.workflow_source(model_dir, name)
+                    (model_dir / 'setup.sh').write_text('true\n')
+                    if source is None:
+                        self.assertIsNone(upload.workflow_source(model_dir, name))
+                    else:
+                        # Having setup.sh does not excuse a missing bundled file.
+                        with self.assertRaisesRegex(ValueError, 'Workflow source is missing'):
+                            upload.workflow_source(model_dir, name)
+
+    def test_all_models_use_common_shell_wrapping_on_both_providers(self):
+        root = HERE.parents[3]
+        setups = sorted((root / 'models').glob('*/setup.sh'))
+        self.assertTrue(setups)
+        for setup in setups:
+            for provider in ('vast', 'salad'):
+                with self.subTest(model=setup.parent.name, provider=provider):
+                    commands = []
+
+                    def remote(command, **kwargs):
+                        commands.append(command)
+                        if command[0] == 'scp':
+                            return subprocess.CompletedProcess(command, 0)
+                        argv = shlex.split(command[-1])
+                        self.assertEqual(argv[:2], ['bash', '-c'])
+                        self.assertEqual(len(argv), 3)
+                        marker = ('PROVIDER=' + provider if argv[2].startswith('if ')
+                                  else 'TRANSFER_OK all-models-test')
+                        return subprocess.CompletedProcess(
+                            command, 1 if provider == 'salad' else 0, stdout=marker + '\n')
+
+                    with mock.patch.object(upload, 'build_archive',
+                                           return_value={'version': 'all-models-test'}), \
+                            mock.patch.object(upload.subprocess, 'run', side_effect=remote):
+                        if provider == 'salad' and setup.parent.name == 'lightwan2.2-a14b':
+                            with self.assertRaisesRegex(ValueError, 'LightWan is not supported'):
+                                upload.upload('ssh root@host.test -p 1234', setup.parent.name)
+                            self.assertEqual(len(commands), 1)
+                            continue
+                        self.assertEqual(
+                            upload.upload('ssh root@host.test -p 1234', setup.parent.name),
+                            (provider, 'all-models-test'))
+                    self.assertEqual([command[0] for command in commands], ['ssh', 'scp', 'ssh'])
+                    expected = (f'bash /opt/salad/select_model.sh {setup.parent.name}'
+                                if provider == 'salad' else
+                                f'bash {upload.REMOTE_ROOT}/models/{setup.parent.name}/setup.sh')
+                    command = upload.setup_command('ssh root@host.test -p 1234',
+                                                   provider, setup.parent.name)
+                    self.assertEqual(shlex.split(command)[-1], expected)
 
     @unittest.skipUnless(shutil.which('bash'), 'Linux bash is required')
     def test_shell_script_runs_with_gateway_and_regular_ssh_semantics(self):

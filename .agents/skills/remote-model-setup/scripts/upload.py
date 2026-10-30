@@ -20,6 +20,14 @@ ROOT = Path(__file__).resolve().parents[4]
 REMOTE_ROOT = '/workspace/qwen_vast_sh'
 ALLOWED_SUFFIXES = {'.sh', '.py', '.json', '.conf', '.lock', '.in', '.patch', '.js', '.txt'}
 MAX_SOURCE_BYTES = 10 * 1024 * 1024
+# Sources whose installed names differ from their repository filenames.
+# None means setup.sh creates or downloads the workflow; it is not bundled JSON.
+SETUP_WORKFLOWS = {
+    ('qwen-rapid-aio-nsfw-v19', 'Qwen-Rapid-AIO-NSFW-v19-Batch.json'): 'workflows/batch-save-image.json',
+    ('qwen-rapid-aio-nsfw-v23', 'Qwen-Rapid-AIO-NSFW-v23-Batch.json'): 'workflows/batch-save-image.json',
+    ('qwen3-vl-8b-instruct', 'Qwen3-VL-8B-Pose-Analysis.json'): None,
+    ('wan2.2-ti2v-5b', 'Wan-2.2-TI2V-5B.json'): None,
+}
 
 
 def parse_ssh(value: str) -> tuple[list[str], str]:
@@ -130,10 +138,22 @@ def shell_command(script: str) -> str:
     return 'bash -c ' + shlex.quote(script)
 
 
-def workflow_source(model_dir: Path, name: str) -> Path:
+def workflow_source(model_dir: Path, name: str) -> Path | None:
+    """Resolve bundled JSON, or return None for explicitly setup-created files."""
     for path in (model_dir / 'workflows' / name, model_dir / name):
         if path.is_file():
             return path
+    key = (model_dir.name, name)
+    if key in SETUP_WORKFLOWS:
+        source = SETUP_WORKFLOWS[key]
+        if source is None:
+            if not (model_dir / 'setup.sh').is_file():
+                raise ValueError(f'Workflow setup script is missing: {model_dir.name}/{name}')
+            return None
+        path = model_dir / source
+        if path.is_file():
+            return path
+        raise ValueError(f'Workflow source is missing: {model_dir.name}/{source}')
     # Qwen Edit installs official.json under WORKFLOW_FILE_NAME at setup time.
     # Read only literal assignments; never execute the shell configuration.
     config = model_dir / 'model.conf'
@@ -158,7 +178,8 @@ def upload(ssh_command: str, model: str, provider: str = 'auto') -> tuple[str, s
     config = json.loads((ROOT / 'models' / model / 'runtime.json').read_text(encoding='utf-8'))
     for workflow in config.get('workflows', []):
         path = workflow_source(ROOT / 'models' / model, workflow)
-        json.loads(path.read_text(encoding='utf-8'))
+        if path is not None:
+            json.loads(path.read_text(encoding='utf-8'))
     arguments, target = parse_ssh(ssh_command)
     ssh = ['ssh', '-T', *arguments, target]
     if provider == 'auto':
