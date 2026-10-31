@@ -167,6 +167,12 @@ qwen_vast_sh/
 - `setup_qwen_edit_model.sh`: Qwen Image Editモデルのセットアップ共通処理。直接実行せず、対象モデルの `models/<モデル名>/setup.sh` から利用する。
 - `vast_comfy_output_sync_and_log.py`: Windows側からComfyUIの生成物を回収し、生成条件をCSVに記録する。別途解説.
 
+## Load Image With filenameがない場合のDLコマンド
+```
+cd /workspace/.qwen_runtime/instances/qwen-image-2.1-int8-lightning/ComfyUI/custom_nodes
+git clone https://github.com/kymeraj/comfyui-load-image-with-filename.git
+```
+
 ### Qwen Rapid v19のバッチ生成
 
 ```bash

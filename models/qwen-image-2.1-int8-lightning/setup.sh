@@ -50,6 +50,27 @@ log "既存 Lightning workflow を保持: $WORKFLOW_PATH"
 bash "$MODEL_DIR/setup_vnccs.sh"
 bash "$MODEL_DIR/setup_vnccs_gui.sh"
 RUNTIME_PORT="$(runtime_port "$MODEL_DIR/runtime.json")"
+# Newly installed custom nodes are loaded only when ComfyUI starts. Restart the
+# managed backend after installation, but never interrupt queued or running work.
+if [ -s "$RUNTIME_PID_FILE" ]; then
+    read -r runtime_pid < "$RUNTIME_PID_FILE"
+    if runtime_pid_valid "$runtime_pid" "$RUNTIME_PORT"; then
+        "$PYTHON" - "$RUNTIME_PORT" <<'PYQUEUE'
+import json, sys, urllib.request
+with urllib.request.urlopen(f'http://127.0.0.1:{sys.argv[1]}/queue', timeout=5) as response:
+    queue = json.load(response)
+if queue.get('queue_running') or queue.get('queue_pending'):
+    raise SystemExit('ERROR: ComfyUI has queued or running work. Wait for it to finish, then run setup.sh again to load VNCCS nodes.')
+PYQUEUE
+        log 'VNCCSノードを読み込むためComfyUIバックエンドを再起動'
+        kill "$runtime_pid"
+        for _ in $(seq 1 30); do
+            runtime_pid_valid "$runtime_pid" "$RUNTIME_PORT" || break
+            sleep 1
+        done
+        runtime_pid_valid "$runtime_pid" "$RUNTIME_PORT" && die 'ComfyUI backend did not stop after SIGTERM.'
+    fi
+fi
 runtime_start "$RUNTIME_PORT"
 runtime_register "$MODEL_DIR/runtime.json" >/dev/null
 runtime_gateway_start

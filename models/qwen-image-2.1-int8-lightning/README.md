@@ -8,7 +8,7 @@
 bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup.sh
 ```
 
-既存のINT8ベース、エンコーダ、VAE、Lightning LoRAを取得・再利用する。追加でVNCCS PoseStudio V1.1 LoRA（約159MB）、ポーズ転写用APIワークフロー、GUI用のVNCCS Utils・rgthreeノードを導入する。ノードは固定コミットで導入し、既存のPyTorch系パッケージの版を保持する。
+既存のINT8ベース、エンコーダ、VAE、Lightning LoRAを取得・再利用する。追加でVNCCS PoseStudio V1.1 LoRA（約159MB）、ポーズ転写用APIワークフロー、GUI用のVNCCS Utils・rgthreeノードを導入する。ノードは固定コミットで導入し、既存のPyTorch系パッケージの版を保持する。ComfyUIが起動済みの場合は、キューが空であることを確認してバックエンドを再起動し、追加ノードを読み込む。キュー実行中はジョブを中断しないようセットアップを停止するため、完了後にもう一度実行する。
 
 ## ComfyUI画面で使う
 
@@ -18,12 +18,7 @@ bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup.sh
 - Load Imageで人物画像を選択する。
 - VNCCS Pose Studioでポーズを編集し、実行する。
 - この構成ではノードを直接導入するので、ComfyUI Managerは不要。
-
-以前のセットアップにGUIノードだけを追加する場合は次を実行する。その後、実行中のキューがないことを確認してQwen Image 2.1のバックエンドを再起動する必要がある。
-
-```bash
-bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup_vnccs_gui.sh
-```
+- 以前のセットアップにGUIノードだけを追加する場合は `setup_vnccs_gui.sh` を実行し、キューが空のときにQwen Image 2.1のバックエンドを再起動する。
 
 ## 実行（Vast.ai / SaladCloud内）
 
