@@ -12,7 +12,7 @@ bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup.sh
 
 ## ComfyUI画面で使う
 
-[同梱のGUIワークフロー](workflows/Qwen-Image-2.1-VNCCS-PoseStudio-GUI.json)をComfyUIで読み込む。[作者の配布版](https://huggingface.co/MIUProject/VNCCS_PoseStudio_QI2.1/blob/main/VNCCS_PoseStudio_QI2.1.json)のLoRA名を導入済みV1.1に合わせたもの。
+[同梱のGUIワークフロー](workflows/Qwen-Image-2.1-VNCCS-ポーズスタジオ.json)をComfyUIで読み込む。[作者の配布版](https://huggingface.co/MIUProject/VNCCS_PoseStudio_QI2.1/blob/main/VNCCS_PoseStudio_QI2.1.json)のLoRA名を導入済みV1.1に合わせたもの。
 
 - LoRAノードは導入済みの `VNCCS_QI2_PoseStudioV1.1.safetensors` を使用する。
 - Load Imageで人物画像を選択する。
