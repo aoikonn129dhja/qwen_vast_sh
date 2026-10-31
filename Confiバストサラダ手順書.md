@@ -21,6 +21,8 @@
 
 SaladCloud では LightWan 2.2 A14B を選べない。SaladCloud のセットアップが完了したら `Model setup complete` と表示されることを確認する。SSH単発コマンドでは成功時にも終了コード `1` を返す場合があるため、終了コードだけで判断しない。
 
+各ComfyUIモデルの `setup.sh` を直接実行した場合も、共通ランタイムがGatewayの応答確認後にSaladの完了ファイルを記録し、認証プロキシを起動できるようにする。ComfyUI本体が内部で動作しているのに公開URLが503になる場合は、`/workspace/.salad-setup-ready` の欠落も確認する。認証情報なしの公開URLへのアクセスが401を返すのは正常。
+
 既存のモデルファイルは毎回 SHA-256 を計算し、一致すれば再利用する。不一致ならファイルを残して停止する。未取得モデルがある場合は Hugging Face から最大 8 MiB を試験取得し、既定の 10 MiB/s 未満なら警告して続行を確認する。速度測定に失敗した場合は警告して取得を続ける。SaladCloud は再配置でコンテナのローカルストレージが消える場合があり、その場合はモデルの再取得が必要になる。
 
 以下にVast.aiとSaladCloudのプロバイダー別手順を記載する。どちらもリモート端末でリポジトリを `git clone` または `git pull` し、モデルのセットアップを実行する。
@@ -68,6 +70,9 @@ cd /workspace/qwen_vast_sh/models/ltx-2.3-uncensored-v1.4-q4 && bash setup.sh
 
 # Wan2.2 TI2V 5B Turbo
 cd /workspace/qwen_vast_sh/models/wan2.2-ti2v-5b-turbo && bash setup.sh
+
+# qwen-image-2.1-int8-lightning
+cd /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning && bash setup.sh
 ```
 
 モデル取得前に Hugging Face の速度を測り、既定 10 MiB/s 未満では続行確認する。非対話実行では停止するため、低速でも続けると決めた場合だけ `ALLOW_SLOW_DOWNLOAD=1 bash setup.sh` を使う。速度判定を無効化しても、ダウンロードそのものが速くなるわけではない。

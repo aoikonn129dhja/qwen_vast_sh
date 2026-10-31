@@ -67,3 +67,20 @@ RUNTIME_INSTANCE="$CASE_DIR/instances/another-model"
 runtime_install_filename_node
 [ "$(sed -n '1p' "$CASE_DIR/node-args")" = 'https://github.com/kymeraj/comfyui-load-image-with-filename.git' ]
 printf 'Filename node selection test passed\n'
+
+# Direct setups enable the authenticated Salad proxy after Gateway readiness,
+# preserving other installed models and excluding CLI-only registrations.
+RUNTIME_ROOT="$CASE_DIR/runtime"
+WORKSPACE="$CASE_DIR"
+SALAD_READY_FILE="$CASE_DIR/.salad-setup-ready"
+mkdir -p "$RUNTIME_ROOT/state/registered" "$RUNTIME_ROOT/locks"
+for model in first second cli; do
+    RUNTIME_INSTANCE="$RUNTIME_ROOT/instances/$model"
+    kind=comfyui
+    [ "$model" != cli ] || kind=cli
+    printf '{"runtime_type":"%s"}\n' "$kind" > "$RUNTIME_ROOT/state/registered/$model.json"
+    runtime_salad_ready
+    runtime_salad_ready
+done
+[ "$(cat "$SALAD_READY_FILE")" = $'first\nsecond' ]
+printf 'Direct Salad setup readiness test passed\n'

@@ -321,6 +321,35 @@ temporary.replace(destination)
 PY
 }
 
+runtime_salad_ready() {
+    # Direct model setup must also enable Salad's authenticated public proxy.
+    # Outside Salad, leave the workspace unchanged.
+    [ -f /opt/salad/start.sh ] || [ -n "${SALAD_READY_FILE:-}" ] || return 0
+    "$PYTHON" - "$RUNTIME_ROOT" "$RUNTIME_INSTANCE" "${SALAD_READY_FILE:-$WORKSPACE/.salad-setup-ready}" <<'PY'
+import fcntl
+import json
+from pathlib import Path
+import sys
+
+root, instance, destination = map(Path, sys.argv[1:])
+model_id = instance.name
+registry = root / 'state' / 'registered' / (model_id + '.json')
+if not registry.is_file():
+    raise SystemExit(0)
+model = json.loads(registry.read_text(encoding='utf-8'))
+if model['runtime_type'] != 'comfyui':
+    raise SystemExit(0)
+with (root / 'locks' / 'salad-ready.lock').open('a') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    models = destination.read_text(encoding='utf-8').splitlines() if destination.exists() else []
+    if model_id not in models:
+        models.append(model_id)
+        temporary = destination.with_name(destination.name + '.runtime.tmp')
+        temporary.write_text('\n'.join(models) + '\n', encoding='utf-8')
+        temporary.replace(destination)
+PY
+}
+
 runtime_gateway_start() (
     exec 9>"$RUNTIME_ROOT/locks/gateway.start.lock"
     flock -x 9
@@ -335,7 +364,7 @@ runtime_gateway_start() (
 import urllib.request
 urllib.request.urlopen('http://127.0.0.1:8188/runtime/healthz', timeout=2).read(1)
 PY
-            then return 0; fi
+            then runtime_salad_ready; return $?; fi
             runtime_die 'Managed Gateway process is alive but does not respond.' || return 1
         fi
     fi
@@ -347,7 +376,7 @@ PY
 import urllib.request
 urllib.request.urlopen('http://127.0.0.1:8188/runtime/healthz', timeout=2).read(1)
 PY
-        then return 0; fi
+        then runtime_salad_ready; return $?; fi
         sleep 1
     done
     runtime_die "Gateway did not start; see $RUNTIME_ROOT/logs/gateway.log"
