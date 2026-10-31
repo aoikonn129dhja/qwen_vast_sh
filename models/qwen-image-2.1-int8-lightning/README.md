@@ -10,6 +10,8 @@ bash /workspace/qwen_vast_sh/models/qwen-image-2.1-int8-lightning/setup.sh
 
 既存のINT8ベース、エンコーダ、VAE、Lightning LoRAを取得・再利用する。追加でVNCCS PoseStudio V1.1 LoRA（約159MB）、ポーズ転写用APIワークフロー、GUI用のVNCCS Utils・rgthreeノードを導入する。ノードは固定コミットで導入し、既存のPyTorch系パッケージの版を保持する。ComfyUIが起動済みの場合は、キューが空であることを確認してバックエンドを再起動し、追加ノードを読み込む。キュー実行中はジョブを中断しないようセットアップを停止するため、完了後にもう一度実行する。
 
+追加の `qwen2_1-femaledVaginus-nsfw-v1_3-fine_L22-31.safetensors` も `/workspace/ComfyUI/models/loras/` に取得する。配布元の固定コミットとSHA-256で検証し、既存ファイルは検証後に再利用する。ワークフローには自動で適用されないため、使う場合はComfyUIのLoRAノードで選択する。
+
 ## ComfyUI画面で使う
 
 [同梱のGUIワークフロー](workflows/Qwen-Image-2.1-VNCCS-ポーズスタジオ.json)をComfyUIで読み込む。[作者の配布版](https://huggingface.co/MIUProject/VNCCS_PoseStudio_QI2.1/blob/main/VNCCS_PoseStudio_QI2.1.json)のLoRA名を導入済みV1.1に合わせたもの。

@@ -24,15 +24,20 @@ free_kb="$(df -Pk "$WORKSPACE" | awk 'NR == 2 { print $4 }')"
 [ "$free_kb" -ge 23000000 ] || die '空き容量が23GB未満です。'
 HF_BASE="https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/$BASE_REVISION"
 HF_LORA="https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning/resolve/$LORA_REVISION"
+HF_EXTRA_LORA="https://huggingface.co/mpasila/Qwen-Image-2.1-LoRAs/resolve/401c3423daed3d678eb7bb6477eb695ba0a01f4d"
+EXTRA_LORA_FILE="qwen2_1-femaledVaginus-nsfw-v1_3-fine_L22-31.safetensors"
+EXTRA_LORA_SHA256="4e1b8db3ef339aae3b5d2ef6d9b5c0261329559b6da790481535ebba9de77685"
 DIFFUSION_PATH="$SHARED_COMFY_DIR/models/diffusion_models/$DIFFUSION_FILE"
 TEXT_ENCODER_PATH="$SHARED_COMFY_DIR/models/text_encoders/$TEXT_ENCODER_FILE"
 VAE_PATH="$SHARED_COMFY_DIR/models/vae/$VAE_FILE"
 LORA_PATH="$SHARED_COMFY_DIR/models/loras/$LORA_FILE"
+EXTRA_LORA_PATH="$SHARED_COMFY_DIR/models/loras/$EXTRA_LORA_FILE"
 "$PYTHON" "$REPO_ROOT/scripts/runtime/network_preflight.py" \
     --file "$HF_BASE/diffusion_models/$DIFFUSION_FILE" "$DIFFUSION_PATH" "$DIFFUSION_SHA256" \
     --file "$HF_BASE/text_encoders/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_PATH" "$TEXT_ENCODER_SHA256" \
     --file "$HF_BASE/vae/$VAE_FILE" "$VAE_PATH" "$VAE_SHA256" \
-    --file "$HF_LORA/$LORA_SOURCE_FILE" "$LORA_PATH" "$LORA_SHA256"
+    --file "$HF_LORA/$LORA_SOURCE_FILE" "$LORA_PATH" "$LORA_SHA256" \
+    --file "$HF_EXTRA_LORA/$EXTRA_LORA_FILE" "$EXTRA_LORA_PATH" "$EXTRA_LORA_SHA256"
 log 'ComfyUI の準備'
 runtime_clone_comfy "$MODEL_DIR/runtime.json"
 log 'ComfyUI 依存パッケージを導入'
@@ -43,6 +48,7 @@ fetch_model "$HF_BASE/diffusion_models/$DIFFUSION_FILE" "$DIFFUSION_PATH" "$DIFF
 fetch_model "$HF_BASE/text_encoders/$TEXT_ENCODER_FILE" "$TEXT_ENCODER_PATH" "$TEXT_ENCODER_SHA256"
 fetch_model "$HF_BASE/vae/$VAE_FILE" "$VAE_PATH" "$VAE_SHA256"
 fetch_model "$HF_LORA/$LORA_SOURCE_FILE" "$LORA_PATH" "$LORA_SHA256"
+fetch_model "$HF_EXTRA_LORA/$EXTRA_LORA_FILE" "$EXTRA_LORA_PATH" "$EXTRA_LORA_SHA256"
 mkdir -p "$(dirname "$WORKFLOW_PATH")" "$SHARED_COMFY_DIR/input" "$SHARED_COMFY_DIR/output"
 [ -e "$WORKFLOW_PATH" ] || { cp -- "$MODEL_DIR/workflows/$WORKFLOW_FILE" "${WORKFLOW_PATH}.tmp"; mv -f -- "${WORKFLOW_PATH}.tmp" "$WORKFLOW_PATH"; }
 log "既存 Lightning workflow を保持: $WORKFLOW_PATH"
@@ -82,6 +88,7 @@ cat <<EOF2
 ComfyUI     : http://127.0.0.1:$COMFY_PORT
 Lightning   : $WORKFLOW_PATH
 VNCCS LoRA  : $SHARED_COMFY_DIR/models/loras/VNCCS_QI2_PoseStudioV1.1.safetensors
+Extra LoRA  : $EXTRA_LORA_PATH
 Pose script : $MODEL_DIR/scripts/run_pose_transfer.py
 Pose API wf : $MODEL_DIR/workflows/Qwen-Image-2.1-VNCCS-PoseTransfer-API.json
 
