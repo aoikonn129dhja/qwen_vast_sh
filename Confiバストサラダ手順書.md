@@ -1,17 +1,29 @@
 # Vast.ai・SaladCloud モデル利用手順書
 
-## Codex スキル経由で使う場合（最初に読む）
+## 新しいインスタンスでの共通手順
 
-1. Vast.ai では GPU インスタンスを RENT、SaladCloud では共通イメージの Container Group を Run して、SSH 接続コマンドを取得する。
-2. このプロジェクトを開いた Codex に、SSH 接続コマンドを渡して「`remote-model-setup` スキルでセットアップしたい」と伝える。例: `ssh -p <ポート> root@<ホスト>`。SSH 鍵のパスや `-L` オプションを含む普段の接続コマンドも渡せる。
-3. Codex に「今日はどのモデルを使いますか」と聞かれたらモデル名を選ぶ。Codex がこの Windows 側リポジトリから**コード・設定・ワークフローだけ**を SSH で転送・検証する。モデル本体は転送せず、リモートでの `git clone` も不要。
-4. Codex が返す **PowerShell 用の `ssh -tt ...` セットアップコマンドを自分の端末で実行する**。モデルの試験ダウンロード、速度警告、本ダウンロード、SHA-256 検証、セットアップの進捗をその端末で確認する。Codex はこのセットアップコマンドを実行しない。
+1. Vast.ai では GPU インスタンスを RENT、SaladCloud では共通イメージの Container Group を Run し、SSH 接続コマンドを取得する。
+2. SSH で接続し、リモート端末からリポジトリを取得する。新規環境では次を実行する。
 
-SaladCloud では LightWan 2.2 A14B を選べない。SaladCloud のコマンドはコンテナ内の `/opt/salad/select_model.sh`、Vast.ai のコマンドは選んだモデルの `setup.sh` を実行する。転送に失敗した場合、Codex はセットアップコマンドを提示しない。SaladCloud は SSH 単発コマンドが成功時にも終了コード `1` を返す場合があるため、末尾の `SETUP COMPLETE` / `Model setup complete` とエラー表示を確認する。
+   ```bash
+   git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
+   ```
+
+   すでに `/workspace/qwen_vast_sh` がある環境では、未コミットの変更を確認してから更新する。
+
+   ```bash
+   git -C /workspace/qwen_vast_sh status --short
+   git -C /workspace/qwen_vast_sh pull --ff-only origin main
+   ```
+
+3. Vast.ai では選んだモデルの `/workspace/qwen_vast_sh/models/<モデルID>/setup.sh` を実行する。SaladCloud では `bash /opt/salad/select_model.sh <モデルID>` を実行する。モデル本体はセットアップ処理が取得する。
+4. モデルのダウンロード、SHA-256 検証、セットアップの進捗と結果はSSH端末で確認する。コードはSCPで転送せず、リモートでclone・更新したリポジトリからセットアップする。
+
+SaladCloud では LightWan 2.2 A14B を選べない。SaladCloud のセットアップが完了したら `Model setup complete` と表示されることを確認する。SSH単発コマンドでは成功時にも終了コード `1` を返す場合があるため、終了コードだけで判断しない。
 
 既存のモデルファイルは毎回 SHA-256 を計算し、一致すれば再利用する。不一致ならファイルを残して停止する。未取得モデルがある場合は Hugging Face から最大 8 MiB を試験取得し、既定の 10 MiB/s 未満なら警告して続行を確認する。速度測定に失敗した場合は警告して取得を続ける。SaladCloud は再配置でコンテナのローカルストレージが消える場合があり、その場合はモデルの再取得が必要になる。
 
-以下の Vast.ai の clone・pull 手順は、Codex を使わず手動で配置する場合の手順。SaladCloud の共通イメージ、起動、Gateway、回収は後半の「SaladCloud」節にまとめた。
+以下にVast.aiとSaladCloudのプロバイダー別手順を記載する。どちらもリモート端末でリポジトリを `git clone` または `git pull` し、モデルのセットアップを実行する。
 
 ## 1. Vast.ai を手動でセットアップする場合
 
@@ -591,7 +603,13 @@ Container Group に共通イメージを設定し、Autostart を無効にする
 
 ### 4.2 起動とモデルの切り替え
 
-SaladCloud で Run を押し、レプリカが起動したら、冒頭の手順に沿って Codex に SSH コマンドを渡す。Codex がコードの転送を完了したら、返された PowerShell 用コマンドを自分の端末で実行する。コンテナ内で手動実行する場合のモデル選択コマンドは次の形式。
+SaladCloud で Run を押し、レプリカが起動したらSSHでコンテナに接続する。共通イメージにはモデル用の `models/` と `scripts/` が入っていないため、最初にコンテナ内の `/workspace/qwen_vast_sh` へリポジトリをcloneする。
+
+```bash
+git clone https://github.com/aoikonn129dhja/qwen_vast_sh.git /workspace/qwen_vast_sh
+```
+
+すでにclone済みなら、`git -C /workspace/qwen_vast_sh status --short` で変更を確認してから `git -C /workspace/qwen_vast_sh pull --ff-only origin main` で更新する。その後、コンテナ内でモデル選択コマンドを実行する。
 
 ```bash
 bash /opt/salad/select_model.sh qwen-rapid-aio-nsfw-v23

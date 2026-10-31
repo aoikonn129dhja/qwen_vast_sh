@@ -1,0 +1,1054 @@
+{
+  "id": "54bb395d-3e60-4c94-b525-85523901575b",
+  "revision": 0,
+  "last_node_id": 510,
+  "last_link_id": 811,
+  "nodes": [
+    {
+      "id": 476,
+      "type": "UNETLoader",
+      "pos": [
+        -134.8056179873577,
+        2772.2083301604007
+      ],
+      "size": [
+        510,
+        90
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            783
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0",
+        "models": [
+          {
+            "name": "qwen_image_2.1_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors",
+            "directory": "diffusion_models"
+          }
+        ]
+      },
+      "widgets_values": [
+        "qwen_image_2.1_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 477,
+      "type": "CLIPLoader",
+      "pos": [
+        -134.8056179873577,
+        2932.2083301604007
+      ],
+      "size": [
+        510,
+        120
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            741
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0",
+        "models": [
+          {
+            "name": "qwen3vl_8b_bf16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_bf16.safetensors",
+            "directory": "text_encoders"
+          }
+        ]
+      },
+      "widgets_values": [
+        "qwen3vl_8b_int8_convrot.safetensors",
+        "qwen_image",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    {
+      "id": 478,
+      "type": "VAELoader",
+      "pos": [
+        -134.8056179873577,
+        3132.2083301604007
+      ],
+      "size": [
+        510,
+        70
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            729,
+            743
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0",
+        "models": [
+          {
+            "name": "qwen_image_2.1_vae_bf16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors",
+            "directory": "vae"
+          }
+        ]
+      },
+      "widgets_values": [
+        "qwen_image_2.1_vae_bf16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    {
+      "id": 479,
+      "type": "EmptyLatentImage",
+      "pos": [
+        70,
+        3350
+      ],
+      "size": [
+        300,
+        120
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 793
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 794
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            795
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ],
+      "widgets_values_named": {
+        "width": 1024,
+        "height": 1024,
+        "batch_size": 1
+      }
+    },
+    {
+      "id": 480,
+      "type": "VAEDecode",
+      "pos": [
+        1690,
+        3000
+      ],
+      "size": [
+        230,
+        60
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 731
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 729
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            797,
+            798
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      }
+    },
+    {
+      "id": 481,
+      "type": "KSampler",
+      "pos": [
+        1250,
+        2980
+      ],
+      "size": [
+        270,
+        270
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 735
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 736
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 737
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 795
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            731
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      },
+      "widgets_values": [
+        488345170733023,
+        "fixed",
+        14,
+        1,
+        "euler",
+        "simple",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 488345170733023,
+        "control_after_generate": "fixed",
+        "steps": 14,
+        "cfg": 1,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1
+      }
+    },
+    {
+      "id": 483,
+      "type": "QwenImage21Cache",
+      "pos": [
+        1250,
+        2800
+      ],
+      "size": [
+        270,
+        90
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 784
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            735
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "QwenImage21Cache",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      },
+      "widgets_values": [
+        "gpu",
+        "int8"
+      ],
+      "widgets_values_named": {
+        "device": "gpu",
+        "dtype": "int8"
+      }
+    },
+    {
+      "id": 484,
+      "type": "TextEncodeQwenImage21",
+      "pos": [
+        571.0576686256287,
+        2896.3452371886856
+      ],
+      "size": [
+        460,
+        266
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 741
+        },
+        {
+          "name": "images.image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 810
+        },
+        {
+          "name": "images.image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 811
+        },
+        {
+          "name": "images.image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "images.image_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 743
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 806
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            736
+          ]
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            737
+          ]
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextEncodeQwenImage21",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      },
+      "widgets_values": [
+        "replace the pose of <image 2> with the pose of <image 1>. keep the character of <image 2>",
+        "",
+        1024
+      ],
+      "widgets_values_named": {
+        "prompt": "replace the pose of <image 2> with the pose of <image 1>. keep the character of <image 2>",
+        "negative_prompt": "",
+        "resolution": 1024
+      }
+    },
+    {
+      "id": 501,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        541.0576686256287,
+        2746.3452371886856
+      ],
+      "size": [
+        560,
+        90
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 783
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            784
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      },
+      "widgets_values": [
+        "VNCCS_QI2_PoseStudioV1.1.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "VNCCS_QI2_PoseStudioV1.1.safetensors",
+        "strength_model": 1
+      }
+    },
+    {
+      "id": 504,
+      "type": "Image Comparer (rgthree)",
+      "pos": [
+        119.75097161659177,
+        1411.7895131875944
+      ],
+      "size": [
+        1030,
+        1030
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "image_a",
+          "type": "IMAGE",
+          "link": 797
+        },
+        {
+          "dir": 3,
+          "name": "image_b",
+          "type": "IMAGE",
+          "link": 805
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "images",
+          "shape": 3,
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "comparer_mode": "Slide",
+        "cnr_id": "rgthree-comfy",
+        "ver": "27b4f4cdcf3b127c29d5d8135ac1536ecbd4c383"
+      },
+      "widgets_values": [
+        [
+          {
+            "name": "A",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_chcft_00013_.png&type=temp&subfolder=&rand=0.7881287048249774"
+          },
+          {
+            "name": "B",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_chcft_00014_.png&type=temp&subfolder=&rand=0.4898096129321159"
+          }
+        ]
+      ],
+      "widgets_values_named": {
+        "rgthree_comparer": {
+          "images": [
+            {
+              "name": "A",
+              "selected": true,
+              "url": "/api/view?filename=rgthree.compare._temp_chcft_00013_.png&type=temp&subfolder=&rand=0.7881287048249774",
+              "img": {}
+            },
+            {
+              "name": "B",
+              "selected": true,
+              "url": "/api/view?filename=rgthree.compare._temp_chcft_00014_.png&type=temp&subfolder=&rand=0.4898096129321159",
+              "img": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 505,
+      "type": "GetImageSize",
+      "pos": [
+        -100,
+        3380
+      ],
+      "size": [
+        140,
+        124
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 804
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            793
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            794
+          ]
+        },
+        {
+          "name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GetImageSize",
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0"
+      }
+    },
+    {
+      "id": 506,
+      "type": "SaveImage",
+      "pos": [
+        1303.3522851826588,
+        3658.3549682571033
+      ],
+      "size": [
+        1340,
+        1040
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 798
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": 808
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.36.0",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "ComfyUI"
+      }
+    },
+    {
+      "id": 508,
+      "type": "VNCCS_PoseStudio",
+      "pos": [
+        -1908.8630168213326,
+        1298.1053141437073
+      ],
+      "size": [
+        1676.9502641358013,
+        1332.34723071417
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pose_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "shape": 6,
+          "type": "IMAGE",
+          "links": [
+            804,
+            805,
+            810
+          ]
+        },
+        {
+          "name": "lighting_prompt",
+          "shape": 6,
+          "type": "STRING",
+          "links": [
+            806
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VNCCS_PoseStudio"
+      },
+      "widgets_values": [
+        "{\"schema_version\":3,\"active_character_id\":\"character-1\",\"characters\":[{\"id\":\"character-1\",\"slot\":0,\"name\":\"Main Character\",\"color\":\"#ffffff\",\"transform\":{\"x\":0.7453152081510209,\"y\":-0.9538181977453029,\"z\":-3.911982381585905,\"zoom\":4.08},\"mesh\":{\"age\":19,\"gender\":0,\"weight\":0.28,\"muscle\":0.09,\"height\":0.5,\"breast_size\":0.23,\"firmness\":0,\"show_genitals\":false,\"penis_len\":0.5,\"penis_circ\":0.5,\"penis_test\":0.5,\"head_size\":1,\"arm_size\":1,\"hand_size\":1,\"foot_size\":1,\"shoulder_l_length\":0.5,\"shoulder_r_length\":0.5,\"hip_l_length\":0.5,\"hip_r_length\":0.5,\"upper_arm_l_length\":0.5,\"upper_arm_r_length\":0.5,\"forearm_l_length\":0.5,\"forearm_r_length\":0.5,\"thigh_l_length\":0.5,\"thigh_r_length\":0.5,\"shin_l_length\":0.5,\"shin_r_length\":0.5,\"spine_length\":0.5},\"poses\":[{\"bones\":{\"spine_02\":[1.5522887093472217,-0.03324440047403957,0.5678818083845616],\"spine_03\":[19.867297472413632,1.0545084056442282,5.821341256284909],\"thigh_l\":[-2.817109220031027,0.0789922831985645,17.575821140533513],\"thigh_r\":[-2.599353700346593,-0.29444569368784684,-20.444351647784856],\"neck_01\":[39.69098852293679,-0.5128212233488111,13.853393197073956],\"upperarm_l\":[-12.231456711018755,3.9781016663816735,-24.127727484911663],\"upperarm_r\":[-25.498002381381923,7.426655770851996,30.274856909421818],\"lowerarm_l\":[27.89379089950662,-23.713763282343184,-22.095678122855077],\"lowerarm_r\":[50.950201773902656,11.663682393696853,8.638088259171957]},\"bonePositions\":{\"Root\":[0,-8.161791801452637,-0.25992873311042786]},\"modelRotation\":[0,0,0],\"ikEffectorPositions\":{\"pelvis\":[0.7453152081510209,-5.578428078192694,-3.410770428422758],\"hand_l\":[5.737733687766066,-7.639451619860943,-0.47755680535008294],\"hand_r\":[-2.8461029601179395,-9.522936295066128,0.12896638660179915],\"foot_l\":[13.504880473485356,-30.38313625743043,-2.9717065780351013],\"foot_r\":[-13.172567430456601,-29.873088672218806,-3.1264737732617],\"head\":[-1.3148958929407586,8.913371322059405,3.160728566413038],\"upperarm_l\":[4.704733102038956,5.96551957203169,-0.776772818961325],\"upperarm_r\":[-4.739031147319857,4.911070841752342,-0.9748438506573855]},\"poleTargetPositions\":{\"leftArm\":[7.977962301775934,5.680486054552577,-2.4590196193331635],\"rightArm\":[-2.6666712750839174,8.40562975617623,-8.258875847219702],\"leftLeg\":[6.093909789538093,9.287609060775733,2.479836211348339],\"rightLeg\":[-2.2162586909171975,12.468117685568718,-1.1637830193747067]},\"hipBonePosition\":{\"hips\":[0,7.028308987617493,0.38277480006217957]},\"cameraParams\":{\"offset_x\":0.7453152081510209,\"offset_y\":-0.9538181977453029,\"zoom\":4.08,\"yaw_deg\":-17,\"pitch_deg\":67},\"prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\"}],\"animation\":null}],\"timeline\":{\"fps\":12,\"duration\":2,\"frameCount\":24,\"currentFrame\":0,\"loop\":true},\"pose_prompts\":[\"I am in the restroom.\\nA photo taken from directly beneath her\"],\"mesh\":{\"age\":19,\"gender\":0,\"weight\":0.28,\"muscle\":0.09,\"height\":0.5,\"breast_size\":0.23,\"firmness\":0,\"show_genitals\":false,\"penis_len\":0.5,\"penis_circ\":0.5,\"penis_test\":0.5,\"head_size\":1,\"arm_size\":1,\"hand_size\":1,\"foot_size\":1,\"shoulder_l_length\":0.5,\"shoulder_r_length\":0.5,\"hip_l_length\":0.5,\"hip_r_length\":0.5,\"upper_arm_l_length\":0.5,\"upper_arm_r_length\":0.5,\"forearm_l_length\":0.5,\"forearm_r_length\":0.5,\"thigh_l_length\":0.5,\"thigh_r_length\":0.5,\"shin_l_length\":0.5,\"shin_r_length\":0.5,\"spine_length\":0.5},\"export\":{\"view_width\":896,\"view_height\":1152,\"cam_zoom\":4.08,\"cam_offset_x\":0.7453152081510209,\"cam_offset_y\":-0.9538181977453029,\"cam_yaw_deg\":-17,\"cam_pitch_deg\":67,\"output_mode\":\"LIST\",\"grid_columns\":2,\"bg_color\":[255,255,255],\"debugMode\":false,\"debugKeepLighting\":false,\"debugShowSAMHelper\":false,\"debugShowSAMMeshOverlay\":false,\"samApplyCamera\":false,\"keepOriginalLighting\":true,\"user_prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\",\"prompt_template\":\"Draw character from image2\\n<lighting>\\n<user_prompt>\",\"skin_type\":\"naked\",\"interface_mode\":\"studio\",\"manager_auto_analyze_proportions\":true,\"capture_image_size\":false,\"editor_mode\":\"image\",\"animation_image_batch\":false,\"hand_controls_v2\":true,\"directional_skydome_enabled\":false},\"poses\":[{\"bones\":{\"spine_02\":[1.5522887093472217,-0.03324440047403957,0.5678818083845616],\"spine_03\":[19.867297472413632,1.0545084056442282,5.821341256284909],\"thigh_l\":[-2.817109220031027,0.0789922831985645,17.575821140533513],\"thigh_r\":[-2.599353700346593,-0.29444569368784684,-20.444351647784856],\"neck_01\":[39.69098852293679,-0.5128212233488111,13.853393197073956],\"upperarm_l\":[-12.231456711018755,3.9781016663816735,-24.127727484911663],\"upperarm_r\":[-25.498002381381923,7.426655770851996,30.274856909421818],\"lowerarm_l\":[27.89379089950662,-23.713763282343184,-22.095678122855077],\"lowerarm_r\":[50.950201773902656,11.663682393696853,8.638088259171957]},\"bonePositions\":{\"Root\":[0,-8.161791801452637,-0.25992873311042786]},\"modelRotation\":[0,0,0],\"ikEffectorPositions\":{\"pelvis\":[0.7453152081510209,-5.578428078192694,-3.410770428422758],\"hand_l\":[5.737733687766066,-7.639451619860943,-0.47755680535008294],\"hand_r\":[-2.8461029601179395,-9.522936295066128,0.12896638660179915],\"foot_l\":[13.504880473485356,-30.38313625743043,-2.9717065780351013],\"foot_r\":[-13.172567430456601,-29.873088672218806,-3.1264737732617],\"head\":[-1.3148958929407586,8.913371322059405,3.160728566413038],\"upperarm_l\":[4.704733102038956,5.96551957203169,-0.776772818961325],\"upperarm_r\":[-4.739031147319857,4.911070841752342,-0.9748438506573855]},\"poleTargetPositions\":{\"leftArm\":[7.977962301775934,5.680486054552577,-2.4590196193331635],\"rightArm\":[-2.6666712750839174,8.40562975617623,-8.258875847219702],\"leftLeg\":[6.093909789538093,9.287609060775733,2.479836211348339],\"rightLeg\":[-2.2162586909171975,12.468117685568718,-1.1637830193747067]},\"hipBonePosition\":{\"hips\":[0,7.028308987617493,0.38277480006217957]},\"cameraParams\":{\"offset_x\":0.7453152081510209,\"offset_y\":-0.9538181977453029,\"zoom\":4.08,\"yaw_deg\":-17,\"pitch_deg\":67},\"prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\"}],\"lights\":[{\"type\":\"directional\",\"color\":\"#ffffff\",\"intensity\":2,\"x\":10,\"y\":20,\"z\":30},{\"type\":\"ambient\",\"color\":\"#505050\",\"intensity\":1,\"x\":0,\"y\":0,\"z\":0}],\"activeTab\":0,\"capture_id\":\"vnccs_capture_508\",\"lighting_prompts\":[\"Draw character from image2\\nI am in the restroom.\\nA photo taken from directly beneath her\"],\"background_url\":null}",
+        false,
+        ""
+      ],
+      "widgets_values_named": {
+        "pose_data": "{\"schema_version\":3,\"active_character_id\":\"character-1\",\"characters\":[{\"id\":\"character-1\",\"slot\":0,\"name\":\"Main Character\",\"color\":\"#ffffff\",\"transform\":{\"x\":0.7453152081510209,\"y\":-0.9538181977453029,\"z\":-3.911982381585905,\"zoom\":4.08},\"mesh\":{\"age\":19,\"gender\":0,\"weight\":0.28,\"muscle\":0.09,\"height\":0.5,\"breast_size\":0.23,\"firmness\":0,\"show_genitals\":false,\"penis_len\":0.5,\"penis_circ\":0.5,\"penis_test\":0.5,\"head_size\":1,\"arm_size\":1,\"hand_size\":1,\"foot_size\":1,\"shoulder_l_length\":0.5,\"shoulder_r_length\":0.5,\"hip_l_length\":0.5,\"hip_r_length\":0.5,\"upper_arm_l_length\":0.5,\"upper_arm_r_length\":0.5,\"forearm_l_length\":0.5,\"forearm_r_length\":0.5,\"thigh_l_length\":0.5,\"thigh_r_length\":0.5,\"shin_l_length\":0.5,\"shin_r_length\":0.5,\"spine_length\":0.5},\"poses\":[{\"bones\":{\"spine_02\":[1.5522887093472217,-0.03324440047403957,0.5678818083845616],\"spine_03\":[19.867297472413632,1.0545084056442282,5.821341256284909],\"thigh_l\":[-2.817109220031027,0.0789922831985645,17.575821140533513],\"thigh_r\":[-2.599353700346593,-0.29444569368784684,-20.444351647784856],\"neck_01\":[39.69098852293679,-0.5128212233488111,13.853393197073956],\"upperarm_l\":[-12.231456711018755,3.9781016663816735,-24.127727484911663],\"upperarm_r\":[-25.498002381381923,7.426655770851996,30.274856909421818],\"lowerarm_l\":[27.89379089950662,-23.713763282343184,-22.095678122855077],\"lowerarm_r\":[50.950201773902656,11.663682393696853,8.638088259171957]},\"bonePositions\":{\"Root\":[0,-8.161791801452637,-0.25992873311042786]},\"modelRotation\":[0,0,0],\"ikEffectorPositions\":{\"pelvis\":[0.7453152081510209,-5.578428078192694,-3.410770428422758],\"hand_l\":[5.737733687766066,-7.639451619860943,-0.47755680535008294],\"hand_r\":[-2.8461029601179395,-9.522936295066128,0.12896638660179915],\"foot_l\":[13.504880473485356,-30.38313625743043,-2.9717065780351013],\"foot_r\":[-13.172567430456601,-29.873088672218806,-3.1264737732617],\"head\":[-1.3148958929407586,8.913371322059405,3.160728566413038],\"upperarm_l\":[4.704733102038956,5.96551957203169,-0.776772818961325],\"upperarm_r\":[-4.739031147319857,4.911070841752342,-0.9748438506573855]},\"poleTargetPositions\":{\"leftArm\":[7.977962301775934,5.680486054552577,-2.4590196193331635],\"rightArm\":[-2.6666712750839174,8.40562975617623,-8.258875847219702],\"leftLeg\":[6.093909789538093,9.287609060775733,2.479836211348339],\"rightLeg\":[-2.2162586909171975,12.468117685568718,-1.1637830193747067]},\"hipBonePosition\":{\"hips\":[0,7.028308987617493,0.38277480006217957]},\"cameraParams\":{\"offset_x\":0.7453152081510209,\"offset_y\":-0.9538181977453029,\"zoom\":4.08,\"yaw_deg\":-17,\"pitch_deg\":67},\"prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\"}],\"animation\":null}],\"timeline\":{\"fps\":12,\"duration\":2,\"frameCount\":24,\"currentFrame\":0,\"loop\":true},\"pose_prompts\":[\"I am in the restroom.\\nA photo taken from directly beneath her\"],\"mesh\":{\"age\":19,\"gender\":0,\"weight\":0.28,\"muscle\":0.09,\"height\":0.5,\"breast_size\":0.23,\"firmness\":0,\"show_genitals\":false,\"penis_len\":0.5,\"penis_circ\":0.5,\"penis_test\":0.5,\"head_size\":1,\"arm_size\":1,\"hand_size\":1,\"foot_size\":1,\"shoulder_l_length\":0.5,\"shoulder_r_length\":0.5,\"hip_l_length\":0.5,\"hip_r_length\":0.5,\"upper_arm_l_length\":0.5,\"upper_arm_r_length\":0.5,\"forearm_l_length\":0.5,\"forearm_r_length\":0.5,\"thigh_l_length\":0.5,\"thigh_r_length\":0.5,\"shin_l_length\":0.5,\"shin_r_length\":0.5,\"spine_length\":0.5},\"export\":{\"view_width\":896,\"view_height\":1152,\"cam_zoom\":4.08,\"cam_offset_x\":0.7453152081510209,\"cam_offset_y\":-0.9538181977453029,\"cam_yaw_deg\":-17,\"cam_pitch_deg\":67,\"output_mode\":\"LIST\",\"grid_columns\":2,\"bg_color\":[255,255,255],\"debugMode\":false,\"debugKeepLighting\":false,\"debugShowSAMHelper\":false,\"debugShowSAMMeshOverlay\":false,\"samApplyCamera\":false,\"keepOriginalLighting\":true,\"user_prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\",\"prompt_template\":\"Draw character from image2\\n<lighting>\\n<user_prompt>\",\"skin_type\":\"naked\",\"interface_mode\":\"studio\",\"manager_auto_analyze_proportions\":true,\"capture_image_size\":false,\"editor_mode\":\"image\",\"animation_image_batch\":false,\"hand_controls_v2\":true,\"directional_skydome_enabled\":false},\"poses\":[{\"bones\":{\"spine_02\":[1.5522887093472217,-0.03324440047403957,0.5678818083845616],\"spine_03\":[19.867297472413632,1.0545084056442282,5.821341256284909],\"thigh_l\":[-2.817109220031027,0.0789922831985645,17.575821140533513],\"thigh_r\":[-2.599353700346593,-0.29444569368784684,-20.444351647784856],\"neck_01\":[39.69098852293679,-0.5128212233488111,13.853393197073956],\"upperarm_l\":[-12.231456711018755,3.9781016663816735,-24.127727484911663],\"upperarm_r\":[-25.498002381381923,7.426655770851996,30.274856909421818],\"lowerarm_l\":[27.89379089950662,-23.713763282343184,-22.095678122855077],\"lowerarm_r\":[50.950201773902656,11.663682393696853,8.638088259171957]},\"bonePositions\":{\"Root\":[0,-8.161791801452637,-0.25992873311042786]},\"modelRotation\":[0,0,0],\"ikEffectorPositions\":{\"pelvis\":[0.7453152081510209,-5.578428078192694,-3.410770428422758],\"hand_l\":[5.737733687766066,-7.639451619860943,-0.47755680535008294],\"hand_r\":[-2.8461029601179395,-9.522936295066128,0.12896638660179915],\"foot_l\":[13.504880473485356,-30.38313625743043,-2.9717065780351013],\"foot_r\":[-13.172567430456601,-29.873088672218806,-3.1264737732617],\"head\":[-1.3148958929407586,8.913371322059405,3.160728566413038],\"upperarm_l\":[4.704733102038956,5.96551957203169,-0.776772818961325],\"upperarm_r\":[-4.739031147319857,4.911070841752342,-0.9748438506573855]},\"poleTargetPositions\":{\"leftArm\":[7.977962301775934,5.680486054552577,-2.4590196193331635],\"rightArm\":[-2.6666712750839174,8.40562975617623,-8.258875847219702],\"leftLeg\":[6.093909789538093,9.287609060775733,2.479836211348339],\"rightLeg\":[-2.2162586909171975,12.468117685568718,-1.1637830193747067]},\"hipBonePosition\":{\"hips\":[0,7.028308987617493,0.38277480006217957]},\"cameraParams\":{\"offset_x\":0.7453152081510209,\"offset_y\":-0.9538181977453029,\"zoom\":4.08,\"yaw_deg\":-17,\"pitch_deg\":67},\"prompt\":\"I am in the restroom.\\nA photo taken from directly beneath her\"}],\"lights\":[{\"type\":\"directional\",\"color\":\"#ffffff\",\"intensity\":2,\"x\":10,\"y\":20,\"z\":30},{\"type\":\"ambient\",\"color\":\"#505050\",\"intensity\":1,\"x\":0,\"y\":0,\"z\":0}],\"activeTab\":0,\"capture_id\":\"vnccs_capture_508\",\"lighting_prompts\":[\"Draw character from image2\\nI am in the restroom.\\nA photo taken from directly beneath her\"],\"background_url\":null}",
+        "animation_image_batch": false,
+        "pose_studio_ui": ""
+      }
+    },
+    {
+      "id": 509,
+      "type": "LoadImageWithFilename",
+      "pos": [
+        -1375.8857393370001,
+        2702.107957598648
+      ],
+      "size": [
+        720.2607001217362,
+        968.2002450982063
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            809
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": [
+            808
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImageWithFilename"
+      },
+      "widgets_values": [
+        "null1 (1).jpg",
+        "name_only",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "null1 (1).jpg",
+        "filename_mode": "name_only",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 510,
+      "type": "ImageScaleToTotalPixels",
+      "pos": [
+        -613.4492825567961,
+        2729.531678627476
+      ],
+      "size": [
+        276.4927734375,
+        106
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 809
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            811
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleToTotalPixels"
+      },
+      "widgets_values": [
+        "lanczos",
+        1,
+        8
+      ],
+      "widgets_values_named": {
+        "upscale_method": "lanczos",
+        "megapixels": 1,
+        "resolution_steps": 8
+      }
+    }
+  ],
+  "links": [
+    [
+      729,
+      478,
+      0,
+      480,
+      1,
+      "VAE"
+    ],
+    [
+      731,
+      481,
+      0,
+      480,
+      0,
+      "LATENT"
+    ],
+    [
+      735,
+      483,
+      0,
+      481,
+      0,
+      "MODEL"
+    ],
+    [
+      736,
+      484,
+      0,
+      481,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      737,
+      484,
+      1,
+      481,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      783,
+      476,
+      0,
+      501,
+      0,
+      "MODEL"
+    ],
+    [
+      784,
+      501,
+      0,
+      483,
+      0,
+      "MODEL"
+    ],
+    [
+      793,
+      505,
+      0,
+      479,
+      0,
+      "INT"
+    ],
+    [
+      794,
+      505,
+      1,
+      479,
+      1,
+      "INT"
+    ],
+    [
+      795,
+      479,
+      0,
+      481,
+      3,
+      "LATENT"
+    ],
+    [
+      797,
+      480,
+      0,
+      504,
+      0,
+      "IMAGE"
+    ],
+    [
+      798,
+      480,
+      0,
+      506,
+      0,
+      "IMAGE"
+    ],
+    [
+      804,
+      508,
+      0,
+      505,
+      0,
+      "IMAGE"
+    ],
+    [
+      805,
+      508,
+      0,
+      504,
+      1,
+      "IMAGE"
+    ],
+    [
+      808,
+      509,
+      2,
+      506,
+      1,
+      "STRING"
+    ],
+    [
+      741,
+      477,
+      0,
+      484,
+      0,
+      "CLIP"
+    ],
+    [
+      743,
+      478,
+      0,
+      484,
+      5,
+      "VAE"
+    ],
+    [
+      806,
+      508,
+      1,
+      484,
+      6,
+      "STRING"
+    ],
+    [
+      809,
+      509,
+      0,
+      510,
+      0,
+      "IMAGE"
+    ],
+    [
+      810,
+      508,
+      0,
+      484,
+      1,
+      "IMAGE"
+    ],
+    [
+      811,
+      510,
+      0,
+      484,
+      2,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 38,
+      "title": "Models",
+      "bounding": [
+        -144.8056179873577,
+        2662.2083301604007,
+        530,
+        590
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 39,
+      "title": "Image Size",
+      "bounding": [
+        -130,
+        3260,
+        530,
+        250
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 40,
+      "title": "Conditioning",
+      "bounding": [
+        431.05766862562876,
+        2646.3452371886856,
+        700,
+        860
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 41,
+      "title": "Sampling",
+      "bounding": [
+        1160,
+        2640,
+        470,
+        860
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6303940863128529,
+      "offset": [
+        1966.757727901694,
+        -1160.1283565081796
+      ]
+    },
+    "frontendVersion": "1.55.17",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

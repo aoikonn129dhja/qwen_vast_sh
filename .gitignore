@@ -4,6 +4,7 @@ input/
 output/
 tmp/
 docs/
+ポーズ込_Qwen-Image-2.1-VNCCS-ポーズスタジオ/
 
 # Local prompt definitions
 .env
